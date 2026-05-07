@@ -1,0 +1,3671 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retiro — Net Worth Projector</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="./index_files/chart.umd.js.download"></script>
+<script src="./index_files/supabase-js@2"></script>
+
+<style>
+/* ── RESET ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  background: #f6f9fc;
+  color: #1a1f36;
+  min-height: 100vh;
+}
+input, select, button { font-family: inherit; font-size: 13px; }
+
+/* ── APP SHELL ─────────────────────────────────────────────── */
+#app-screen { min-height: 100vh; }
+.app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid #e6ebf1;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+.app-title { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1a1f36; }
+.app-bar-right { display: flex; align-items: center; gap: 8px; }
+.btn-io {
+  padding: 5px 12px;
+  border: 1px solid #e6ebf1;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3c4257;
+  transition: background .15s, border-color .15s;
+}
+.btn-io:hover { background: #f6f9fc; border-color: #c1cad4; }
+.app-body { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
+
+/* ── FORM ELEMENTS ─────────────────────────────────────────── */
+input[type=number], input[type=text] {
+  font-size: 13px !important;
+  padding: 5px 8px;
+  height: 30px !important;
+  line-height: 30px !important;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e0e6ed;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1f36;
+  transition: border-color .15s, box-shadow .15s;
+}
+input[type=number]:focus, input[type=text]:focus {
+  outline: none;
+  border-color: #635bff;
+  box-shadow: 0 0 0 3px rgba(99,91,255,.12);
+}
+select {
+  font-size: 13px !important;
+  padding: 5px 8px;
+  height: 30px !important;
+  line-height: 30px !important;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e0e6ed;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1f36;
+}
+input[type=range] {
+  display: block;
+  margin: 4px 0 0;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: #e6ebf1;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #635bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #635bff;
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #635bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+/* ── CIRCLE BUTTONS ────────────────────────────────────────── */
+.btn-add, .btn-rm, .btn-col {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  aspect-ratio: 1 / 1;
+  font-weight: 700;
+  transition: background .15s;
+}
+.btn-add { width: 22px; height: 22px; font-size: 17px; background: #dde8ff; color: #3d5afe; }
+.btn-add:hover { background: #bbc9ff; }
+.btn-rm  { width: 20px; height: 20px; font-size: 13px; background: #ffe4e6; color: #be123c; }
+.btn-rm:hover  { background: #fecdd3; }
+.btn-col { width: 20px; height: 20px; font-size: 13px; background: #f1f3f9; color: #697386; }
+.btn-col:hover { background: #e6ebf1; }
+
+/* ── SECTION LABELS ────────────────────────────────────────── */
+.sec {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  line-height: 20px;
+}
+.sec.def { background: #f1f3f9; color: #3c4257; }
+.sec.red { background: #ffe4e6; color: #9f1239; }
+.sec.grn { background: #dcfce7; color: #14532d; }
+.sec.blu { background: #dbeafe; color: #1e3a8a; }
+.sec.ora { background: #fef3c7; color: #78350f; }
+
+/* ── LAYOUT HELPERS ────────────────────────────────────────── */
+.lbl { display: block; font-size: 12px; color: #697386; margin: 0 0 2px; font-weight: 500; line-height: 1.3; }
+.sep { border: none; border-top: 1px solid #f0f2f8; margin: 6px 0; }
+.mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.row4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+.sec-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.secondary-sliders { border-top: 1px solid #f0f2f8; margin-top: 5px; padding-top: 5px; }
+.disabled-row { opacity: .35; }
+
+/* ── SAVE BADGE ────────────────────────────────────────────── */
+.sbadge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.sbadge.ok  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.sbadge.no  { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
+.sbadge.err { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+
+/* ── METRIC PILLS ──────────────────────────────────────────── */
+.pill {
+  background: #fff;
+  border: 1px solid #e6ebf1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 1px 3px rgba(50,50,93,.08), 0 1px 2px rgba(0,0,0,.05);
+}
+.pill-label { font-size: 11px; font-weight: 600; letter-spacing: .03em; color: #697386; text-transform: uppercase; margin-bottom: 4px; }
+.pill-val { font-size: 17px; font-weight: 700; font-family: 'SF Mono', Menlo, monospace; }
+
+/* ── MAX EXPENSE BOX ───────────────────────────────────────── */
+.max-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #15803d;
+  font-weight: 600;
+}
+.max-val { font-size: 15px; font-weight: 700; font-family: 'SF Mono', Menlo, monospace; color: #14532d; display: block; margin-top: 2px; }
+
+/* ── INFL NOTE ─────────────────────────────────────────────── */
+.infl-note { font-size: 11px; color: #8792a2; margin: 3px 0 0; }
+
+/* ── ITEM ROWS (collapsed) ─────────────────────────────────── */
+.item-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  margin-bottom: 1px;
+  cursor: pointer;
+  background: transparent;
+  min-height: 24px;
+  gap: 7px;
+  overflow: hidden;
+  transition: background .1s;
+  border-radius: 4px;
+}
+.item-row:hover { background: #f4f6fb; }
+.item-row.red { }
+.item-row.blu { }
+.item-row.grn { }
+.item-row.ora { }
+.item-num    { font-size: 11px; font-weight: 600; color: #c1cad4; min-width: 12px; flex-shrink: 0; }
+.item-name   { font-size: 13px; font-weight: 600; color: #1a1f36; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-detail { font-size: 11px; color: #8792a2; font-family: 'SF Mono', Menlo, monospace; white-space: nowrap; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+/* ── INLINE FIELD INPUTS ───────────────────────────────────── */
+input[type=text].iname, input[type=text].iname:focus {
+  border:none!important; background:none!important; outline:none!important; box-shadow:none!important;
+  padding:0!important; width:auto!important; height:auto!important; line-height:normal!important;
+  font-size:13px!important; font-weight:600; color:#1a1f36; flex:1; min-width:60px; max-width:130px; }
+input[type=text].iamt {
+  width:72px!important; height:26px!important; line-height:26px!important; padding:0 5px!important;
+  font-size:11px!important; font-family:'SF Mono',Menlo,monospace; text-align:right; border-radius:4px; flex-shrink:0; }
+input[type=number].ifield {
+  width:42px!important; height:26px!important; line-height:26px!important; padding:0 3px!important;
+  font-size:11px!important; text-align:center; border-radius:4px; flex-shrink:0; }
+select.iselect {
+  width:auto!important; height:26px!important; line-height:26px!important; padding:0 4px!important;
+  font-size:11px!important; border:1px solid #e6ebf1; border-radius:4px; flex-shrink:0; color:#1a1f36; }
+.isep { font-size:10px; color:#c1cad4; flex-shrink:0; line-height:1; }
+
+/* ── EXPAND CARDS ──────────────────────────────────────────── */
+.expand-card {
+  border: 1px solid #e0e6ed;
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 3px;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(50,50,93,.08), 0 1px 3px rgba(0,0,0,.05);
+}
+.expand-card.red { border-left: 3px solid #f87171; }
+.expand-card.blu { border-left: 3px solid #60a5fa; }
+.expand-card.grn { border-left: 3px solid #34d399; }
+.expand-card.ora { border-left: 3px solid #fb923c; }
+.expand-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; gap: 4px; }
+.bare {
+  border: none !important; background: none !important; outline: none !important; padding: 0 !important;
+  color: #1a1f36; font-size: 13px; font-weight: 600; min-width: 0; flex: 1;
+}
+
+/* ── CHART BOX ─────────────────────────────────────────────── */
+.chart-box {
+  background: #fff;
+  border: 1px solid #e6ebf1;
+  border-radius: 8px;
+  padding: 6px;
+  position: relative;
+  height: 210px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(50,50,93,.06);
+}
+
+/* ── CURVE EDITOR ─────────────────────────────────────────── */
+.curve-svg { width: 100%; display: block; background: #fff; border: 1px solid #e6ebf1; border-radius: 6px; touch-action: none; }
+
+/* ── SCENARIO BAR ──────────────────────────────────────────── */
+.sc-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f0f2f8;
+}
+.sc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #8792a2; white-space: nowrap; }
+
+/* ── AI TABS ────────────────────────────────────────────── */
+.ai-tab { font-size:10px; font-weight:700; padding:4px 10px; border:1px solid #e6ebf1; border-radius:20px; cursor:pointer; background:#fff; color:#697386; text-transform:uppercase; letter-spacing:.05em; transition: all .15s; }
+.ai-tab:hover { background: #f6f9fc; }
+.ai-tab.active { background:#635bff; color:#fff; border-color:#635bff; }
+
+/* ── DESCRIPTION TEXTAREA ──────────────────────────────── */
+textarea.desc {
+  width:100%!important; resize:vertical; font-size:12px; line-height:1.5;
+  min-height:48px; height:auto!important; padding:5px 8px!important;
+  color:#1a1f36; margin-top:4px; border:1px solid #e0e6ed; border-radius:6px;
+  background:#fafbff; font-family:inherit;
+}
+textarea.desc:focus { outline:none; border-color:#635bff; box-shadow:0 0 0 3px rgba(99,91,255,.1); }
+
+/* ── CHAT PANEL ────────────────────────────────────────── */
+.chat-msg { max-width:85%; padding:8px 12px; border-radius:10px; font-size:13px; line-height:1.55; word-break:break-word; }
+.chat-msg.user { background:#635bff; color:#fff; align-self:flex-end; border-radius:12px 12px 3px 12px; }
+.chat-msg.ai   { background:#f6f9fc; color:#1a1f36; align-self:flex-start; border-radius:12px 12px 12px 3px; border:1px solid #e6ebf1; }
+.chat-proposal { background:#f0f9ff; border:1px solid #7dd3fc; border-radius:6px; padding:10px 12px; margin:6px 0; }
+
+/* ── SECTION BANDS ─────────────────────────────────────── */
+.sec-band {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 6px 0 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+}
+.sec-band.red { background:#fee2e2; color:#991b1b; border-left:4px solid #f87171; }
+.sec-band.grn { background:#dcfce7; color:#14532d; border-left:4px solid #34d399; }
+.sec-band.ora { background:#fef3c7; color:#78350f; border-left:4px solid #fbbf24; }
+.sec-band.def { background:#e0e7ff; color:#312e81; border-left:4px solid #818cf8; }
+.sec-band.spy { background:#fffbeb; color:#92400e; border-left:4px solid #f59e0b; }
+
+/* ── SPY PRESET BAR ────────────────────────────────────── */
+.spy-preset-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 10px; background:#fafafa; border:1px solid #e6ebf1;
+  border-radius:6px; margin-bottom:6px;
+}
+select.spy-preset-sel {
+  width:auto!important; flex:1; height:26px!important; padding:0 6px!important;
+  font-size:11px!important; border:1px solid #e6ebf1; border-radius:4px;
+}
+
+/* ── SCENARIO DIFF HIGHLIGHT ──────────────────────────── */
+@keyframes sc-diff-pulse {
+  0%   { box-shadow: none; }
+  12%  { background-color: #fef08a !important; color: #713f12 !important; box-shadow: 0 0 0 5px rgba(234,179,8,0.55); }
+  45%  { background-color: #fef9c3 !important; color: inherit;           box-shadow: 0 0 0 3px rgba(234,179,8,0.25); }
+  100% { box-shadow: none; }
+}
+.sc-diff-flash { animation: sc-diff-pulse 2.3s ease-out; }
+.sc-diff-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: rgba(120,53,15,0.22); color: #92400e;
+  font-size: 9px; font-weight: 900; margin-left: 6px;
+  flex-shrink: 0; vertical-align: middle; line-height: 1;
+  font-style: normal;
+}
+
+/* ── SAGE CHAT ─────────────────────────────────────────── */
+#sage-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  background: #3d2b1e; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; transition: background .15s, transform .15s;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.45);
+}
+#sage-btn:hover { background: #5a3e2b; transform: scale(1.07); }
+#sage-popup {
+  position: fixed; bottom: 20px; right: 20px; width: 390px;
+  z-index: 600; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.38), 0 2px 8px rgba(0,0,0,0.2);
+  font-family: 'Inter', -apple-system, sans-serif; font-size: 13px;
+}
+#sage-popup-header {
+  background: #2c1f15; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+}
+#sage-popup-body {
+  background: #fff; border: 1px solid #d4c4b0; border-top: none;
+  display: flex; flex-direction: column;
+}
+#sage-messages {
+  min-height: 60px; max-height: 340px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+}
+.sage-msg {
+  max-width: 88%; padding: 8px 11px; border-radius: 10px;
+  font-size: 13px; line-height: 1.6; word-break: break-word;
+}
+.sage-msg.user { background: #2c1f15; color: #f5ede3; align-self: flex-end; border-radius: 12px 12px 3px 12px; }
+.sage-msg.ai   { background: #fdf6ee; color: #1a1f36; align-self: flex-start; border-radius: 12px 12px 12px 3px; border: 1px solid #e5d5c0; }
+
+/* ── RESPONSIVE ────────────────────────────────────────── */
+.grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+
+@media (max-width:680px) {
+  .grid-2col { grid-template-columns:1fr !important; }
+  #metrics { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+  .app-bar { height:auto; padding:8px 12px; flex-wrap:wrap; gap:6px; }
+  .app-body { padding:10px 12px; }
+  #footer-sassy { font-size:20px!important; padding:12px 12px!important; }
+  .pill-val { font-size:14px; }
+  input[type=text].iname { max-width:90px!important; }
+  .sc-bar { flex-wrap:wrap; }
+  .spy-preset-bar { flex-wrap:wrap; row-gap:4px; }
+  select.spy-preset-sel { max-width:none!important; flex:1 1 100%; }
+  #spy-preset-desc { flex:1 1 100%; }
+  #ai-oneliner-bar { flex-wrap:wrap; row-gap:4px; }
+}
+
+@media (max-width:480px) {
+  /* Tighten overall padding */
+  .app-body { padding:8px 10px; }
+  .app-title { font-size:10px; letter-spacing:.02em; }
+  .btn-io { padding:4px 8px; font-size:11px; }
+
+  /* Advisory header */
+  #footer-sassy { font-size:15px!important; padding:10px 12px!important; line-height:1.25!important; }
+
+  /* Scenario bar */
+  #sc-sel { width:90px!important; }
+  #sc-name { min-width:80px!important; max-width:140px!important; }
+
+  /* AI bar */
+  #ai-oneliner { font-size:12px; }
+  #ai-oneliner-bar { padding:6px 10px; min-height:auto; }
+
+  /* Charts */
+  .chart-box { height:160px; }
+
+  /* Metrics → 2 cols on tiny screens */
+  #metrics { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .pill { padding:6px 8px; }
+  .pill-val { font-size:12px; }
+  .pill-label { font-size:9px; }
+
+  /* Item rows — allow wrapping so fields don't overflow */
+  .item-row { flex-wrap:wrap; row-gap:4px; min-height:auto; padding:7px 8px; }
+  .item-num { display:none; }
+  input[type=text].iname { max-width:100%!important; flex:1 1 100%; }
+  input[type=text].iamt { width:58px!important; }
+  input[type=number].ifield { width:36px!important; }
+
+  /* Expand card inner grids */
+  .row2, .row3, .row4 { grid-template-columns:1fr 1fr !important; }
+
+  /* Section bands */
+  .sec-band { font-size:10px; padding:6px 10px; }
+
+  /* SPY preset bar */
+  select.spy-preset-sel { max-width:none!important; flex:1 1 100%; width:100%!important; }
+  #spy-preset-desc { flex:1 1 100%; white-space:normal!important; }
+
+  /* Bigger touch targets for circle buttons */
+  .btn-add { width:28px!important; height:28px!important; font-size:20px!important; }
+  .btn-rm  { width:26px!important; height:26px!important; font-size:16px!important; }
+  .btn-col { width:26px!important; height:26px!important; font-size:16px!important; }
+
+  /* Chat */
+  .chat-msg { font-size:12px; }
+  #chat-input { font-size:13px; }
+
+  /* Curve popup */
+  #curve-popup > div { padding:14px 12px 10px; }
+}
+
+/* ── MAIN SECTION TITLES ────────────────────────────────── */
+.main-section-title {
+  font-size: 24px; font-weight: 800; color: #1a1f36;
+  letter-spacing: -.03em; margin: 6px 0 4px; padding: 0;
+  display: flex; align-items: center; gap: 8px; line-height: 1.1;
+  border: none; background: none;
+}
+/* ── FREQUENCY GROUP HEADERS ────────────────────────────── */
+.freq-title {
+  font-size: 16px; font-weight: 800; color: #1a1f36;
+  letter-spacing: -.02em; margin: 8px 0 3px;
+  display: flex; align-items: center; gap: 6px;
+  text-transform: none;
+}
+/* ── EXPAND ARROW ───────────────────────────────────────── */
+.expand-arr {
+  font-size: 9px; color: #c1cad4; flex-shrink: 0; width: 10px;
+  text-align: center; transition: color .1s; user-select: none;
+}
+.item-row:hover .expand-arr { color: #8792a2; }
+/* ── SLIDER TICK MARKERS ────────────────────────────────── */
+.slider-tick-bar { position: relative; height: 8px; margin-top: 1px; }
+.slider-tick { position: absolute; top: 0; width: 2px; height: 8px;
+  border-radius: 1px; transform: translateX(-50%); display: none; }
+.slider-tick.red { background: rgba(192,48,48,0.65); }
+.slider-tick.grn { background: rgba(26,140,95,0.65); }
+/* ── MONTHLY BASE CTRL ──────────────────────────────────── */
+.monthly-base-ctrl {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  padding: 4px 8px; background: #f8f6fe; border-radius: 6px;
+  border: 1px solid rgba(100,50,160,0.12);
+}
+/* ── RENT SYNC ROW ──────────────────────────────────────── */
+.rent-row {
+  display: flex; align-items: center; padding: 3px 8px;
+  border-radius: 6px; margin-bottom: 2px; background: #fff; gap: 8px;
+  min-height: 26px; box-shadow: 0 1px 2px rgba(50,50,93,.06);
+}
+/* ── SPY NUDGE WHEEL ────────────────────────────────────── */
+#spy-nudge-wheel {
+  width: 38px; flex-shrink: 0; display: flex; flex-direction: column;
+  align-items: stretch; cursor: ns-resize; user-select: none;
+  border: 1px solid rgba(160,100,0,0.22); border-right: none;
+  border-radius: 4px 0 0 4px; overflow: hidden; position: relative;
+  background: #fffbeb;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     APP SCREEN
+══════════════════════════════════════════════════════════ -->
+<div id="app-screen">
+  <!-- Top bar -->
+  <div class="app-bar" style="justify-content:flex-end;">
+    <span id="sbadge" class="sbadge ok">saved</span>
+    <div class="app-bar-right">
+      <button class="btn-io" onclick="exportData()" title="Export all scenarios to a JSON file">Export</button>
+      <button class="btn-io" onclick="importData()" title="Import scenarios from a JSON file">Import</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImportFile(event)">
+    </div>
+  </div>
+
+  <div id="footer-sassy" style="display:none;"></div>
+
+  <div class="app-body">
+
+    <!-- Scenario selector -->
+    <div class="sc-bar">
+      <span class="sc-label">Scenario</span>
+      <select id="sc-sel" style="width:130px;flex-shrink:0;" onchange="switchScenario(this.value)"></select>
+      <input type="text" id="sc-name" style="flex:1;min-width:120px;max-width:220px;" placeholder="Scenario name…" oninput="renameActive(this.value)">
+      <button class="btn-add" onclick="addScenario()" title="Clone to new scenario">+</button>
+      <button class="btn-rm" id="sc-del" onclick="deleteScenario()" title="Delete">×</button>
+    </div>
+
+    <!-- AI one-liner -->
+    <div id="ai-oneliner-bar" style="background:#1a1f36;border-radius:8px 8px 0 0;padding:8px 14px;margin-bottom:0;display:flex;align-items:center;justify-content:space-between;min-height:36px;">
+      <button id="sage-btn" onclick="toggleSage()" title="Talk to Sage — your personal adviser">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="10" cy="10" r="9.5" fill="#5a3e2b"/>
+          <path d="M5.5 8.2 Q7.5 7 9.5 7.8" stroke="rgba(255,220,170,0.9)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          <path d="M10.5 7.8 Q12.5 7 14.5 8.2" stroke="rgba(255,220,170,0.9)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          <ellipse cx="7.8" cy="10" rx="1.1" ry="1" fill="rgba(255,215,160,0.92)"/>
+          <ellipse cx="12.2" cy="10" rx="1.1" ry="1" fill="rgba(255,215,160,0.92)"/>
+          <path d="M10 11 L9 13 Q10 13.8 11 13 Z" stroke="rgba(255,190,130,0.55)" stroke-width="0.5" fill="none"/>
+          <path d="M7.5 14.5 Q10 16 12.5 14.5" stroke="rgba(255,210,155,0.75)" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+          <path d="M5.5 13.5 Q6.5 17 10 18 Q13.5 17 14.5 13.5" stroke="rgba(255,220,170,0.28)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <path d="M6 6.5 Q10 4.5 14 6.5" stroke="rgba(255,220,170,0.25)" stroke-width="0.7" fill="none" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <span id="ai-oneliner" onclick="requestAiOneliner()" style="font-size:14px;font-weight:700;color:#e8e8f0;letter-spacing:-.01em;flex:1;cursor:pointer;padding-left:10px;">—</span>
+      <span style="flex-shrink:0;margin-left:12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+        <span id="max-val" style="font-size:13px;font-weight:800;color:rgba(100,220,160,1);">—</span>
+        <span style="font-size:10px;color:rgba(255,255,255,0.65);letter-spacing:.03em;">Recommended maximum monthly expenses</span>
+      </span>
+    </div>
+    <div style="background:#2d1515;border-radius:0 0 8px 8px;padding:6px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;min-height:28px;cursor:pointer;" onclick="requestAiJeopardize()">
+      <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,120,80,0.5);flex-shrink:0;margin-right:8px;">⚠</span>
+      <span id="ai-jeopardize" style="font-size:12px;font-weight:600;color:rgba(255,180,150,0.85);letter-spacing:-.01em;flex:1;font-style:italic;">—</span>
+    </div>
+
+    <!-- Chart legend -->
+    <div style="display:flex;gap:12px;font-size:10px;font-weight:600;margin-bottom:4px;align-items:center;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span style="width:12px;height:3px;background:#378ADD;border-radius:1px;display:inline-block;"></span>Liquid
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span style="width:12px;height:3px;background:#EF9F27;border-radius:1px;display:inline-block;"></span>Illiquid
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span style="width:14px;height:0;border-top:2px dashed #1D9E75;display:inline-block;"></span>Total
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span style="width:9px;height:9px;background:#1A8C5F;transform:rotate(45deg);display:inline-block;"></span>RE sale
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span style="width:9px;height:9px;background:#C03030;border-radius:50%;display:inline-block;"></span>Min liq
+      </span>
+      <span style="margin-left:auto;display:flex;gap:14px;align-items:center;color:#999;font-weight:400;">
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span style="width:12px;height:0;border-top:2px dashed rgba(200,130,20,0.7);display:inline-block;"></span>
+          SPY
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span style="width:12px;height:0;border-top:2px dashed rgba(140,80,200,0.7);display:inline-block;"></span>
+          Monthly exp · drag to edit · dbl-click to reset
+        </span>
+      </span>
+    </div>
+
+    <!-- Main chart -->
+    <div style="position:relative;padding-top:20px;margin-bottom:0;">
+      <div style="position:absolute;top:2px;left:6px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(0,0,0,0.25);pointer-events:none;">Net Worth</div>
+      <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
+    </div>
+    <!-- SPY preset selector -->
+    <div class="spy-preset-bar">
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Market Scenario</span>
+      <select class="spy-preset-sel" id="spy-preset-sel" onchange="applySpyPreset(this.value)" style="max-width:170px;flex-shrink:0;">
+        <option value="">— custom / manual —</option>
+      </select>
+      <span id="spy-preset-desc" style="font-size:11px;color:#3c4257;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"></span>
+    </div>
+
+    <!-- SPY sub-chart -->
+    <div style="position:relative;padding-top:18px;margin-bottom:0;">
+      <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(160,100,0,0.5);pointer-events:none;">SPY Returns &nbsp;<span id="spy-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
+      <div style="display:flex;align-items:stretch;gap:0;">
+        <!-- SPY nudge wheel -->
+        <div id="spy-nudge-wheel" title="Scroll or drag to shift all SPY returns up/down">
+          <div style="flex:1;min-height:12px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(160,100,0,0.13) 3px,rgba(160,100,0,0.13) 4px);"></div>
+          <div style="background:rgba(160,100,0,0.09);border-top:1.5px solid rgba(160,100,0,0.28);border-bottom:1.5px solid rgba(160,100,0,0.28);padding:4px 2px;text-align:center;">
+            <span id="spy-nudge-label" style="font-size:10px;font-weight:800;color:rgba(160,100,0,0.82);font-family:'SF Mono',Menlo,monospace;display:block;white-space:nowrap;">+0.0%</span>
+          </div>
+          <div style="flex:1;min-height:12px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(160,100,0,0.13) 3px,rgba(160,100,0,0.13) 4px);"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 55%,rgba(255,255,255,0.18) 100%);pointer-events:none;"></div>
+        </div>
+        <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-bottom:none;border-radius:0;height:90px;padding:2px 4px 0;"><canvas id="spyChart"></canvas></div>
+      </div>
+    </div>
+    <!-- Expense sub-chart -->
+    <div style="position:relative;padding-top:18px;margin-bottom:10px;">
+      <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(100,50,160,0.5);pointer-events:none;">Monthly Expenses &nbsp;<span id="exp-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
+      <div style="display:flex;align-items:stretch;gap:0;">
+        <!-- Multiplier wheel -->
+        <div id="exp-mult-wheel" title="Scroll or drag to scale all monthly expenses"
+          style="width:38px;flex-shrink:0;display:flex;flex-direction:column;align-items:stretch;cursor:ns-resize;user-select:none;border:1px solid rgba(100,50,160,0.22);border-right:none;border-radius:4px 0 0 4px;overflow:hidden;position:relative;background:#f8f6fe;">
+          <!-- upper grooves -->
+          <div style="flex:1;min-height:14px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(100,50,160,0.13) 3px,rgba(100,50,160,0.13) 4px);"></div>
+          <!-- centre value band -->
+          <div style="background:rgba(100,50,160,0.09);border-top:1.5px solid rgba(100,50,160,0.28);border-bottom:1.5px solid rgba(100,50,160,0.28);padding:5px 2px;text-align:center;">
+            <span id="exp-mult-label" style="font-size:10px;font-weight:800;color:rgba(100,50,160,0.82);font-family:'SF Mono',Menlo,monospace;display:block;white-space:nowrap;">—</span>
+          </div>
+          <!-- lower grooves -->
+          <div style="flex:1;min-height:14px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(100,50,160,0.13) 3px,rgba(100,50,160,0.13) 4px);"></div>
+          <!-- cylindrical sheen overlay -->
+          <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 55%,rgba(255,255,255,0.18) 100%);pointer-events:none;"></div>
+        </div>
+        <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-radius:0 0 4px 4px;height:90px;padding:2px 4px 0;"><canvas id="expChart"></canvas></div>
+      </div>
+    </div>
+    <!-- Metric pills -->
+    <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:10px 0 8px;"></div>
+
+    <!-- Drag/hover value tooltip -->
+    <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
+
+    <!-- 2-column control grid -->
+    <div class="grid-2col">
+
+      <!-- ── COL 1: OUTGOING ────────────────────────────────────── -->
+      <div>
+        <div id="sec-band-outgoing" class="main-section-title">
+          Outgoing
+          <button class="btn-add" onclick="addE()" title="Add expense" style="width:26px;height:26px;font-size:20px;">+</button>
+        </div>
+
+        <!-- Monthly sub-section -->
+        <div class="freq-title">Monthly <span id="exp-monthly-total" style="opacity:0.5;"></span></div>
+        <div class="monthly-base-ctrl">
+          <span style="font-size:11px;font-weight:700;color:rgba(100,50,160,0.7);white-space:nowrap;flex-shrink:0;">Base /mo</span>
+          <div style="flex:1;display:flex;flex-direction:column;">
+            <input type="range" id="monthly-base-slider" min="500" max="30000" step="100"
+              style="width:100%;margin:0;" oninput="applyMonthlyBaseSlider(+this.value)">
+            <div class="slider-tick-bar">
+              <div id="monthly-min-tick" class="slider-tick red" title="Breakdown sum (floor)"></div>
+              <div id="monthly-max-tick" class="slider-tick grn" title="Maximum recommended"></div>
+            </div>
+          </div>
+          <span id="monthly-base-val" style="font-size:11px;font-weight:800;color:rgba(100,50,160,0.85);font-family:'SF Mono',Menlo,monospace;white-space:nowrap;min-width:56px;text-align:right;">—</span>
+        </div>
+        <!-- Breakdown panel (collapsed by default) -->
+        <div style="margin-bottom:3px;">
+          <div onclick="toggleBreakdown()" style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:4px;" onmouseenter="this.style.background='#f4f6fb'" onmouseleave="this.style.background='transparent'">
+            <span id="breakdown-arrow" style="font-size:9px;color:#c1cad4;width:10px;text-align:center;">▶</span>
+            <span style="font-size:12px;color:#8792a2;font-weight:600;">Expense breakdown</span>
+            <span id="breakdown-sum-inline" style="margin-left:auto;font-family:'SF Mono',Menlo,monospace;font-size:10px;color:rgba(100,50,160,0.7);"></span>
+          </div>
+          <div id="monthly-breakdown-panel" style="display:none;padding:8px 10px 6px;background:#f8f6fe;border-radius:0 0 6px 6px;border:1px solid rgba(100,50,160,0.1);border-top:none;"></div>
+        </div>
+        <div id="exp-monthly-list"></div>
+
+        <!-- Yearly sub-section -->
+        <div class="freq-title" style="margin-top:8px;">Yearly <span id="exp-yearly-total" style="opacity:0.5;"></span></div>
+        <div style="margin-bottom:4px;">
+          <div class="item-row ora" style="cursor:default;">
+            <span class="item-num">☀</span>
+            <span class="item-name">Summer trip</span>
+            <input type="text" class="iamt" id="summerTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.summerTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
+          </div>
+          <div class="item-row ora" style="cursor:default;">
+            <span class="item-num">❄</span>
+            <span class="item-name">Winter trip</span>
+            <input type="text" class="iamt" id="winterTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.winterTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
+          </div>
+        </div>
+        <div id="exp-yearly-list"></div>
+
+        <!-- One-off sub-section -->
+        <div class="freq-title" style="margin-top:8px;">One-off <span id="exp-oneoff-total" style="opacity:0.5;"></span></div>
+        <div id="exp-oneoff-list"></div>
+
+        <div class="sep"></div>
+        <div class="sec-band def">AI Evaluation <button class="btn-io" onclick="requestAiEval()" id="ai-eval-btn" style="margin-left:auto;font-size:10px;height:22px;padding:0 8px;">Evaluate</button></div>
+        <div id="ai-eval-tabs" style="display:none;margin-bottom:4px;display:flex;gap:4px;flex-wrap:wrap;"></div>
+        <div id="ai-eval-box" style="font-size:12px;color:#444;line-height:1.65;min-height:80px;max-height:520px;overflow-y:auto;background:#f9f8f5;border:0.5px solid #e0dfd8;border-radius:3px;padding:9px 11px;">
+          <span style="color:#bbb;">Press Evaluate to get an AI assessment of your retirement plan.</span>
+        </div>
+      </div>
+
+      <!-- ── COL 2: INCOMING + ASSETS ──────────────────────────── -->
+      <div>
+        <div id="sec-band-income" class="main-section-title">
+          Incoming
+          <button class="btn-add" onclick="addI()" title="Add income" style="width:26px;height:26px;font-size:20px;">+</button>
+        </div>
+
+        <!-- Monthly sub-section -->
+        <div class="freq-title">Monthly <span id="inc-monthly-total" style="opacity:0.5;"></span></div>
+        <div id="inc-monthly-list"></div>
+
+        <!-- Yearly sub-section -->
+        <div class="freq-title" style="margin-top:8px;">Yearly <span id="inc-yearly-total" style="opacity:0.5;"></span></div>
+        <div id="inc-yearly-list"></div>
+
+        <!-- One-off sub-section -->
+        <div class="freq-title" style="margin-top:8px;">One-off <span id="inc-oneoff-total" style="opacity:0.5;"></span></div>
+        <div id="inc-oneoff-list"></div>
+
+        <div class="sep"></div>
+        <div id="sec-band-realestate" class="main-section-title">
+          Assets <span id="assets-total" style="opacity:0.5;"></span>
+          <button class="btn-add" onclick="addP()" title="Add property" style="width:26px;height:26px;font-size:20px;">+</button>
+        </div>
+        <div style="margin-bottom:6px;">
+          <label class="lbl">Appreciation &nbsp;<span id="app-v" class="mono" style="float:right;"></span></label>
+          <input type="range" id="app" min="0" max="12" step="0.25" oninput="S.assetAppreciation=+this.value;document.getElementById('app-v').textContent=this.value+'%';go()">
+        </div>
+        <div id="props-list"></div>
+      </div>
+
+    </div><!-- /grid -->
+
+    <!-- ── Settings panel ────────────────────────────────────────── -->
+    <div style="margin-top:14px;border-top:1px solid #f0efe8;">
+      <div id="sec-band-settings" style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="font-size:11px;color:#aaa;font-weight:600;">Inflation: <span id="infl-badge" ondblclick="startInflEdit()" style="font-weight:800;color:#888;cursor:pointer;border-bottom:1px dashed #ccc;" title="Double-click to edit">—</span></span>
+        </div>
+        <button onclick="toggleSettings()" style="background:none;border:none;cursor:pointer;font-size:16px;color:#bbb;padding:2px 4px;" title="Settings">⚙</button>
+      </div>
+      <div id="settings-panel" style="display:none;padding:10px 0 6px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end;">
+          <div>
+            <label class="lbl">Start age</label>
+            <input type="number" id="startAge" min="40" max="80" onchange="S.startAge=+this.value;pruneYieldCurve();go()">
+          </div>
+          <div>
+            <label class="lbl">End age</label>
+            <input type="number" id="endAge" min="60" max="100" onchange="S.endAge=+this.value;pruneYieldCurve();go()">
+          </div>
+          <div>
+            <label class="lbl">Current liquid</label>
+            <input type="text" id="liquidBase" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="S.liquidBase=parseNum(this.value);go()">
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="lbl">Inflation &nbsp;<span id="inf-v" class="mono" style="float:right;"></span></label>
+          <input type="range" id="inf" min="1" max="8" step="0.25" oninput="S.inflationRate=+this.value;document.getElementById('inf-v').textContent=this.value+'%';document.getElementById('infl-badge').textContent=this.value+'%';go()">
+          <div style="font-size:10px;color:#aaa;margin-top:2px;">Market implied (TIPS 5yr): <span style="font-weight:700;color:#888;">2.4%</span></div>
+        </div>
+        <div style="margin-top:10px;">
+          <label class="lbl">Your profile <span style="font-weight:400;color:#aaa;">(used by AI advisor for context)</span></label>
+          <textarea id="user-profile" class="desc" rows="3" placeholder="Describe yourself: age, family situation, goals, risk tolerance, lifestyle, income sources, health, anything relevant for retirement planning…" oninput="saveProfile()"></textarea>
+        </div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #f0f2f8;">
+          <label class="lbl">Claude API key <span style="font-weight:400;color:#aaa;">(stored in this browser only, never uploaded)</span></label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="password" id="claude-key-input" placeholder="sk-ant-api03-…" style="flex:1;"
+              oninput="localStorage.setItem('retiro_claude_key',this.value)">
+            <button onclick="var i=document.getElementById('claude-key-input');i.type=i.type==='password'?'text':'password'"
+              style="background:#f1f3f9;border:1px solid #e0e6ed;border-radius:6px;padding:0 10px;height:30px;cursor:pointer;font-size:12px;color:#697386;flex-shrink:0;">show</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="lbl">Cloud sync ID <span style="font-weight:400;color:#aaa;">(paste this on another device to share your data)</span></label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="text" id="sb-id-input" style="flex:1;font-family:'SF Mono',Menlo,monospace;font-size:11px;" placeholder="auto-generated">
+            <button onclick="applySbId()"
+              style="background:#f1f3f9;border:1px solid #e0e6ed;border-radius:6px;padding:0 10px;height:30px;cursor:pointer;font-size:12px;color:#697386;flex-shrink:0;">apply</button>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('sb-id-input').value)"
+              style="background:#f1f3f9;border:1px solid #e0e6ed;border-radius:6px;padding:0 10px;height:30px;cursor:pointer;font-size:12px;color:#697386;flex-shrink:0;">copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AI Advisor Chat ──────────────────────────────────────── -->
+    <div style="margin-top:20px;">
+      <div class="sec-band def" style="cursor:pointer;user-select:none;" onclick="toggleChat()">
+        AI Advisor
+        <span id="chat-toggle" style="margin-left:auto;font-size:14px;font-weight:400;">▾</span>
+      </div>
+      <div id="chat-panel" style="display:none;background:#fff;border:1px solid #e6ebf1;border-radius:0 0 8px 8px;padding:12px 14px;box-shadow:0 2px 5px rgba(50,50,93,.06);">
+        <div id="chat-messages" style="min-height:60px;max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;padding-right:2px;"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <textarea id="chat-input" class="desc" rows="2" placeholder="Ask about your plan, explore scenarios, get recommendations…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}" style="flex:1;margin:0;"></textarea>
+          <button onclick="chatSend()" style="background:#635bff;color:#fff;border:none;border-radius:6px;padding:0 16px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;height:52px;white-space:nowrap;">Send</button>
+        </div>
+        <div style="font-size:10px;color:#aaa;margin-top:6px;">Shift+Enter for new line · AI can propose scenarios you can apply with one click</div>
+      </div>
+    </div>
+
+  </div><!-- /app-body -->
+
+  <!-- ── Curve popup ───────────────────────────────────────── -->
+  <div id="curve-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:8px;padding:20px 20px 14px;width:min(860px,95vw);box-shadow:0 24px 64px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:15px;">SPY Annual Returns</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:12px;color:#aaa;">Drag dots &nbsp;·&nbsp; double-click to reset</span>
+          <button onclick="closeCurve()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888;line-height:1;padding:0 4px;">×</button>
+        </div>
+      </div>
+      <svg id="curve-svg" style="width:100%;display:block;border:0.5px solid #e0dfd8;border-radius:4px;background:#fff;" viewBox="0 0 820 326" preserveAspectRatio="none"></svg>
+      <div id="curve-tip-bar" style="height:20px;text-align:center;font-size:13px;font-weight:700;color:#1a1a1a;margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <!-- ── Sage popup ───────────────────────────────────────── -->
+  <div id="sage-popup" style="display:none;">
+    <div id="sage-popup-header" onclick="toggleSage()">
+      <svg width="22" height="22" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;">
+        <circle cx="10" cy="10" r="9.5" fill="#5a3e2b"/>
+        <path d="M5.5 8.2 Q7.5 7 9.5 7.8" stroke="rgba(255,220,170,0.9)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <path d="M10.5 7.8 Q12.5 7 14.5 8.2" stroke="rgba(255,220,170,0.9)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="7.8" cy="10" rx="1.1" ry="1" fill="rgba(255,215,160,0.92)"/>
+        <ellipse cx="12.2" cy="10" rx="1.1" ry="1" fill="rgba(255,215,160,0.92)"/>
+        <path d="M7.5 14.5 Q10 16 12.5 14.5" stroke="rgba(255,210,155,0.75)" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+        <path d="M5.5 13.5 Q6.5 17 10 18 Q13.5 17 14.5 13.5" stroke="rgba(255,220,170,0.28)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:700;color:#f5ede3;letter-spacing:.04em;text-transform:uppercase;">Sage</div>
+        <div style="font-size:10px;color:rgba(245,237,227,0.5);letter-spacing:.02em;">your personal adviser</div>
+      </div>
+      <span id="sage-toggle-icon" style="font-size:14px;color:rgba(245,237,227,0.5);line-height:1;">▴</span>
+    </div>
+    <div id="sage-popup-body">
+      <div id="sage-messages"></div>
+      <div style="padding:10px 12px;border-top:1px solid #e8ddd4;display:flex;gap:8px;align-items:flex-end;background:#fdf6ee;">
+        <textarea id="sage-input" class="desc" rows="2"
+          placeholder="Ask Sage anything about your plan…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sageSend();}"
+          style="flex:1;margin:0;background:#fff;border-color:#d4c4b0;font-size:12px;min-height:44px;resize:none;"></textarea>
+        <button onclick="sageSend()" style="background:#3d2b1e;color:#f5ede3;border:none;border-radius:6px;padding:0 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;height:44px;white-space:nowrap;letter-spacing:.02em;">Send</button>
+      </div>
+      <div style="padding:4px 12px 8px;font-size:10px;color:#b8a898;">Shift+Enter for new line · Sage can propose and apply scenario changes</div>
+    </div>
+  </div>
+
+</div><!-- /app-screen -->
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  DATA MODEL
+// ══════════════════════════════════════════════════════════════
+const EMPTY = {
+  startAge: 57, endAge: 87, startYear: new Date().getFullYear(),
+  liquidBase: 1500000, yieldRate: 7, inflationRate: 3, assetAppreciation: 3,
+  monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
+  expMultiplier: 1,
+  yieldCurve: {},
+  crises: [
+    { id: 1, name: 'Correction', drop: 20, age: 58, enabled: true },
+    { id: 2, name: 'Correction', drop: 30, age: 62, enabled: true }
+  ],
+  incomes: [
+    { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
+    { id: 4, name: 'Dorado',    monthly: 5000, from: 58, to: 62, enabled: true }
+  ],
+  expenses: [
+    { id: 5,  name: 'Canchitas investment', amount: 160000, type: 'oneoff', from: 57, to: 57, atAge: 57, enabled: true },
+    { id: 6,  name: 'Carhué obra',          amount:  30000, type: 'oneoff', from: 57, to: 57, atAge: 57, enabled: true },
+    { id: 7,  name: 'Arcos obra',           amount:  50000, type: 'oneoff', from: 57, to: 57, atAge: 57, enabled: true },
+    { id: 8,  name: 'New car',              amount:  70000, type: 'oneoff', from: 57, to: 57, atAge: 57, enabled: true },
+    { id: 9,  name: 'Delta 2 obra',         amount:  50000, type: 'oneoff', from: 58, to: 58, atAge: 58, enabled: true }
+  ],
+  properties: [
+    { id: 10, name: 'Arcos',    value: 600000, monthlyRent:    0, rentFromAge: 57, saleAge: 70, hold: false, enabled: true },
+    { id: 11, name: 'Mocoretá',value: 300000, monthlyRent:    0, rentFromAge: 57, saleAge: 87, hold: true,  enabled: true },
+    { id: 12, name: 'Carhué',  value: 700000, monthlyRent:    0, rentFromAge: 57, saleAge: 60, hold: false, enabled: true },
+    { id: 13, name: 'Delta',   value: 100000, monthlyRent: 1000, rentFromAge: 57, saleAge: 87, hold: true,  enabled: true },
+    { id: 14, name: 'Luisma',  value:      0, monthlyRent:    0, rentFromAge: 57, saleAge: 65, hold: false, enabled: true },
+    { id: 15, name: 'Roca S',  value: 300000, monthlyRent: 2000, rentFromAge: 57, saleAge: 62, hold: false, enabled: true },
+    { id: 16, name: 'Roca L',  value: 400000, monthlyRent: 3000, rentFromAge: 57, saleAge: 63, hold: false, enabled: true },
+    { id: 17, name: 'Delta 2', value: 120000, monthlyRent:  750, rentFromAge: 57, saleAge: 61, hold: false, enabled: true }
+  ],
+  expensePhases: [], marketPhases: [],
+  expenseCurve: {},
+  spyPreset: null,
+  spyNudge: 0,
+  monthlyBreakdown: [
+    { id: 9001, name: 'Food',                   amount: 800,  enabled: true },
+    { id: 9002, name: 'Dining out',              amount: 400,  enabled: true },
+    { id: 9003, name: 'Healthcare',              amount: 300,  enabled: true },
+    { id: 9004, name: 'Sports & entertainment',  amount: 200,  enabled: true },
+    { id: 9005, name: 'Gas',                     amount: 150,  enabled: true },
+    { id: 9006, name: 'Vehicle maintenance',     amount: 100,  enabled: true },
+    { id: 9007, name: 'Help to Sol',             amount: 500,  enabled: true },
+    { id: 9008, name: 'Boat maintenance',        amount: 200,  enabled: true },
+    { id: 9009, name: 'Utilities',               amount: 300,  enabled: true },
+    { id: 9010, name: 'Home maintenance',        amount: 200,  enabled: true },
+    { id: 9011, name: 'House cleaning',          amount: 150,  enabled: true }
+  ]
+};
+
+const LS_KEY = 'retiro_scenarios';
+
+// ══════════════════════════════════════════════════════════════
+//  SUPABASE PERSISTENCE
+// ══════════════════════════════════════════════════════════════
+const SB_URL = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYXRkbnJ4ZnJsdGNtcXZzbXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MjYzMjcsImV4cCI6MjA5MzUwMjMyN30.4HUYkjuCk3doWShF-h0CzHS-9pC4ST5uz9yd2HHbayc';
+const SB_ID_KEY = 'retiro_sb_id';
+const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
+
+function getSbId() {
+  let id = localStorage.getItem(SB_ID_KEY);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(SB_ID_KEY, id); }
+  return id;
+}
+
+async function sbSave(payload) {
+  if (!_sb) return;
+  try {
+    const { error } = await _sb.from('retiro_state').upsert({
+      id: getSbId(), data: JSON.parse(payload), updated_at: new Date().toISOString()
+    });
+    if (error) console.warn('Supabase save error', error);
+  } catch(e) { console.warn('Supabase save failed', e); }
+}
+
+async function sbLoad() {
+  if (!_sb) return null;
+  try {
+    const { data, error } = await _sb.from('retiro_state').select('data').eq('id', getSbId()).single();
+    if (error || !data) return null;
+    return data.data;
+  } catch(e) { return null; }
+}
+
+// ── SPY / Market projection presets ──────────────────────────
+// Actual S&P 500 total-return annual figures 1994–2023 (arithmetic, %)
+// Source: Standard & Poor's / Bloomberg total return index
+const _HIST = [1.3,37.6,23.0,33.4,28.6,21.0,-9.1,-11.9,-22.1,28.7,10.9,4.9,15.8,5.5,
+               -37.0,26.5,15.1,2.1,16.0,32.4,13.7,1.4,12.0,21.8,-4.4,31.5,18.4,28.7,-18.1,26.3];
+const _HIST_MEAN = _HIST.reduce((a,b)=>a+b,0)/_HIST.length; // ≈11.8 arithmetic
+
+// Build a year-by-year sequence from the historical pattern.
+// targetArith: desired arithmetic mean. volMult: how much to scale the swings.
+//   volMult=1.0 → same volatility as history; 0.4 → very compressed; 1.2 → amplified.
+// Geometric projections (as published) converted: arith ≈ geo + 0.5·σ² (σ≈17% → +1.4%).
+function _buildSpySeq(sa, ea, targetArith, volMult) {
+  const c = {};
+  for (let a = sa; a <= ea; a++) {
+    const raw = _HIST[(a - sa) % _HIST.length];
+    const v = targetArith + (raw - _HIST_MEAN) * volMult;
+    c[a] = Math.round(Math.max(-50, Math.min(55, v)) * 10) / 10;
+  }
+  return c;
+}
+
+const SPY_PRESETS = [
+  {
+    // Actual 1994-2023 data cycled, unmodified. Arithmetic mean ~11.8%.
+    id: 'historical', name: 'Historical (1994–2023)',
+    desc: '~11.8% arith avg · raw S&P 500 total-return sequence: boom/bust cycles intact',
+    build: (sa, ea) => _buildSpySeq(sa, ea, _HIST_MEAN, 1.0)
+  },
+  {
+    // Vanguard VCMM 2025: US equities 4.2–6.2% geometric (mid 5.2% geo → ~6.7% arith).
+    // VCMM also projects LOWER volatility than history (~14% vs 17%).
+    // → compressed swings: good years less extreme, bad years less severe.
+    id: 'vanguard', name: 'Vanguard VCMM (2025)',
+    desc: '~5.2% geo · VCMM: lower mean AND lower vol — muted peaks, shallower troughs',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 6.7, 0.70)
+  },
+  {
+    // Goldman Sachs Oct 2024 (David Kostin): ~3% annualised geometric over 10 yrs.
+    // Thesis: extreme market concentration (top-10 stocks = 36% of index) suppresses
+    // future returns via mean-reversion. NOT a crash call — a grinding low-return decade.
+    // → heavily compressed vol: no big booms, no -37% crashes; mostly flat-to-modest years.
+    id: 'goldman', name: 'Goldman Sachs (2024)',
+    desc: '~3% geo · GS: concentration & CAPE headwinds → grinding low returns, vol cut ~40%',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 4.5, 0.40)
+  },
+  {
+    // JPMorgan LTCMA 2025: US Large Cap ~7.0% geometric nominal.
+    // Moderate-confidence forecast; retains most historical vol character.
+    id: 'jpmorgan', name: 'JPMorgan LTCMA (2025)',
+    desc: '~7.0% geo · JPM LTCMA: earnings growth + modest P/E compression; near-historical swings',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 8.4, 0.85)
+  },
+  {
+    // BlackRock 2025 CMA: US equities ~7.5% geometric.
+    // AI productivity tailwind; retains historical vol shape almost intact.
+    id: 'blackrock', name: 'BlackRock CMA (2025)',
+    desc: '~7.5% geo · BlackRock: AI structural tailwind, valuation drag; near-historical amplitude',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 8.9, 0.90)
+  },
+  {
+    // Jeremy Siegel (Wharton): ~6.5–7% real long-run → ~9.5% geo nominal → ~11% arith.
+    // His thesis is that history repeats: same volatility, similar mean.
+    id: 'siegel', name: 'Siegel / Wharton',
+    desc: '~9.5% geo · Siegel: history repeats — full historical vol, near-historical mean',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 11.0, 1.0)
+  },
+  {
+    // Jack Bogle: div yield ~2% + earnings growth ~5% − P/E drag → ~5% geo forward.
+    // Bogle's view was about lower mean, NOT specifically lower vol.
+    // Use mildly compressed vol to reflect subdued speculative component.
+    id: 'bogle', name: 'Bogle framework',
+    desc: '~5% geo · Bogle: div yield + earnings − P/E headwind; modest vol compression',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 6.4, 0.78)
+  },
+  {
+    // Bridgewater 2024 positioning: Dalio warns of debt/currency cycle risk.
+    // Equities expected to deliver ~4–5% nominal with higher volatility.
+    // Realistic sequence: muted gains with two correction episodes.
+    id: 'bridgewater', name: 'Bridgewater / Dalio',
+    desc: '~4% avg · Dalio debt-cycle thesis: muted returns, twin corrections, currency risk',
+    build: (sa, ea) => {
+      const pat = [5,-14,3,7,2,-11,6,4,3,-9,8,5,2,4,-6,10,3,2,5,-8,7,4,1,3,-5,9,4,2,1,-4];
+      const c={};
+      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
+      return c;
+    }
+  },
+  {
+    // Crash & Recovery: historically-grounded scenario (e.g. 2000–2010 "lost decade"
+    // followed by 2010–2020 bull market). Approx two 10-yr half-cycles.
+    id: 'crash_recover', name: 'Lost Decade → Bull',
+    desc: 'Two-bear then strong bull · mirrors 2000–2010 crash/recovery pattern',
+    build: (sa, ea) => {
+      const pat = [-9,-12,-22,29,11,5,16,6,-37,27,15,2,16,32,14,1,12,22,-4,32,18,29,-18,26,25,18,12,8,10,7];
+      const c={};
+      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
+      return c;
+    }
+  },
+  {
+    // Stagflation: 1970s pattern. Market returned ~7% nominal but ~0% real due to
+    // high inflation. Year-by-year: very choppy, includes two major bear legs.
+    id: 'stagflation', name: 'Stagflation (1970s)',
+    desc: '~7% nominal / ~0% real · mirrors 1972–1982 pattern: oil shocks, rate hikes, choppy recovery',
+    build: (sa, ea) => {
+      const pat = [18,-14,-26,37,24,-7,-11,6,18,32,-5,-17,20,22,-5,4,14,2,-3,26,15,6,10,-8,18,6,12,3,-5,20];
+      const c={};
+      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
+      return c;
+    }
+  },
+  {
+    // Bull case: AI productivity wave. ~13% geometric → ~14.5% arithmetic.
+    // Boom scenario: amplified swings — bigger up years, deeper (but shorter) corrections.
+    id: 'bull', name: 'Bull Case — AI Boom',
+    desc: '~13% geo · AI productivity surge; amplified vol — bigger booms AND sharper dips',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 14.5, 1.15)
+  },
+  {
+    // Bear case: secular stagnation. ~2% geo → ~3.4% arithmetic.
+    // Compressed vol: no euphoric booms, crashes also shallower (stagnation not panic).
+    id: 'bear', name: 'Bear Case — Stagnation',
+    desc: '~2% geo · debt overhang + demographics; compressed vol — no booms, no crashes',
+    build: (sa, ea) => _buildSpySeq(sa, ea, 3.4, 0.60)
+  }
+];
+
+function buildSpyPresetOptions() {
+  const sel = document.getElementById('spy-preset-sel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— custom / manual —</option>' +
+    SPY_PRESETS.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  sel.value = S.spyPreset || '';
+  const preset = SPY_PRESETS.find(p => p.id === (S.spyPreset || ''));
+  document.getElementById('spy-preset-desc').textContent = preset ? preset.desc : '';
+}
+
+function applySpyPreset(id) {
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  if (!id) {
+    S.spyPreset = null;
+    S.yieldCurve = {};
+  } else {
+    const preset = SPY_PRESETS.find(p => p.id === id);
+    if (!preset) return;
+    S.spyPreset = id;
+    S.yieldCurve = preset.build(sa, ea);
+    document.getElementById('spy-preset-desc').textContent = preset.desc;
+  }
+  renderCurve(); go();
+}
+
+let SCENARIOS = [];
+let activeScenarioId = null;
+let S = deepCopy(EMPTY);
+let nextId = 1000, chart = null, chart2 = null, chart3 = null, openId = null, _maxTimer = null;
+let _lastMaxMonthly = 0;
+let _danceT = 0, _danceRaf = null;
+function _startDanceLoop() {
+  if (_danceRaf) return;
+  function loop(t) { _danceT = t; if (chart) chart.draw(); _danceRaf = requestAnimationFrame(loop); }
+  _danceRaf = requestAnimationFrame(loop);
+}
+let _chartDrag = null; // { idx, age, type:'spy'|'exp' }
+let _saleDots  = []; // [{ xp, yp, age, name, value }] — populated by msPlugin for hover tooltip
+let _totalDots = []; // [{ xp, yp, age, liq, total }] — every year on the Total curve
+let _onelineTimer = null;
+let _aiSections = [];
+let _onelineCallLog = []; // timestamps of recent one-liner calls
+let _onelinePauseUntil = 0;
+
+// ── Expense propagation: drag sets new baseline, all future ages re-inflated from dragged value ──
+function applyExpenseCeiling(fromAge, val) {
+  if (!S.expenseCurve) S.expenseCurve = {};
+  S.expenseCurve[fromAge] = val;
+  const ea = S.endAge || 87;
+  const inf = S.inflationRate / 100;
+  for (let a = fromAge + 1; a <= ea; a++) {
+    S.expenseCurve[a] = Math.round(val * Math.pow(1 + inf, a - fromAge));
+  }
+}
+
+function initSubChartsInteraction() {
+  const tip = document.getElementById('drag-tip');
+
+  function setupCanvas(canvas, getChart, dsIdx, type) {
+    canvas.addEventListener('mousedown', e => {
+      const ch = getChart();
+      if (!ch) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const meta = ch.getDatasetMeta(dsIdx);
+      let best = -1, bestDist = 18;
+      meta.data.forEach((pt, i) => { const d = Math.hypot(pt.x-mx, pt.y-my); if (d < bestDist) { bestDist = d; best = i; } });
+      if (best !== -1) {
+        e.preventDefault();
+        _chartDrag = { idx: best, age: ch.data.labels[best], type, canvas,
+          startClientY: e.clientY,
+          startVal: ch.data.datasets[dsIdx].data[best] };
+      }
+    });
+    canvas.addEventListener('mousemove', e => {
+      if (_chartDrag) return;
+      const ch = getChart();
+      if (!ch) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      let hitIdx = -1;
+      ch.getDatasetMeta(dsIdx).data.forEach((pt, i) => {
+        if (Math.hypot(pt.x-mx, pt.y-my) < 18) hitIdx = i;
+      });
+      if (hitIdx !== -1) {
+        canvas.style.cursor = 'ns-resize';
+        const age = ch.data.labels[hitIdx];
+        const val = ch.data.datasets[dsIdx].data[hitIdx];
+        const label = type === 'spy'
+          ? `Age ${age}  ${val >= 0 ? '+' : ''}${val}%`
+          : `Age ${age}  ${fmt(val)}/mo`;
+        tip.textContent = label;
+        tip.style.left = (e.clientX + 16) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+        tip.style.display = 'block';
+      } else {
+        canvas.style.cursor = '';
+        tip.style.display = 'none';
+      }
+    });
+    canvas.addEventListener('mouseleave', () => {
+      if (!_chartDrag) tip.style.display = 'none';
+    });
+    canvas.addEventListener('dblclick', e => {
+      const ch = getChart();
+      if (!ch) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      ch.getDatasetMeta(dsIdx).data.forEach((pt, i) => {
+        if (Math.hypot(pt.x - mx, pt.y - my) < 18) {
+          const age = ch.data.labels[i];
+          const cur = ch.data.datasets[dsIdx].data[i];
+          // Show inline input at dot position
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.value = type === 'spy' ? cur : fmtInput(cur);
+          inp.style.cssText = `position:fixed;left:${e.clientX - 30}px;top:${e.clientY - 14}px;width:72px;font-size:11px;font-weight:700;font-family:SF Mono,Menlo,monospace;padding:2px 5px;border:1.5px solid #1a1a2e;border-radius:3px;background:#fff;z-index:2000;text-align:center;`;
+          document.body.appendChild(inp);
+          inp.focus(); inp.select();
+          const commit = () => {
+            const v = type === 'spy' ? parseFloat(inp.value) : parseNum(inp.value);
+            if (!isNaN(v)) {
+              if (type === 'spy') { if (!S.yieldCurve) S.yieldCurve = {}; S.yieldCurve[age] = Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, v)); }
+              else { if (!S.expenseCurve) S.expenseCurve = {}; S.expenseCurve[age] = Math.max(0, Math.round(v / (S.expMultiplier || 1))); } // no propagation
+            }
+            inp.remove(); go();
+          };
+          inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); commit(); } if (ev.key === 'Escape') { inp.remove(); } });
+          inp.addEventListener('blur', () => setTimeout(() => { if (document.body.contains(inp)) inp.remove(); }, 150));
+        }
+      });
+    });
+  }
+
+  setupCanvas(document.getElementById('spyChart'), () => chart2, 0, 'spy');
+  setupCanvas(document.getElementById('expChart'), () => chart3, 0, 'exp');
+
+  window.addEventListener('mousemove', e => {
+    if (!_chartDrag) return;
+    const dragCanvas = _chartDrag.canvas;
+    const rect = dragCanvas.getBoundingClientRect();
+    const my = e.clientY - rect.top;
+
+    tip.style.left = (e.clientX + 16) + 'px';
+    tip.style.top  = (e.clientY - 10) + 'px';
+    tip.style.display = 'block';
+
+    if (_chartDrag.type === 'spy') {
+      if (!chart2) return;
+      const ca = chart2.chartArea;
+      const deltaY = e.clientY - _chartDrag.startClientY;
+      const pxPerUnit = (ca.bottom - ca.top) / CURVE_YRANGE;
+      const val = Math.round(_chartDrag.startVal - deltaY / pxPerUnit * 0.35);
+      const clamped = Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, val));
+      if (!S.yieldCurve) S.yieldCurve = {};
+      S.yieldCurve[_chartDrag.age] = clamped;
+      chart2.data.datasets[0].data[_chartDrag.idx] = clamped;
+      // Update point color
+      const spyColors = chart2.data.datasets[0].pointBackgroundColor;
+      if (Array.isArray(spyColors)) spyColors[_chartDrag.idx] = clamped >= 3 ? '#4caf50' : clamped >= 0 ? '#ff9800' : '#f44336';
+      chart2.update('none');
+      tip.textContent = `Age ${_chartDrag.age}  ${clamped >= 0 ? '+' : ''}${parseFloat(clamped).toFixed(1)}%`;
+    } else if (_chartDrag.type === 'exp') {
+      if (!chart3) return;
+      const ca = chart3.chartArea;
+      const expMax = chart3.scales.y.max;
+      const deltaY = e.clientY - _chartDrag.startClientY;
+      const pxPerUnit = (ca.bottom - ca.top) / expMax;
+      const val = Math.round((_chartDrag.startVal - deltaY / pxPerUnit * 0.35) / 100) * 100;
+      const clamped = Math.max(0, val);
+      const mult = S.expMultiplier || 1;
+      applyExpenseCeiling(_chartDrag.age, Math.round(clamped / mult));
+      const sa = S.startAge || 57;
+      chart3.data.labels.forEach((age, idx) => {
+        const base = S.expenseCurve && S.expenseCurve[age] !== undefined
+          ? S.expenseCurve[age]
+          : Math.round(S.monthlyExpenses * Math.pow(1 + S.inflationRate / 100, age - sa));
+        chart3.data.datasets[0].data[idx] = Math.round(base * mult);
+      });
+      chart3.update('none');
+      tip.textContent = `Age ${_chartDrag.age}  ${fmt(clamped)}/mo`;
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (_chartDrag) { tip.style.display = 'none'; _chartDrag = null; go(); }
+  });
+}
+
+// Called from go() with the actual simulation first-month value
+function setWheelLabel(val) {
+  const label = document.getElementById('exp-mult-label');
+  if (label) {
+    const m = S.expMultiplier || 1;
+    label.textContent = val >= 10000 ? '$' + Math.round(val / 1000) + 'k'
+                      : val >= 1000  ? '$' + (val / 1000).toFixed(1) + 'k'
+                      : '$' + val;
+    label.style.color = m > 1.005 ? 'rgba(180,60,30,0.9)' : m < 0.995 ? 'rgba(20,140,70,0.9)' : 'rgba(100,50,160,0.82)';
+  }
+  updateMonthlyBaseSlider();
+}
+
+function initExpMultWheel() {
+  const wheel = document.getElementById('exp-mult-wheel');
+  if (!wheel) return;
+
+  // Large floating badge shown while dragging/scrolling
+  const badge = document.createElement('div');
+  badge.style.cssText = 'position:fixed;display:none;background:rgba(20,10,40,0.88);color:#fff;font-size:22px;font-weight:800;font-family:"SF Mono",Menlo,monospace;padding:8px 16px;border-radius:8px;pointer-events:none;z-index:2000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.35);letter-spacing:-.02em;transform:translateY(-50%);';
+  document.body.appendChild(badge);
+
+  function firstMonthVal() {
+    const sa = S.startAge || 57;
+    const base = (S.expenseCurve && S.expenseCurve[sa] != null) ? S.expenseCurve[sa] : (S.monthlyExpenses || 0);
+    return Math.round(base * (S.expMultiplier || 1));
+  }
+
+  function showBadge(clientY) {
+    const val = firstMonthVal();
+    badge.textContent = fmt(val) + '/mo';
+    const rect = wheel.getBoundingClientRect();
+    badge.style.left = (rect.right + 10) + 'px';
+    badge.style.top  = clientY + 'px';
+    badge.style.display = 'block';
+  }
+
+  function hideBadge() { badge.style.display = 'none'; }
+
+  function applyMult(newMult, clientY) {
+    S.expMultiplier = Math.round(Math.min(4, Math.max(0.25, newMult)) * 100) / 100;
+    setWheelLabel(firstMonthVal());
+    if (clientY != null) showBadge(clientY);
+  }
+
+  let _wheelTimer = null;
+  let _badgeTimer = null;
+  wheel.addEventListener('wheel', e => {
+    e.preventDefault();
+    const ticks = -e.deltaY / (Math.abs(e.deltaY) > 50 ? 200 : 3);
+    applyMult((S.expMultiplier || 1) * Math.exp(ticks * 0.01),
+              wheel.getBoundingClientRect().top + wheel.offsetHeight / 2);
+    clearTimeout(_wheelTimer);
+    clearTimeout(_badgeTimer);
+    _wheelTimer = setTimeout(go, 120);
+    _badgeTimer = setTimeout(hideBadge, 800);
+  }, { passive: false });
+
+  let _wDrag = null;
+  wheel.addEventListener('mousedown', e => {
+    e.preventDefault();
+    _wDrag = { startY: e.clientY, startMult: S.expMultiplier || 1 };
+    showBadge(e.clientY);
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_wDrag) return;
+    const dy = _wDrag.startY - e.clientY;
+    applyMult(_wDrag.startMult * Math.exp(dy * 0.004), e.clientY);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_wDrag) return;
+    _wDrag = null;
+    hideBadge();
+    go();
+  });
+}
+
+function monthlyBreakdownSum() {
+  return (S.monthlyBreakdown || []).filter(b => b.enabled !== false).reduce((s, b) => s + (b.amount || 0), 0);
+}
+
+function updateMonthlyBaseSlider() {
+  const slider = document.getElementById('monthly-base-slider');
+  const lbl    = document.getElementById('monthly-base-val');
+  if (!slider) return;
+  const val = Math.round((S.monthlyExpenses || 0) * (S.expMultiplier || 1));
+  slider.value = val;
+  if (lbl) lbl.textContent = fmt(val);
+
+  const slMin = +slider.min, slMax = +slider.max;
+  function pct(v) { return Math.max(0, Math.min(100, (v - slMin) / (slMax - slMin) * 100)) + '%'; }
+
+  const bdSum = monthlyBreakdownSum();
+  const minTick = document.getElementById('monthly-min-tick');
+  if (minTick) { if (bdSum > 0) { minTick.style.left = pct(bdSum); minTick.style.display = 'block'; } else { minTick.style.display = 'none'; } }
+
+  const maxTick = document.getElementById('monthly-max-tick');
+  if (maxTick) { if (_lastMaxMonthly > 0) { maxTick.style.left = pct(_lastMaxMonthly); maxTick.style.display = 'block'; } else { maxTick.style.display = 'none'; } }
+
+  const bsEl = document.getElementById('breakdown-sum-inline');
+  if (bsEl) bsEl.textContent = bdSum > 0 ? fmt(bdSum) + '/mo' : '';
+}
+
+let _breakdownOpen = false;
+function toggleBreakdown() {
+  _breakdownOpen = !_breakdownOpen;
+  const panel = document.getElementById('monthly-breakdown-panel');
+  const arrow = document.getElementById('breakdown-arrow');
+  if (panel) panel.style.display = _breakdownOpen ? 'block' : 'none';
+  if (arrow) arrow.textContent = _breakdownOpen ? '▼' : '▶';
+  if (_breakdownOpen) renderBreakdown();
+}
+
+function renderBreakdown() {
+  const el = document.getElementById('monthly-breakdown-panel');
+  if (!el) return;
+  if (!S.monthlyBreakdown || !S.monthlyBreakdown.length)
+    S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
+  const items = S.monthlyBreakdown.map((b, i) =>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+      <span style="font-size:10px;color:#c1cad4;min-width:14px;text-align:right;">${i+1}</span>
+      <input type="text" value="${b.name.replace(/"/g,'&quot;')}"
+        style="flex:1;font-size:12px;font-weight:600;border:none;background:none;outline:none;padding:2px 0;color:#1a1f36;"
+        onclick="event.stopPropagation()"
+        onchange="upBreakdown(${b.id},'name',this.value)">
+      <input type="text" class="iamt" value="${fmtInput(b.amount)}"
+        onfocus="moneyFocus(this);event.stopPropagation();"
+        onblur="moneyBlur(this)"
+        onchange="event.stopPropagation();upBreakdown(${b.id},'amount',parseNum(this.value));renderBreakdown();updateMonthlyBaseSlider();go()"
+        onclick="event.stopPropagation()">
+      ${sw(b.enabled, `togBreakdown(${b.id})`)}
+      <button onclick="event.stopPropagation();copyBreakdownToAll(${b.id})" title="Copy amount to all scenarios" style="font-size:9px;padding:1px 4px;border:1px solid rgba(100,50,160,0.3);border-radius:3px;background:none;color:rgba(100,50,160,0.7);cursor:pointer;line-height:1.4;">all</button>
+      <button class="btn-rm" onclick="event.stopPropagation();rmBreakdown(${b.id})">×</button>
+    </div>`
+  ).join('');
+  const total = monthlyBreakdownSum();
+  el.innerHTML = items +
+    `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding-top:5px;border-top:1px solid rgba(100,50,160,0.1);">
+      <button class="btn-add" onclick="addBreakdown()" style="font-size:15px;width:20px;height:20px;" title="Add item">+</button>
+      <span style="font-size:11px;font-weight:800;color:rgba(100,50,160,0.8);font-family:'SF Mono',Menlo,monospace;">Floor: ${fmt(total)}/mo</span>
+    </div>`;
+}
+
+function upBreakdown(id, f, v) { S.monthlyBreakdown = (S.monthlyBreakdown||[]).map(b => b.id===id ? {...b,[f]:v} : b); markDirty(); }
+function togBreakdown(id) { S.monthlyBreakdown = (S.monthlyBreakdown||[]).map(b => b.id===id ? {...b, enabled: b.enabled===false} : b); renderBreakdown(); updateMonthlyBaseSlider(); go(); }
+function rmBreakdown(id) { S.monthlyBreakdown = (S.monthlyBreakdown||[]).filter(b => b.id!==id); renderBreakdown(); updateMonthlyBaseSlider(); go(); }
+function copyBreakdownToAll(id) {
+  const src = (S.monthlyBreakdown||[]).find(b => b.id===id);
+  if (!src) return;
+  SCENARIOS.forEach(sc => {
+    if (sc.id === activeScenarioId) return;
+    sc.data.monthlyBreakdown = (sc.data.monthlyBreakdown||[]).map(b => b.id===id ? {...b, amount: src.amount} : b);
+  });
+  lsSave();
+}
+function addBreakdown() { const id=nid(); S.monthlyBreakdown=[...(S.monthlyBreakdown||[]),{id,name:'Custom',amount:100,enabled:true}]; renderBreakdown(); updateMonthlyBaseSlider(); }
+
+function applyMonthlyBaseSlider(val) {
+  const base = S.monthlyExpenses || 1;
+  S.expMultiplier = Math.round(Math.min(4, Math.max(0.25, val / base)) * 100) / 100;
+  updateMonthlyBaseSlider();
+  go();
+}
+
+function updateSpyNudgeLabel() {
+  const lbl = document.getElementById('spy-nudge-label');
+  if (!lbl) return;
+  const n = S.spyNudge || 0;
+  lbl.textContent = (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+  lbl.style.color = n > 0.05 ? 'rgba(26,140,95,0.9)' : n < -0.05 ? 'rgba(192,48,48,0.9)' : 'rgba(160,100,0,0.82)';
+}
+
+function initSpyNudgeWheel() {
+  const wheel = document.getElementById('spy-nudge-wheel');
+  if (!wheel) return;
+
+  const badge = document.createElement('div');
+  badge.style.cssText = 'position:fixed;display:none;background:rgba(20,10,5,0.88);color:#fff;font-size:20px;font-weight:800;font-family:"SF Mono",Menlo,monospace;padding:7px 14px;border-radius:8px;pointer-events:none;z-index:2000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.35);letter-spacing:-.02em;transform:translateY(-50%);';
+  document.body.appendChild(badge);
+
+  function showBadge(clientY) {
+    const n = S.spyNudge || 0;
+    badge.textContent = (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+    const rect = wheel.getBoundingClientRect();
+    badge.style.left = (rect.right + 10) + 'px';
+    badge.style.top  = clientY + 'px';
+    badge.style.display = 'block';
+  }
+  function hideBadge() { badge.style.display = 'none'; }
+
+  function applyNudge(newNudge, clientY) {
+    S.spyNudge = Math.round(Math.min(20, Math.max(-20, newNudge)) * 10) / 10;
+    updateSpyNudgeLabel();
+    if (clientY != null) showBadge(clientY);
+  }
+
+  let _sWheelTimer = null, _sBadgeTimer = null;
+  wheel.addEventListener('wheel', e => {
+    e.preventDefault();
+    const ticks = -e.deltaY / (Math.abs(e.deltaY) > 50 ? 200 : 3);
+    applyNudge((S.spyNudge || 0) + ticks * 0.1,
+               wheel.getBoundingClientRect().top + wheel.offsetHeight / 2);
+    clearTimeout(_sWheelTimer); clearTimeout(_sBadgeTimer);
+    _sWheelTimer = setTimeout(go, 120);
+    _sBadgeTimer = setTimeout(hideBadge, 800);
+  }, { passive: false });
+
+  let _sWDrag = null;
+  wheel.addEventListener('mousedown', e => {
+    e.preventDefault();
+    _sWDrag = { startY: e.clientY, startNudge: S.spyNudge || 0 };
+    showBadge(e.clientY);
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_sWDrag) return;
+    const dy = _sWDrag.startY - e.clientY;
+    applyNudge(_sWDrag.startNudge + dy * 0.08, e.clientY);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_sWDrag) return;
+    _sWDrag = null; hideBadge(); go();
+  });
+  updateSpyNudgeLabel();
+}
+
+function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+function pruneYieldCurve() {
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  if (S.yieldCurve)   Object.keys(S.yieldCurve).forEach(k   => { if (+k < sa || +k > ea) delete S.yieldCurve[k]; });
+  if (S.expenseCurve) Object.keys(S.expenseCurve).forEach(k => { if (+k < sa || +k > ea) delete S.expenseCurve[k]; });
+}
+
+function ensureFields() {
+  if (!S.yieldCurve)    S.yieldCurve    = {};
+  if (!S.expenseCurve)  S.expenseCurve  = {};
+  if (S.expMultiplier == null) S.expMultiplier = 1;
+  if (S.spyNudge == null) S.spyNudge = 0;
+  if (!S.monthlyBreakdown || !Array.isArray(S.monthlyBreakdown) || S.monthlyBreakdown.length === 0) S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
+  else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
+  if (!S.startYear) S.startYear = new Date().getFullYear();
+  ['crises','expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
+  S.properties = (S.properties || []).map(p => ({ rentFromAge: S.startAge || 57, enabled: true, ...p }));
+  ['incomes','expenses','crises','expensePhases','marketPhases'].forEach(k => {
+    S[k] = S[k].map(x => ({ enabled: true, ...x }));
+  });
+  if (!S.startAge) S.startAge = 57;
+  if (!S.endAge)   S.endAge   = 87;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LOCALSTORAGE + SUPABASE PERSISTENCE
+// ══════════════════════════════════════════════════════════════
+function lsSave() {
+  try {
+    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId });
+    localStorage.setItem(LS_KEY, payload);
+    sbSave(payload); // fire-and-forget cloud sync
+  } catch(e) { console.error('localStorage save failed', e); }
+}
+
+function lsLoad() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) { console.error('localStorage load failed', e); }
+  return null;
+}
+
+function _applyScenarios(saved) {
+  if (saved && saved.scenarios && saved.scenarios.length > 0) {
+    SCENARIOS = saved.scenarios;
+    activeScenarioId = saved.activeId || SCENARIOS[0].id;
+    if (!SCENARIOS.find(s => s.id === activeScenarioId)) activeScenarioId = SCENARIOS[0].id;
+    SCENARIOS.forEach(sc => {
+      if (!sc.data.monthlyBreakdown || !Array.isArray(sc.data.monthlyBreakdown) || sc.data.monthlyBreakdown.length === 0) {
+        sc.data.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
+      } else {
+        const ids = new Set(sc.data.monthlyBreakdown.map(b => b.id));
+        EMPTY.monthlyBreakdown.forEach(b => { if (!ids.has(b.id)) sc.data.monthlyBreakdown.push({...b}); });
+      }
+    });
+  } else {
+    const id = 'sc_' + Date.now();
+    SCENARIOS = [{ id, name: 'Base', data: deepCopy(EMPTY) }];
+    activeScenarioId = id;
+  }
+  S = deepCopy(SCENARIOS.find(s => s.id === activeScenarioId)?.data || EMPTY);
+  ensureFields();
+  saveActive();
+  syncInputs();
+  renderScenarioBar();
+  buildSpyPresetOptions();
+  renderAll();
+  go();
+  badge('saved', 'ok');
+  loadProfile();
+}
+
+async function loadScenarios() {
+  badge('loading…', 'no');
+  const saved = lsLoad();
+  if (saved && saved.scenarios && saved.scenarios.length > 0) {
+    _applyScenarios(saved);
+    return;
+  }
+  // No localStorage — try Supabase
+  const sbData = await sbLoad();
+  if (sbData && sbData.scenarios && sbData.scenarios.length > 0) {
+    _applyScenarios(sbData);
+    lsSave(); // seed localStorage from cloud
+    return;
+  }
+  // Fall back to bundled scenarios.json seed
+  try {
+    const res = await fetch('./scenarios.json');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.scenarios && data.scenarios.length > 0) {
+        _applyScenarios(data);
+        lsSave();
+        return;
+      }
+    }
+  } catch (e) { /* not present — fall through */ }
+  _applyScenarios(null); // fresh start
+}
+
+let _saveTimer;
+function markDirty() {
+  badge('unsaved', 'no');
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveActive, 1500);
+}
+
+function saveActive() {
+  SCENARIOS = SCENARIOS.map(sc =>
+    sc.id === activeScenarioId ? { ...sc, data: deepCopy(S) } : sc
+  );
+  lsSave();
+  badge('saved', 'ok');
+}
+
+function exportData() {
+  saveActive();
+  const blob = new Blob([JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'retiro-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importData() {
+  document.getElementById('import-file').value = '';
+  document.getElementById('import-file').click();
+}
+
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const parsed = JSON.parse(evt.target.result);
+      if (!parsed.scenarios || !Array.isArray(parsed.scenarios)) throw new Error('Invalid format');
+      SCENARIOS = parsed.scenarios;
+      activeScenarioId = parsed.activeId || SCENARIOS[0].id;
+      if (!SCENARIOS.find(s => s.id === activeScenarioId)) activeScenarioId = SCENARIOS[0].id;
+      S = deepCopy(SCENARIOS.find(s => s.id === activeScenarioId)?.data || EMPTY);
+      ensureFields();
+      syncInputs();
+      renderScenarioBar();
+      renderAll();
+      go();
+      lsSave();
+      badge('saved', 'ok');
+    } catch(err) {
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function badge(text, cls) {
+  const el = document.getElementById('sbadge');
+  el.textContent = text;
+  el.className = 'sbadge ' + cls;
+}
+
+function renderScenarioBar() {
+  document.getElementById('sc-sel').innerHTML = SCENARIOS
+    .map(sc => `<option value="${sc.id}"${sc.id===activeScenarioId?' selected':''}>${sc.name}</option>`)
+    .join('');
+  document.getElementById('sc-name').value = SCENARIOS.find(s => s.id === activeScenarioId)?.name || '';
+  const del = document.getElementById('sc-del');
+  del.disabled = SCENARIOS.length <= 1;
+  del.style.opacity = SCENARIOS.length <= 1 ? '0.3' : '1';
+}
+
+function compareScenarioSections(prev, next) {
+  const changed = new Set();
+  if (prev.summerTrip !== next.summerTrip || prev.winterTrip !== next.winterTrip)
+    changed.add('trips');
+  if (JSON.stringify(prev.expenses)     !== JSON.stringify(next.expenses)     ||
+      JSON.stringify(prev.expenseCurve) !== JSON.stringify(next.expenseCurve) ||
+      prev.expMultiplier !== next.expMultiplier)
+    changed.add('expenses');
+  if (JSON.stringify(prev.incomes) !== JSON.stringify(next.incomes))
+    changed.add('income');
+  if (JSON.stringify(prev.properties) !== JSON.stringify(next.properties) ||
+      prev.assetAppreciation !== next.assetAppreciation)
+    changed.add('realestate');
+  if (prev.startAge !== next.startAge || prev.endAge !== next.endAge ||
+      prev.liquidBase !== next.liquidBase || prev.inflationRate !== next.inflationRate ||
+      prev.yieldRate !== next.yieldRate || prev.monthlyExpenses !== next.monthlyExpenses ||
+      JSON.stringify(prev.yieldCurve) !== JSON.stringify(next.yieldCurve) ||
+      prev.spyPreset !== next.spyPreset)
+    changed.add('settings');
+  return changed;
+}
+
+function highlightChangedSections(changedSet) {
+  const map = {
+    trips:      'sec-band-outgoing',
+    expenses:   'sec-band-outgoing',
+    income:     'sec-band-income',
+    realestate: 'sec-band-realestate',
+    settings:   'sec-band-settings'
+  };
+  Object.entries(map).forEach(([section, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelector('.sc-diff-icon')?.remove();
+    el.classList.remove('sc-diff-flash');
+    void el.offsetWidth; // force reflow to restart animation
+    if (changedSet.has(section)) {
+      const icon = document.createElement('span');
+      icon.className = 'sc-diff-icon';
+      icon.title = 'Different from previous scenario';
+      icon.textContent = '≠';
+      el.appendChild(icon);
+      el.classList.add('sc-diff-flash');
+      setTimeout(() => {
+        el.classList.remove('sc-diff-flash');
+        icon.remove();
+      }, 2400);
+    }
+  });
+}
+
+function switchScenario(id) {
+  const prevS = deepCopy(S);
+  saveActive();
+  activeScenarioId = id;
+  S = deepCopy(SCENARIOS.find(s => s.id === id)?.data || EMPTY);
+  ensureFields();
+  syncInputs(); renderAll(); renderScenarioBar(); buildSpyPresetOptions(); go();
+  const changed = compareScenarioSections(prevS, S);
+  if (changed.size > 0) highlightChangedSections(changed);
+}
+
+function addScenario() {
+  saveActive();
+  const name = 'Scenario ' + (SCENARIOS.length + 1);
+  const newData = deepCopy(S);
+  const id = 'sc_' + Date.now();
+  SCENARIOS.push({ id, name, data: newData });
+  activeScenarioId = id;
+  S = deepCopy(newData); ensureFields();
+  syncInputs(); renderAll(); renderScenarioBar(); go();
+  saveActive();
+}
+
+function deleteScenario() {
+  if (SCENARIOS.length <= 1) return;
+  if (!confirm('Delete this scenario? This cannot be undone.')) return;
+  SCENARIOS = SCENARIOS.filter(s => s.id !== activeScenarioId);
+  activeScenarioId = SCENARIOS[SCENARIOS.length - 1].id;
+  S = deepCopy(SCENARIOS.find(s => s.id === activeScenarioId)?.data || EMPTY);
+  ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); go();
+  saveActive();
+}
+
+function renameActive(name) {
+  SCENARIOS = SCENARIOS.map(sc => sc.id === activeScenarioId ? { ...sc, name } : sc);
+  const opt = document.getElementById('sc-sel').querySelector(`option[value="${activeScenarioId}"]`);
+  if (opt) opt.textContent = name;
+  markDirty();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SIMULATION ENGINE
+// ══════════════════════════════════════════════════════════════
+function fmt(n) {
+  if (n < 0) return '-' + fmt(-n);
+  return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function parseNum(s) { return +String(s).replace(/[$\s.]/g, '') || 0; }
+function fmtInput(n) { return fmt(n); }
+function moneyFocus(el) { el.value = parseNum(el.value) || ''; el.select(); }
+function moneyBlur(el)  { el.value = fmtInput(parseNum(el.value)); }
+
+// Enter on any input/select blurs it (triggers save via onchange/onblur)
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'range') {
+    e.preventDefault(); e.target.blur();
+  }
+});
+
+function inflNote() {
+  const r = S.inflationRate / 100;
+  return `+5yr: ${fmt(Math.round(S.monthlyExpenses * Math.pow(1+r, 5)))}/mo &nbsp;·&nbsp; +15yr: ${fmt(Math.round(S.monthlyExpenses * Math.pow(1+r, 15)))}/mo`;
+}
+
+function getMonthly(age, override) {
+  if (override !== undefined) return override;
+  let b = S.monthlyExpenses;
+  [...(S.expensePhases || [])]
+    .sort((a, b) => a.fromAge - b.fromAge)
+    .forEach(p => { if (p.enabled !== false && age >= p.fromAge) b = p.amount; });
+  return b;
+}
+
+function getYield(age) {
+  const base = (S.yieldCurve && S.yieldCurve[age] !== undefined) ? S.yieldCurve[age] : S.yieldRate;
+  return (base + (S.spyNudge || 0)) / 100;
+}
+
+function runSim(monthlyOverride) {
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const inf = S.inflationRate / 100, app = S.assetAppreciation / 100;
+  let liq = S.liquidBase;
+
+  // Deduct age-sa one-offs and first-year installment payments immediately
+  S.expenses.filter(e => e.enabled !== false).forEach(e => {
+    if (e.type === 'oneoff' && e.atAge === sa) liq -= e.amount;
+    if (e.type === 'installments' && (e.atAge||e.from||sa) === sa) {
+      const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
+      liq -= Math.min(ppy, e.installN||1) * ((e.installTotal||0) / (e.installN||1));
+    }
+  });
+
+  let props = S.properties.filter(p => p.enabled !== false)
+    .map(p => ({ ...p, cv: p.value, sold: false }));
+
+  const out = [{
+    age: sa,
+    liq: Math.round(liq),
+    iliq: Math.round(props.reduce((s, p) => s + p.cv, 0)),
+    crash: false,
+    monthlyExp: Math.round(((S.expenseCurve && S.expenseCurve[sa] !== undefined) ? S.expenseCurve[sa] : S.monthlyExpenses) * (S.expMultiplier || 1))
+  }];
+
+  for (let age = sa + 1; age <= ea; age++) {
+    const f = Math.pow(1 + inf, age - sa);
+    const yld = getYield(age);
+
+    // Appreciate real estate
+    props = props.map(p => {
+      if (p.sold) return p;
+      const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
+      return { ...p, cv: p.cv * (1 + pApp) };
+    });
+
+    // Sell properties at sale age
+    props = props.map(p => {
+      if (!p.sold && !p.hold && p.saleAge === age) { liq += p.cv; return { ...p, sold: true }; }
+      return p;
+    });
+
+    // Compound
+    liq *= (1 + yld);
+
+    // Mark crash years (negative custom yield)
+    const crash = S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0;
+
+    // Expenses — expenseCurve stores actual nominal monthly for that age (no inflation on top)
+    const _baseM = (S.expenseCurve && S.expenseCurve[age] !== undefined)
+      ? S.expenseCurve[age]
+      : getMonthly(age, monthlyOverride) * f;
+    const inflM = _baseM * (S.expMultiplier || 1);
+    let exp = inflM * 12 + S.winterTrip + S.summerTrip;
+    S.expenses.filter(e => e.enabled !== false).forEach(e => {
+      if      (e.type === 'oneoff'  && e.atAge === age)                     exp += e.amount;
+      else if (e.type === 'monthly' && age >= e.from && age <= e.to) exp += e.amount * 12;
+      else if (e.type === 'annual'  && age >= e.from && age <= e.to) exp += e.amount;
+      else if (e.type === 'installments') {
+        const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
+        const start = e.atAge || e.from || sa;
+        const yr = age - start;
+        if (yr >= 0) {
+          const paid = yr * ppy;
+          const remain = (e.installN||1) - paid;
+          if (remain > 0) exp += Math.min(ppy, remain) * ((e.installTotal||0) / (e.installN||1));
+        }
+      }
+    });
+
+    // Income
+    let inc = 0;
+    props.filter(p => !p.sold && p.monthlyRent > 0 && age >= (p.rentFromAge || sa))
+      .forEach(p => { inc += p.monthlyRent * 12; });
+    S.incomes.filter(i => i.enabled !== false).forEach(i => {
+      if (i.type === 'oneoff') { if (age === (i.atAge || i.from)) inc += i.amount || 0; }
+      else if (i.type === 'annual') { if (age >= (i.from||sa) && age <= (i.to||ea)) inc += (i.monthly || 0) * f; }
+      else { if (age >= (i.from||sa) && age <= (i.to||ea)) inc += (i.monthly || 0) * 12 * f; }
+    });
+
+    liq += inc - exp;
+    out.push({
+      age,
+      liq:  Math.round(liq),
+      iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
+      crash,
+      monthlyExp: Math.round(inflM)
+    });
+  }
+  return out;
+}
+
+function calcMaxMonthly(target) {
+  const savedCurve = S.expenseCurve;
+  S.expenseCurve = {};
+  let lo = 500, hi = 100000;
+  for (let i = 0; i < 44; i++) {
+    const mid = (lo + hi) / 2;
+    const r = runSim(mid);
+    if (r[r.length - 1].liq > target) lo = mid; else hi = mid;
+  }
+  S.expenseCurve = savedCurve;
+  return Math.round((lo + hi) / 2 / 100) * 100;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHART
+// ══════════════════════════════════════════════════════════════
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function fmtM(v) {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return (v < 0 ? '-$' : '$') + (abs/1_000_000).toFixed(1) + 'M';
+  if (abs >= 1_000)     return (v < 0 ? '-$' : '$') + (abs/1_000).toFixed(0) + 'K';
+  return fmt(v);
+}
+
+// ── Liquid-fill vignette background plugin ──────────────────
+let _vigSeed = 0x9e3779b9;
+function _vigRand() { _vigSeed = (Math.imul(_vigSeed^_vigSeed>>>16,0x45d9f3b)^_vigSeed>>>4)>>>0; return _vigSeed/0xffffffff; }
+function _vigAnimal(ctx, type, sz) {
+  const n = type % 4;
+  if (n === 0) {
+    // Bird — two wing arcs
+    ctx.lineWidth = sz * 0.11;
+    ctx.beginPath();
+    ctx.moveTo(-sz*.44, 0);
+    ctx.quadraticCurveTo(-sz*.22, -sz*.3, 0, 0);
+    ctx.quadraticCurveTo(sz*.22, -sz*.3, sz*.44, 0);
+    ctx.stroke();
+  } else if (n === 1) {
+    // Fish — oval body + triangle tail
+    ctx.beginPath();
+    ctx.ellipse(sz*.12, 0, sz*.33, sz*.17, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-sz*.26, 0);
+    ctx.lineTo(-sz*.5, -sz*.19);
+    ctx.lineTo(-sz*.5,  sz*.19);
+    ctx.closePath();
+    ctx.fill();
+  } else if (n === 2) {
+    // Butterfly — 4 wing ellipses
+    const ang = Math.PI/5;
+    ctx.beginPath(); ctx.ellipse(-sz*.27,-sz*.17,sz*.27,sz*.15, ang,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( sz*.27,-sz*.17,sz*.27,sz*.15,-ang,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-sz*.21, sz*.15,sz*.21,sz*.12,-ang,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( sz*.21, sz*.15,sz*.21,sz*.12, ang,0,Math.PI*2); ctx.fill();
+  } else {
+    // Turtle — shell ellipse + head circle
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sz*.3, sz*.21, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sz*.37, 0, sz*.1, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function _vig(ctx, type, sz) {
+  // 6 flower varieties, cycled
+  const n = type % 6;
+  const petals = [5, 6, 8, 5, 6, 7][n];
+  const pr = [sz*.42, sz*.38, sz*.32, sz*.45, sz*.4, sz*.35][n]; // petal reach
+  const pw = [sz*.22, sz*.2, sz*.18, sz*.28, sz*.24, sz*.2][n];  // petal width
+  const cr = [sz*.14, sz*.13, sz*.12, sz*.16, sz*.14, sz*.13][n]; // centre radius
+
+  // Petals
+  for (let i = 0; i < petals; i++) {
+    const a = (i / petals) * Math.PI * 2;
+    const cx = Math.cos(a) * pr * .5;
+    const cy = Math.sin(a) * pr * .5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, pw * .5, pr * .5, a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Centre dot
+  ctx.beginPath();
+  ctx.arc(0, 0, cr, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+const liquidBgPlugin = {
+  id: 'liquidBg',
+  afterDatasetDraw(ch, args) {
+    if (args.index !== 0) return; // only after liquid (dataset 0) is drawn
+    const { ctx, scales, data, chartArea } = ch;
+    const { x, y } = scales;
+    const liqData = data.datasets[0].data;
+    const labels = data.labels;
+    if (!labels || !labels.length) return;
+
+    ctx.save();
+    // Clip to the liquid fill polygon (below curve, above 0-line)
+    const y0 = Math.min(y.getPixelForValue(0), chartArea.bottom);
+    ctx.beginPath();
+    ctx.moveTo(x.getPixelForValue(0), y0);
+    labels.forEach((_, idx) => {
+      const yp = y.getPixelForValue(Math.max(0, liqData[idx]||0));
+      ctx.lineTo(x.getPixelForValue(idx), yp);
+    });
+    ctx.lineTo(x.getPixelForValue(labels.length - 1), y0);
+    ctx.closePath();
+    ctx.clip();
+
+    // Scatter vignettes — half flowers (blue), half animals (teal)
+    _vigSeed = 0x9e3779b9; // reset seed so positions are stable across redraws
+    const colFlower = 'rgba(55,138,221,0.18)';
+    const colAnimal = 'rgba(45,190,205,0.18)';
+    const aw = chartArea.right - chartArea.left, ah = chartArea.bottom - chartArea.top;
+    for (let i = 0; i < 960; i++) {
+      const vx = chartArea.left + _vigRand() * aw;
+      const vy = chartArea.top  + _vigRand() * ah;
+      const sz = 16 + _vigRand() * 18;
+      const isAnimal = i % 2 === 0;
+      const col = isAnimal ? colAnimal : colFlower;
+      ctx.save();
+      ctx.translate(vx, vy);
+      ctx.strokeStyle = col; ctx.fillStyle = col;
+      ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      if (isAnimal) _vigAnimal(ctx, Math.floor(i / 2), sz);
+      else _vig(ctx, i, sz);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+};
+
+const msPlugin = {
+  id: 'ms',
+  afterDraw(ch) {
+    const { ctx, scales, data, chartArea } = ch;
+    const { x, y } = scales;
+    const liqData = data.datasets[0].data, labels = data.labels;
+    const sa = S.startAge || 57, ea = S.endAge || 87, span = ea - sa;
+    const step = span <= 20 ? 5 : span <= 40 ? 10 : 15;
+    const ages = [];
+    for (let a = sa; a <= ea; a += step) ages.push(a);
+    if (ages[ages.length - 1] !== ea) ages.push(ea);
+
+    ctx.save();
+
+    // ── Yearly thin lines ──
+    for (let yr = sa + 1; yr <= ea; yr++) {
+      const yIdx = labels.indexOf(yr);
+      if (yIdx === -1) continue;
+      const yxp = x.getPixelForValue(yIdx);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(yxp, chartArea.top); ctx.lineTo(yxp, chartArea.bottom); ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── Decade dividers: thick solid lines + big dim numbers ──
+    for (let decade = Math.ceil((sa + 1) / 10) * 10; decade <= ea; decade += 10) {
+      const dIdx = labels.indexOf(decade);
+      if (dIdx === -1) continue;
+      const dxp = x.getPixelForValue(dIdx);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,0.13)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(dxp, chartArea.top); ctx.lineTo(dxp, chartArea.bottom); ctx.stroke();
+      // Label centered at midpoint of the decade (e.g. age 65 for "60s")
+      const midAge = decade + 5;
+      const midIdx = labels.indexOf(midAge);
+      if (midIdx !== -1) {
+        const mxp = x.getPixelForValue(midIdx);
+        ctx.font = '800 110px "SF Mono", Menlo, monospace';
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.textAlign = 'center';
+        ctx.fillText(decade + 's', mxp, (chartArea.top + chartArea.bottom) / 2 + 38);
+      }
+      ctx.restore();
+    }
+
+    // Vertical dashed lines + dots at checkpoint ages
+    ages.forEach(age => {
+      const idx = labels.indexOf(age);
+      if (idx === -1) return;
+      const val = liqData[idx];
+      const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(val);
+
+      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = 'rgba(55,138,221,0.18)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xp, y.bottom); ctx.lineTo(xp, yp); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#378ADD';
+      ctx.beginPath(); ctx.arc(xp, yp, 4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(xp, yp, 2, 0, Math.PI*2); ctx.fill();
+    });
+
+    // Special markers on liquid curve
+    const sa2 = S.startAge || 57;
+    const salePropsByAge = {};
+    S.properties.filter(p => p.enabled !== false && !p.hold).forEach(p => {
+      if (!salePropsByAge[p.saleAge]) salePropsByAge[p.saleAge] = [];
+      salePropsByAge[p.saleAge].push(p);
+    });
+    let minLiq2 = Infinity, minAge2 = sa2;
+    liqData.forEach((v, i) => { if (v < minLiq2) { minLiq2 = v; minAge2 = labels[i]; } });
+
+    _saleDots = []; // reset for hover
+    data.labels.forEach((age, idx) => {
+      const lv = liqData[idx];
+      const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(lv);
+      if (salePropsByAge[age] && age !== minAge2) {
+        const names = salePropsByAge[age].map(p => p.name).join(', ');
+        const totalVal = salePropsByAge[age].reduce((s, p) => {
+          // approximate current value with appreciation
+          return s + p.value * Math.pow(1 + S.assetAppreciation / 100, age - sa2);
+        }, 0);
+        _saleDots.push({ xp, yp, age, name: names, value: totalVal });
+        const s = 7;
+        ctx.save();
+        ctx.translate(xp, yp); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#1A8C5F';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.rect(-s/2, -s/2, s, s);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      if (age === minAge2) {
+        // Red circle
+        ctx.fillStyle = '#C03030';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(xp, yp, 6, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+      }
+    });
+
+    // Dots on every year of the Total curve (for hover)
+    const totalData = data.datasets[2].data;
+    _totalDots = [];
+    labels.forEach((age, idx) => {
+      const tv = totalData[idx];
+      const lv = liqData[idx];
+      const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
+      _totalDots.push({ xp, yp, age, liq: lv, total: tv });
+      ctx.fillStyle = 'rgba(29,158,117,0.55)';
+      ctx.beginPath(); ctx.arc(xp, yp, 3, 0, Math.PI*2); ctx.fill();
+    });
+
+    // Labels on Total line at ages ending in 0 — dancing rotation
+    ctx.font = '700 24px SF Mono, Menlo, monospace';
+    ctx.textAlign = 'center';
+    let labelSeq = 0;
+    labels.forEach((age, idx) => {
+      if (age % 10 !== 0) return;
+      const tv = totalData[idx];
+      const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
+      const label = fmtM(tv);
+      const textW = ctx.measureText(label).width;
+      const pad = 5, h = 26;
+      // Pivot at pill centre; each label gets a unique phase so they dance independently
+      const phase = labelSeq++ * 1.3;
+      const angle = Math.sin(_danceT * 0.0016 + phase) * 0.14; // ±8°
+      ctx.save();
+      ctx.translate(xp, yp - h / 2 - 4);
+      ctx.rotate(angle);
+      // Background pill
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.beginPath();
+      ctx.roundRect(-textW / 2 - pad, -h / 2, textW + pad * 2, h, 4);
+      ctx.fill();
+      // Text
+      ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+      ctx.fillText(label, 0, h / 2 - 8);
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+};
+
+try {
+  Chart.Tooltip.positioners.corner = function() {
+    const ca = this.chart.chartArea;
+    return { x: ca.right - 6, y: ca.top + 6 };
+  };
+} catch(e) {}
+
+function go() {
+  markDirty();
+  const data = runSim();
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+
+  // Sync wheel label with actual first-month value from simulation
+  if (data.length) setWheelLabel(data[0].monthlyExp);
+  updateSpyNudgeLabel();
+
+  // ── Footer sassy phrase — update first so chart errors can't block it ──
+  try {
+    const sassyEl2 = document.getElementById('footer-sassy');
+    if (sassyEl2 && data.length) {
+      const lastD = data[data.length - 1];
+      const finalTot2 = lastD.liq + lastD.iliq;
+      const minLiqEntry2 = data.reduce((m, d) => d.liq < m.liq ? d : m, data[0]);
+      if (!sassyEl2.textContent || sassyEl2.textContent === '—') {
+        sassyEl2.textContent = sassyPhrase(finalTot2, minLiqEntry2.liq, minLiqEntry2.age, ea);
+        sassyEl2.style.color = finalTot2 < 0 ? '#C03030' : finalTot2 < 200_000 ? '#92400E' : finalTot2 <= 700_000 ? '#1A8C5F' : '#555';
+      }
+      scheduleSagePhrase();
+    }
+  } catch(e) { console.warn('sassy:', e); }
+  // Pills: Current + every 10-year milestone + final age
+  const pillAges = [sa];
+  const firstM = Math.ceil((sa + 1) / 10) * 10;
+  for (let a = firstM; a < ea; a += 10) pillAges.push(a);
+  if (pillAges[pillAges.length - 1] !== ea) pillAges.push(ea);
+
+  const at = age => data.find(d => d.age === age) || data[data.length - 1];
+  const init = S.liquidBase + S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + p.value, 0);
+
+  let minLiq = Infinity, minAge = sa;
+  data.forEach(d => { if (d.liq < minLiq) { minLiq = d.liq; minAge = d.age; } });
+
+  // Max monthly — debounced: expensive (44×runSim), update 600ms after last go()
+  clearTimeout(_maxTimer);
+  _maxTimer = setTimeout(() => {
+    _lastMaxMonthly = calcMaxMonthly(1_000_000);
+    document.getElementById('max-val').textContent = fmt(_lastMaxMonthly) + '/mo';
+    updateMonthlyBaseSlider();
+  }, 600);
+
+  // Pills
+  const pills = [];
+  pillAges.forEach((age, i) => {
+    const d     = i === 0 ? null : at(age);
+    const total = i === 0 ? init       : d.liq + d.iliq;
+    const liq   = i === 0 ? S.liquidBase : d.liq;
+    const totalCol = i === 0 ? '#1a1a1a' : total >= 0 ? '#1A8C5F' : '#C03030';
+    const liqCol   = i === 0 ? '#888'    : liq   >= 0 ? '#5DC49A' : '#E07070';
+    pills.push(`<div class="pill">
+      <div class="pill-label">${i === 0 ? 'Current' : 'Age ' + age}</div>
+      <div class="pill-val" style="color:${totalCol}">${fmt(total)}</div>
+      <div style="font-size:12px;font-weight:700;font-family:'SF Mono',Menlo,monospace;color:${liqCol};margin-top:2px;">${fmt(liq)} <span style="font-weight:400;font-size:10px;">liq</span></div>
+    </div>`);
+  });
+  const minBg  = '#FEF9C3';
+  const minCol = minLiq < 0 ? '#92400E' : '#854D0E';
+  pills.push(`<div class="pill" style="background:${minBg}"><div class="pill-label" style="color:#92400E">Lowest liquidity · ${minAge}</div><div class="pill-val" style="color:${minCol}">${fmt(minLiq)}</div></div>`);
+  document.getElementById('metrics').style.gridTemplateColumns = `repeat(${pills.length}, minmax(0,1fr))`;
+  document.getElementById('metrics').innerHTML = pills.join('');
+
+  // SPY avg across full span
+  const spyValues = data.map(d => S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate);
+  const spyAvg = spyValues.reduce((a, b) => a + b, 0) / spyValues.length;
+  const spyEl = document.getElementById('spy-avg');
+  if (spyEl) spyEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
+  const spyAvgEl = document.getElementById('spy-avg-label');
+  if (spyAvgEl) spyAvgEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
+
+  const labels    = data.map(d => d.age);
+  const yieldData = data.map(d => {
+    const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
+    return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
+  });
+  const expData   = data.map(d => d.monthlyExp);
+  const expAvg = expData.reduce((a,b)=>a+b,0) / expData.length;
+  const expAvgEl = document.getElementById('exp-avg-label');
+  if (expAvgEl) expAvgEl.textContent = `avg ${fmtM(expAvg)}/mo`;
+  const expMax    = Math.ceil(Math.max(...expData) * 1.5 / 1000) * 1000;
+
+
+  // SPY dot colors: green positive, red negative, amber near zero
+  const spyColors = yieldData.map(v =>
+    v >= 3  ? 'rgba(26,140,95,0.9)'  :
+    v >= 0  ? 'rgba(200,150,20,0.9)' :
+              'rgba(192,48,48,0.9)'
+  );
+
+  // ── Per-property illiquid sub-curves ──
+  const propSubDatasets = S.properties.filter(p => p.enabled !== false).map(p => {
+    const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
+    const pData = labels.map(age => {
+      if (p.hold || age <= p.saleAge) return Math.round(p.value * Math.pow(1 + pApp, age - sa));
+      return 0;
+    });
+    return { label: p.name, data: pData, borderColor:'rgba(239,159,39,0.45)', borderWidth:1,
+             borderDash:[2,2], pointRadius:0, fill:false, tension:0.3 };
+  });
+
+  // ── Main chart (NW only) ──
+  if (!chart) {
+    chart = new Chart(document.getElementById('nwChart'), {
+      type: 'line',
+      plugins: [liquidBgPlugin, msPlugin, {
+        id: 'ageAxisTop',
+        afterDraw(ch) {
+          const { ctx, scales: { x }, data, chartArea } = ch;
+          const lbs = data.labels; if (!lbs) return;
+          ctx.save();
+          ctx.font = '600 9px "SF Mono", Menlo, monospace';
+          ctx.fillStyle = 'rgba(80,80,100,0.45)';
+          ctx.textAlign = 'center';
+          lbs.forEach((age, idx) => {
+            if (age % 5 !== 0) return;
+            ctx.fillText(age, x.getPixelForValue(idx), chartArea.top - 8);
+          });
+          ctx.restore();
+        }
+      }],
+      data: {
+        labels,
+        datasets: [
+          { label:'Liquid',   data: data.map(d => d.liq),          borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Illiquid', data: data.map(d => d.iliq),         borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Total',    data: data.map(d => d.liq + d.iliq), borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
+          ...propSubDatasets
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 22, bottom: 0 } },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { display: false },
+          y: { max: 10_000_000, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
+        }
+      }
+    });
+    _startDanceLoop();
+    // Hover tooltip for sale diamonds
+    document.getElementById('nwChart').addEventListener('mousemove', e => {
+      const tip = document.getElementById('drag-tip');
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const saleHit = _saleDots.find(d => Math.hypot(d.xp - mx, d.yp - my) < 14);
+      if (saleHit) {
+        tip.innerHTML = `${saleHit.name} &nbsp;·&nbsp; sell age ${saleHit.age} &nbsp;·&nbsp; ≈${fmtM(saleHit.value)}`;
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+        tip.style.display = 'block';
+      } else {
+        // Find nearest total-curve dot (snap within 18px horizontally)
+        const tHit = _totalDots.reduce((best, d) => {
+          const dist = Math.abs(d.xp - mx);
+          return dist < best.dist ? { d, dist } : best;
+        }, { d: null, dist: 18 }).d;
+        if (tHit) {
+          const liqCol = tHit.liq >= 0 ? '#5DC49A' : '#f87171';
+          tip.innerHTML = `Age ${tHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">liq ${fmtM(tHit.liq)}</span> &nbsp;·&nbsp; total ${fmtM(tHit.total)}`;
+          tip.style.left = (e.clientX + 14) + 'px';
+          tip.style.top  = (e.clientY - 10) + 'px';
+          tip.style.display = 'block';
+        } else if (!_chartDrag) {
+          tip.style.display = 'none';
+        }
+      }
+    });
+    document.getElementById('nwChart').addEventListener('mouseleave', () => {
+      if (!_chartDrag) document.getElementById('drag-tip').style.display = 'none';
+    });
+    document.getElementById('nwChart').addEventListener('touchmove', e => {
+      const tip = document.getElementById('drag-tip');
+      const t = e.touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mx = t.clientX - rect.left;
+      const tHit = _totalDots.reduce((best, d) => {
+        const dist = Math.abs(d.xp - mx);
+        return dist < best.dist ? { d, dist } : best;
+      }, { d: null, dist: 22 }).d;
+      if (tHit) {
+        const liqCol = tHit.liq >= 0 ? '#5DC49A' : '#f87171';
+        tip.innerHTML = `Age ${tHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">liq ${fmtM(tHit.liq)}</span> &nbsp;·&nbsp; total ${fmtM(tHit.total)}`;
+        tip.style.left = (t.clientX + 14) + 'px';
+        tip.style.top  = (t.clientY - 30) + 'px';
+        tip.style.display = 'block';
+      } else {
+        tip.style.display = 'none';
+      }
+    }, { passive: true });
+    document.getElementById('nwChart').addEventListener('touchend', () => {
+      setTimeout(() => { document.getElementById('drag-tip').style.display = 'none'; }, 1200);
+    });
+  } else {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data.map(d => d.liq);
+    chart.data.datasets[1].data = data.map(d => d.iliq);
+    chart.data.datasets[2].data = data.map(d => d.liq + d.iliq);
+    // Sync per-property sub-curves (splice from index 3, re-add)
+    chart.data.datasets.splice(3);
+    propSubDatasets.forEach(d => chart.data.datasets.push(d));
+    chart.update('none');
+  }
+
+  // ── Sub-chart label plugins ──
+  const fmtShort = v => {
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return (v<0?'-$':'$') + (abs/1_000_000).toFixed(1) + 'M';
+    if (abs >= 1_000)     return (v<0?'-$':'$') + (abs/1_000).toFixed(1).replace(/\.0$/,'') + 'K';
+    return (v<0?'-$':'$') + Math.round(abs);
+  };
+
+  const spyLabelPlugin = {
+    id: 'spyLabels',
+    afterDraw(ch) {
+      const ctx = ch.ctx, ds = ch.data.datasets[0], meta = ch.getDatasetMeta(0);
+      const avg = ds.data.reduce((a,b)=>a+b,0) / ds.data.length;
+      ctx.save();
+      // SPY avg text top-left of chart area
+      ctx.font = '700 10px SF Mono, Menlo, monospace';
+      ctx.fillStyle = avg >= 3 ? 'rgba(26,140,95,0.55)' : avg >= 0 ? 'rgba(180,120,0,0.55)' : 'rgba(192,48,48,0.55)';
+      ctx.textAlign = 'left';
+      ctx.fillText(`avg ${avg>=0?'+':''}${avg.toFixed(1)}%`, ch.chartArea.left + 4, ch.chartArea.top + 12);
+      // Dot value labels
+      ctx.font = '700 10px SF Mono, Menlo, monospace';
+      ctx.textAlign = 'center';
+      meta.data.forEach((pt, i) => {
+        const v = ds.data[i];
+        ctx.fillStyle = v >= 3 ? 'rgba(26,140,95,0.8)' : v >= 0 ? 'rgba(180,120,0,0.8)' : 'rgba(192,48,48,0.8)';
+        const label = (v >= 0 ? '+' : '') + parseFloat(v).toFixed(1) + '%';
+        const yOff = pt.y < ch.chartArea.top + 18 ? 14 : -8;
+        ctx.fillText(label, pt.x, pt.y + yOff);
+      });
+      ctx.restore();
+    }
+  };
+
+  const expLabelPlugin = {
+    id: 'expLabels',
+    afterDraw(ch) {
+      const ctx = ch.ctx, ds = ch.data.datasets[0], meta = ch.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = '700 10px SF Mono, Menlo, monospace';
+      ctx.fillStyle = 'rgba(110,60,170,0.75)';
+      ctx.textAlign = 'center';
+      meta.data.forEach((pt, i) => {
+        const v = ds.data[i];
+        const yOff = pt.y < ch.chartArea.top + 18 ? 14 : -8;
+        ctx.fillText(fmtShort(v), pt.x, pt.y + yOff);
+      });
+      ctx.restore();
+    }
+  };
+
+  // ── SPY sub-chart ──
+  const spySubOpts = {
+    responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 2, bottom: 2 } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: { display: false },
+      y: { min: CURVE_YMIN, max: CURVE_YMAX,
+           ticks:{ font:{size:9}, color:'rgba(160,100,0,0.8)', callback: v => v+'%' },
+           grid:{ color:'rgba(128,128,128,0.06)' } }
+    }
+  };
+  if (!chart2) {
+    chart2 = new Chart(document.getElementById('spyChart'), {
+      type: 'line',
+      plugins: [spyLabelPlugin],
+      data: { labels, datasets: [
+        { label:'SPY return', data: yieldData, borderColor:'rgba(200,130,20,0.75)', borderDash:[4,3], borderWidth:2,
+          pointRadius:4, pointBackgroundColor: spyColors, fill:false, tension:0.3 }
+      ]},
+      options: spySubOpts
+    });
+    initSubChartsInteraction();
+    initExpMultWheel();
+    initSpyNudgeWheel();
+  } else {
+    chart2.data.labels = labels;
+    chart2.data.datasets[0].data = yieldData;
+    chart2.data.datasets[0].pointBackgroundColor = spyColors;
+    chart2.update('none');
+  }
+
+  // ── Expense sub-chart ──
+  const expSubOpts = {
+    responsive: true, maintainAspectRatio: false,
+    layout: { padding: { top: 2, bottom: 2 } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: { ticks:{ font:{size:10}, color:'#999', autoSkip:true, maxTicksLimit:11 }, grid:{ color:'rgba(128,128,128,0.06)' } },
+      y: { min: 0, max: expMax,
+           ticks:{ font:{size:9}, color:'rgba(110,60,170,0.8)', callback: fmtM },
+           grid:{ color:'rgba(128,128,128,0.06)' } }
+    }
+  };
+  if (!chart3) {
+    chart3 = new Chart(document.getElementById('expChart'), {
+      type: 'line',
+      plugins: [expLabelPlugin],
+      data: { labels, datasets: [
+        { label:'Monthly exp', data: expData, borderColor:'rgba(130,70,190,0.8)', borderDash:[4,3], borderWidth:2,
+          pointRadius:3, pointBackgroundColor:'rgba(130,70,190,0.7)', fill:false, tension:0.3 }
+      ]},
+      options: expSubOpts
+    });
+  } else {
+    chart3.data.labels = labels;
+    chart3.data.datasets[0].data = expData;
+    chart3.options.scales.y.max = expMax;
+    chart3.update('none');
+  }
+
+  // Debounced AI one-liners — rate limited: max 4/min, max 10/5min (then pause 5min)
+  clearTimeout(_onelineTimer);
+  _onelineTimer = setTimeout(() => {
+    const now = Date.now();
+    if (now < _onelinePauseUntil) return; // in cooldown
+    _onelineCallLog = _onelineCallLog.filter(t => now - t < 5 * 60_000); // keep last 5min
+    const last60 = _onelineCallLog.filter(t => now - t < 60_000).length;
+    if (last60 >= 4 || _onelineCallLog.length >= 10) {
+      _onelinePauseUntil = now + 5 * 60_000; return;
+    }
+    _onelineCallLog.push(now);
+    requestAiOneliner(); requestAiJeopardize();
+  }, 15_000);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ITEM RENDERING
+// ══════════════════════════════════════════════════════════════
+
+// Close open card when clicking outside
+document.addEventListener('click', e => {
+  if (openId !== null && !e.target.closest('.expand-card') && !e.target.closest('.item-row')) {
+    openId = null; renderAll();
+  }
+});
+
+// Pressing Enter inside an expanded card collapses it
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && openId !== null && e.target.closest('.expand-card')) {
+    e.target.blur();
+    openId = null; renderAll(); go();
+  }
+});
+
+function togItem(arr, id) { return arr.map(x => x.id === id ? { ...x, enabled: x.enabled === false } : x); }
+function togP(id)  { S.properties   = togItem(S.properties,   id); renderProps();  go(); }
+function togI(id)  { S.incomes      = togItem(S.incomes,      id); renderInc();    go(); }
+function togE(id)  { S.expenses     = togItem(S.expenses,     id); renderExp();    go(); }
+function toggle(id){ openId = openId === id ? null : id; }
+function nid()     { return ++nextId; }
+
+function xb(fn) {
+  return `<button class="btn-rm" onclick="event.stopPropagation();${fn}">×</button>`;
+}
+function colb(id, rf) {
+  return `<button class="btn-col" onclick="event.stopPropagation();toggle(${id});${rf}()">▾</button>`;
+}
+function sw(en, fn) {
+  const on = en !== false;
+  return `<span onclick="event.stopPropagation();${fn}"
+    style="cursor:pointer;flex-shrink:0;display:inline-block;width:22px;height:12px;
+    border-radius:6px;background:${on?'#1A8C5F':'#bbb'};position:relative;vertical-align:middle;">
+    <span style="position:absolute;width:8px;height:8px;border-radius:50%;background:#fff;top:2px;left:${on?'12':'2'}px;"></span>
+  </span>`;
+}
+function cRow(n, name, det, id, en, rmFn, togFn, enFn, cls) {
+  return `<div class="item-row${cls?' '+cls:''}${en===false?' disabled-row':''}" onclick="${togFn}">
+    <span class="item-num">${n}</span>
+    <span class="item-name">${name}</span>
+    <span class="item-detail">${det}</span>
+    ${sw(en, enFn)}${xb(rmFn)}
+  </div>`;
+}
+function exH(name, nc, id, rmFn, rf, enFn, en) {
+  return `<div class="expand-header">
+    <input class="bare" type="text" value="${name}" onchange="${nc}" onclick="event.stopPropagation()">
+    <div style="display:flex;gap:4px;align-items:center;">${sw(en,enFn)}${xb(rmFn)}${colb(id,rf)}</div>
+  </div>`;
+}
+
+// ── SPY Yield Curve Editor ──
+const CURVE_YMIN = -50, CURVE_YMAX = 40, CURVE_YRANGE = 90;
+const CVW = 820, CVH = 300, CPL = 38, CPR = 28, CPT = 14, CPB = 26;
+const CPW = CVW - CPL - CPR, CPH = CVH - CPT - CPB;
+let curveOpen = false;
+let _drag = null;
+
+function cxOf(age) { const sa=S.startAge||57,ea=S.endAge||87; return CPL + (age-sa)/Math.max(ea-sa,1)*CPW; }
+function cyOf(v)   { return CPT + (CURVE_YMAX - v) / CURVE_YRANGE * CPH; }
+function svgYtoVal(svgY) { return CURVE_YMAX - (svgY - CPT) / CPH * CURVE_YRANGE; }
+
+function clientYtoSvgY(clientY) {
+  const svg = document.getElementById('curve-svg');
+  const rect = svg.getBoundingClientRect();
+  return (clientY - rect.top) / rect.height * CVH;
+}
+
+function toggleCurve() {
+  curveOpen ? closeCurve() : openCurve();
+}
+function openCurve() {
+  curveOpen = true;
+  drawCurve();
+  document.getElementById('curve-popup').style.display = 'flex';
+}
+function closeCurve() {
+  curveOpen = false;
+  document.getElementById('curve-popup').style.display = 'none';
+}
+function renderCurve() { if (curveOpen) drawCurve(); }
+
+function drawCurve() {
+  const svg = document.getElementById('curve-svg');
+  const sa = S.startAge||57, ea = S.endAge||87;
+
+  const gridY = [-50,-40,-30,-20,-10,0,10,20,30,40];
+  const grid = gridY.map(y => {
+    const gy = cyOf(y).toFixed(1);
+    return `<line x1="${CPL}" y1="${gy}" x2="${CVW-CPR}" y2="${gy}" stroke="${y===0?'#bbb':'#f0efe9'}" stroke-width="${y===0?1:0.5}"/>
+<text x="${CPL-5}" y="${(+gy+4).toFixed(1)}" text-anchor="end" font-size="11" fill="${y===0?'#666':'#ccc'}">${y}%</text>`;
+  }).join('');
+
+  const baseY = cyOf(S.yieldRate).toFixed(1);
+  const baseLine = `<line x1="${CPL}" y1="${baseY}" x2="${CVW-CPR}" y2="${baseY}" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="5,4"/>
+<text x="${CVW-CPR+4}" y="${(+baseY+4).toFixed(1)}" font-size="11" fill="#EF9F27" font-weight="600">${S.yieldRate}%</text>`;
+
+  const pts = [];
+  for (let age = sa; age <= ea; age++) {
+    const custom = S.yieldCurve && S.yieldCurve[age] !== undefined;
+    const v = custom ? S.yieldCurve[age] : S.yieldRate;
+    pts.push({ age, v, custom });
+  }
+
+  const poly = pts.map(p=>`${cxOf(p.age).toFixed(1)},${cyOf(p.v).toFixed(1)}`).join(' ');
+
+  const xLabels = pts.filter(p=>(p.age-sa)%5===0||p.age===ea)
+    .map(p=>`<text x="${cxOf(p.age).toFixed(1)}" y="${CVH-6}" text-anchor="middle" font-size="11" fill="#aaa">${p.age}</text>`);
+
+  const dotR = 7;
+  const dots = pts.map(p => {
+    const fill = !p.custom ? '#d0d0d0' : p.v >= 0 ? '#1A8C5F' : '#C03030';
+    return `<circle class="curve-dot" cx="${cxOf(p.age).toFixed(1)}" cy="${cyOf(p.v).toFixed(1)}" r="${dotR}" fill="${fill}" stroke="#fff" stroke-width="2" data-age="${p.age}" style="cursor:ns-resize;"/>`;
+  }).join('');
+
+  // Wider invisible hit targets on top of dots for easier grabbing
+  const hitTargets = pts.map(p =>
+    `<circle class="curve-dot" cx="${cxOf(p.age).toFixed(1)}" cy="${cyOf(p.v).toFixed(1)}" r="12" fill="transparent" data-age="${p.age}" style="cursor:ns-resize;"/>`
+  ).join('');
+
+  // Animal icons row — one per life-stage quarter across the age range
+  const animalDefs = ['🐎','🦁','🦉','🐢'];
+  const animalIcons = animalDefs.map((icon, i) => {
+    const qStart = sa + i * (ea - sa) / 4;
+    const qEnd   = sa + (i + 1) * (ea - sa) / 4;
+    const midX   = cxOf((qStart + qEnd) / 2).toFixed(1);
+    return `<text x="${midX}" y="318" text-anchor="middle" font-size="17" style="user-select:none;">${icon}</text>`;
+  }).join('');
+
+  svg.innerHTML = `${grid}${baseLine}
+<polyline id="curve-poly" points="${poly}" fill="none" stroke="#378ADD" stroke-width="2" stroke-linejoin="round"/>
+${dots}${hitTargets}${xLabels.join('')}${animalIcons}`;
+}
+
+// Update only the moved dot + polyline — no full redraw during drag
+function _curvePatchDot(age, v) {
+  if (!S.yieldCurve) S.yieldCurve = {};
+  S.yieldCurve[age] = v;
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const svg = document.getElementById('curve-svg');
+  if (!svg) return;
+  // Move all circles (dot + hit target) for this age
+  svg.querySelectorAll(`.curve-dot[data-age="${age}"]`).forEach(c => c.setAttribute('cy', cyOf(v).toFixed(1)));
+  // Update fill of visible dot (r=7)
+  const vis = [...svg.querySelectorAll(`.curve-dot[data-age="${age}"]`)].find(c=>+c.getAttribute('r')===7);
+  if (vis) vis.setAttribute('fill', v >= 0 ? '#1A8C5F' : '#C03030');
+  // Rebuild polyline
+  const poly = document.getElementById('curve-poly');
+  if (poly) {
+    const pts = [];
+    for (let a = sa; a <= ea; a++) {
+      const val = S.yieldCurve[a] !== undefined ? S.yieldCurve[a] : S.yieldRate;
+      pts.push(`${cxOf(a).toFixed(1)},${cyOf(val).toFixed(1)}`);
+    }
+    poly.setAttribute('points', pts.join(' '));
+  }
+}
+
+document.addEventListener('mousedown', e => {
+  const dot = e.target.closest ? e.target : null;
+  if (!dot || !dot.classList.contains('curve-dot')) return;
+  e.preventDefault();
+  const age = +dot.dataset.age;
+  const startVal = S.yieldCurve && S.yieldCurve[age] !== undefined ? S.yieldCurve[age] : S.yieldRate;
+  _drag = { age, startClientY: e.clientY, startSvgY: clientYtoSvgY(e.clientY), startVal };
+});
+
+document.addEventListener('mousemove', e => {
+  if (!_drag) return;
+  const svgY = clientYtoSvgY(e.clientY);
+  let v = Math.round(svgYtoVal(svgY));
+  v = Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, v));
+  _curvePatchDot(_drag.age, v);
+  const bar = document.getElementById('curve-tip-bar');
+  if (bar) bar.textContent = `Age ${_drag.age}: ${v > 0 ? '+' : ''}${v}%`;
+});
+
+document.addEventListener('mouseup', e => {
+  if (!_drag) return;
+  _drag = null;
+  go();
+});
+
+// Touch support for curve editor
+document.addEventListener('touchstart', e => {
+  const dot = e.target.closest ? e.target : null;
+  if (!dot || !dot.classList.contains('curve-dot')) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  const age = +dot.dataset.age;
+  const startVal = S.yieldCurve && S.yieldCurve[age] !== undefined ? S.yieldCurve[age] : S.yieldRate;
+  _drag = { age, startSvgY: clientYtoSvgY(t.clientY), startVal };
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if (!_drag) return;
+  e.preventDefault();
+  const svgY = clientYtoSvgY(e.touches[0].clientY);
+  let v = Math.round(svgYtoVal(svgY));
+  v = Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, v));
+  _curvePatchDot(_drag.age, v);
+  const bar = document.getElementById('curve-tip-bar');
+  if (bar) bar.textContent = `Age ${_drag.age}: ${v > 0 ? '+' : ''}${v}%`;
+}, { passive: false });
+
+document.addEventListener('touchend', e => {
+  if (!_drag) return;
+  _drag = null;
+  go();
+});
+
+document.getElementById('curve-popup').addEventListener('click', e => {
+  if (e.target === document.getElementById('curve-popup')) closeCurve();
+});
+
+document.getElementById('curve-svg').addEventListener('dblclick', e => {
+  const dot = e.target.closest ? e.target : null;
+  if (!dot || !dot.classList.contains('curve-dot')) return;
+  const age = +dot.dataset.age;
+  if (S.yieldCurve) delete S.yieldCurve[age];
+  go(); // go() → renderAll() → renderCurve() → drawCurve(), no need to call drawCurve() separately
+});
+
+// ── Other incomes ──
+function renderInc() {
+  const sa = S.startAge || 57;
+
+  function renderIncItem(inc, i) {
+    const oo = inc.type === 'oneoff';
+    const cols = oo ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr';
+    if (openId === inc.id) return `<div class="expand-card grn${inc.enabled===false?' disabled-row':''}" onclick="event.stopPropagation()">
+      ${exH(inc.name, `upI(${inc.id},'name',this.value)`, inc.id, `rmI(${inc.id})`, 'renderInc', `togI(${inc.id})`, inc.enabled)}
+      <div style="display:grid;grid-template-columns:${cols};gap:4px;">
+        <div><label class="lbl">Amount</label><input type="text" value="${fmtInput(oo ? inc.amount : inc.monthly)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="upI(${inc.id},'${oo?'amount':'monthly'}',parseNum(this.value));go()"></div>
+        <div><label class="lbl">Type</label>
+          <select onchange="upI(${inc.id},'type',this.value);renderInc();go();">
+            <option value="monthly"${!oo&&inc.type!=='annual'?' selected':''}>Monthly</option>
+            <option value="annual"${inc.type==='annual'?' selected':''}>Annual</option>
+            <option value="oneoff"${oo?' selected':''}>One-off</option>
+          </select>
+        </div>
+        ${oo
+          ? `<div><label class="lbl">At age</label><input type="number" value="${inc.atAge||sa}" min="${sa}" max="${S.endAge}" onchange="upI(${inc.id},'atAge',+this.value);go()"></div>`
+          : `<div><label class="lbl">From</label><input type="number" value="${inc.from||sa}" min="${sa}" max="${S.endAge}" onchange="upI(${inc.id},'from',+this.value);go()"></div>
+             <div><label class="lbl">To</label><input type="number" value="${inc.to||S.endAge}" min="${sa}" max="${S.endAge}" onchange="upI(${inc.id},'to',+this.value);go()"></div>`
+        }
+      </div>
+      <div style="margin-top:6px;">
+        <label class="lbl">Description</label>
+        <textarea class="desc" rows="2" placeholder="What is this income? Any context for the AI advisor…" onchange="upI(${inc.id},'description',this.value)">${(inc.description||'').replace(/</g,'&lt;')}</textarea>
+      </div>
+    </div>`;
+    const qAmtI = oo ? inc.amount : inc.monthly;
+    const fromTag = oo
+      ? `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">age ${inc.atAge||sa}</span>`
+      : `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">fr.${inc.from||sa}</span>`;
+    return `<div class="item-row grn${inc.enabled===false?' disabled-row':''}" onclick="toggle(${inc.id});renderInc()">
+  <span class="expand-arr">${openId===inc.id?'▼':'▶'}</span>
+  <span class="item-num">${i+1}</span>
+  <span class="item-name">${inc.name}</span>
+  <input type="text" class="item-quick-amt" value="${fmtInput(qAmtI)}" title="Click to edit amount"
+    onfocus="moneyFocus(this);event.stopPropagation();"
+    onblur="moneyBlur(this)"
+    onchange="event.stopPropagation();upI(${inc.id},'${oo?'amount':'monthly'}',parseNum(this.value));go()"
+    onclick="event.stopPropagation()"
+    style="width:70px;flex-shrink:0;font-size:11px;font-family:SF Mono,Menlo,monospace;height:24px !important;line-height:24px !important;padding:0 5px;text-align:right;border-radius:4px;">
+  ${fromTag}
+  ${sw(inc.enabled, `togI(${inc.id})`)}${xb(`rmI(${inc.id})`)}
+</div>`;
+  }
+
+  const monthly = S.incomes.filter(i => i.type !== 'oneoff' && i.type !== 'annual');
+  const yearly  = S.incomes.filter(i => i.type === 'annual');
+  const oneoff  = S.incomes.filter(i => i.type === 'oneoff');
+
+  let idx = 0;
+
+  // Monthly: property rents first (only if rent > 0), then income items
+  const rentRows = S.properties.filter(p => p.enabled !== false && p.monthlyRent > 0).map(p => {
+    const fromAge = p.rentFromAge || sa;
+    return `<div class="rent-row${p.enabled===false?' disabled-row':''}">
+  <span style="font-size:11px;font-weight:600;color:#8792a2;flex-shrink:0;">🏠</span>
+  <span class="item-name" style="font-size:12px;color:#697386;">${p.name}</span>
+  <input type="text" class="iamt" value="${fmtInput(p.monthlyRent)}" placeholder="rent/mo" title="Monthly rent"
+    onfocus="moneyFocus(this);event.stopPropagation();"
+    onblur="moneyBlur(this)"
+    onchange="event.stopPropagation();upP(${p.id},'monthlyRent',parseNum(this.value));renderProps();go()"
+    onclick="event.stopPropagation()">
+  <span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">fr.${fromAge}</span>
+  ${sw(p.enabled, `togP(${p.id})`)}
+</div>`;
+  }).join('');
+
+  const monthlyEl = document.getElementById('inc-monthly-list');
+  const yearlyEl  = document.getElementById('inc-yearly-list');
+  const oneoffEl  = document.getElementById('inc-oneoff-list');
+
+  const emptyRow = `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
+  if (monthlyEl) monthlyEl.innerHTML = rentRows + monthly.map(i => renderIncItem(i, ++idx)).join('');
+  if (yearlyEl)  yearlyEl.innerHTML  = yearly.length  ? yearly.map(i  => renderIncItem(i, ++idx)).join('') : emptyRow;
+  if (oneoffEl)  oneoffEl.innerHTML  = oneoff.length   ? oneoff.map(i  => renderIncItem(i, ++idx)).join('') : emptyRow;
+
+  const sumEnabled = (arr, fn) => arr.filter(i => i.enabled !== false).reduce((s, i) => s + (fn(i) || 0), 0);
+  const rentSum = S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + (p.monthlyRent || 0), 0);
+  const mSum = rentSum + sumEnabled(monthly, i => i.monthly);
+  const ySum = sumEnabled(yearly, i => i.monthly || i.amount);
+  const oSum = sumEnabled(oneoff, i => i.amount);
+  const el_mt = document.getElementById('inc-monthly-total'); if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
+  const el_yt = document.getElementById('inc-yearly-total');  if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
+  const el_ot = document.getElementById('inc-oneoff-total');  if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
+}
+function upI(id,f,v) { S.incomes=S.incomes.map(i=>i.id===id?{...i,[f]:v}:i); }
+function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; renderInc(); go(); }
+function addI()  { const id=nid(); S.incomes.push({id,name:'Income',type:'monthly',monthly:1000,amount:1000,from:S.startAge,to:S.endAge,atAge:S.startAge,enabled:true}); openId=id; renderInc(); go(); }
+
+// ── One-off date helpers ──
+const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function ageToYear(age) { return (S.startYear || new Date().getFullYear()) + (age - S.startAge); }
+function yearToAge(year) { return year - (S.startYear || new Date().getFullYear()) + S.startAge; }
+function monthOpts(sel) { return _MONTHS.map((m,i) => `<option value="${i+1}"${sel===i+1?' selected':''}>${m}</option>`).join(''); }
+function yearOpts(sel) {
+  const sy = S.startYear || new Date().getFullYear();
+  const ey = sy + (S.endAge - S.startAge);
+  let html = '';
+  for (let y = sy; y <= ey; y++) html += `<option value="${y}"${sel===y?' selected':''}>${y}</option>`;
+  return html;
+}
+
+// ── Other expenses ──
+function renderExpItem(e, i) {
+  const oo   = e.type === 'oneoff';
+  const inst = e.type === 'installments';
+  const freqOpts = ['monthly','quarterly','semester','annual']
+    .map(f => `<option value="${f}"${(e.installFreq||'monthly')===f?' selected':''}>${f==='monthly'?'mo':f==='quarterly'?'qtr':f==='semester'?'6mo':'yr'}</option>`)
+    .join('');
+  let ageFields;
+  if (oo) {
+    const _yr = ageToYear(e.atAge || S.startAge);
+    const _mo = e.atMonth || 1;
+    ageFields = `<select class="iselect" style="width:48px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atMonth',+this.value);go();">${monthOpts(_mo)}</select>
+      <select class="iselect" style="width:60px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atAge',yearToAge(+this.value));go();">${yearOpts(_yr)}</select>`;
+  } else if (inst) {
+    ageFields = `<input type="number" class="ifield" value="${e.installN||12}" min="1" max="360" title="# installments" onclick="event.stopPropagation()" onchange="upE(${e.id},'installN',+this.value);go()" style="width:36px!important;">
+      <select class="iselect" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'installFreq',this.value);go();" style="width:46px!important;">${freqOpts}</select>
+      <span class="isep">@</span>
+      <input type="number" class="ifield" value="${e.atAge||S.startAge}" min="${S.startAge}" max="${S.endAge}" title="Start age" onclick="event.stopPropagation()" onchange="upE(${e.id},'atAge',+this.value);go()">`;
+  } else {
+    ageFields = `<input type="number" class="ifield" value="${e.from||S.startAge}" min="${S.startAge}" max="${S.endAge}" title="From" onclick="event.stopPropagation()" onchange="upE(${e.id},'from',+this.value);go()">
+       <span class="isep">–</span>
+       <input type="number" class="ifield" value="${e.to||S.endAge}" min="${S.startAge}" max="${S.endAge}" title="To" onclick="event.stopPropagation()" onchange="upE(${e.id},'to',+this.value);go()">`;
+  }
+  const amtVal   = inst ? (e.installTotal||e.amount||0) : e.amount;
+  const amtField = inst ? 'installTotal' : 'amount';
+  return `<div class="item-row${e.enabled===false?' disabled-row':''}" onclick="toggle(${e.id});renderExp()">
+  <span class="expand-arr">${openId===e.id?'▼':'▶'}</span>
+  <span class="item-num">${i}</span>
+  <input class="iname" type="text" value="${e.name}" onclick="event.stopPropagation()" onchange="upE(${e.id},'name',this.value)">
+  <input type="text" class="iamt" value="${fmtInput(amtVal)}" title="${inst?'Total amount':'Amount'}"
+    onfocus="moneyFocus(this);event.stopPropagation();"
+    onblur="moneyBlur(this)"
+    onchange="event.stopPropagation();upE(${e.id},'${amtField}',parseNum(this.value));go()"
+    onclick="event.stopPropagation()">
+  <select class="iselect" onchange="event.stopPropagation();upE(${e.id},'type',this.value);renderExp();go();" onclick="event.stopPropagation()">
+    <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
+    <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
+    <option value="oneoff"${e.type==='oneoff'?' selected':''}>One-off</option>
+    <option value="installments"${inst?' selected':''}>Installments</option>
+  </select>
+  <div style="display:flex;align-items:center;gap:2px;flex-shrink:0;">${ageFields}</div>
+  ${sw(e.enabled, `togE(${e.id})`)}${xb(`rmE(${e.id})`)}
+</div>
+${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
+  <label class="lbl">Description</label>
+  <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
+</div>`:''}`;
+}
+
+function renderExp() {
+  const monthly  = S.expenses.filter(e => e.type === 'monthly');
+  const annual   = S.expenses.filter(e => e.type === 'annual');
+  const oneoff   = S.expenses.filter(e => e.type === 'oneoff');
+  const installs = S.expenses.filter(e => e.type === 'installments');
+
+  let idx = 0;
+  const monthlyEl = document.getElementById('exp-monthly-list');
+  const yearlyEl  = document.getElementById('exp-yearly-list');
+  const oneoffEl  = document.getElementById('exp-oneoff-list');
+
+  const emptyRow = `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
+  if (monthlyEl) monthlyEl.innerHTML = monthly.map(e => renderExpItem(e, ++idx)).join('');
+  const yearlyHtml = annual.map(e => renderExpItem(e, ++idx)).join('') + installs.map(e => renderExpItem(e, ++idx)).join('');
+  if (yearlyEl)  yearlyEl.innerHTML  = yearlyHtml || emptyRow;
+  if (oneoffEl)  oneoffEl.innerHTML  = oneoff.length ? oneoff.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
+
+  const sumEnabled = (arr, fn) => arr.filter(e => e.enabled !== false).reduce((s, e) => s + (fn(e) || 0), 0);
+  const mSum = sumEnabled(monthly, e => e.amount);
+  const ySum = sumEnabled(annual, e => e.amount) + sumEnabled(installs, e => e.installTotal || e.amount);
+  const oSum = sumEnabled(oneoff, e => e.amount);
+  const el_mt = document.getElementById('exp-monthly-total'); if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
+  const el_yt = document.getElementById('exp-yearly-total');  if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
+  const el_ot = document.getElementById('exp-oneoff-total');  if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
+
+  updateMonthlyBaseSlider();
+}
+function upE(id,f,v) { S.expenses=S.expenses.map(e=>e.id===id?{...e,[f]:v}:e); }
+function rmE(id) { S.expenses=S.expenses.filter(e=>e.id!==id); if(openId===id)openId=null; renderExp(); go(); }
+function addE()  { const id=nid(); S.expenses.push({id,name:'Expense',amount:1000,type:'monthly',from:S.startAge,to:S.endAge,atAge:S.startAge,atMonth:1,enabled:true}); openId=id; renderExp(); go(); }
+
+// ── Real estate ──
+function renderProps() {
+  document.getElementById('props-list').innerHTML = S.properties.map((p, i) => {
+    const appOpen = openId === p.id;
+    const appLabel = p.appRate !== undefined ? p.appRate + '%' : 'global';
+    return `<div class="item-row${p.enabled===false?' disabled-row':''}">
+  <span class="item-num">${i+1}</span>
+  <input class="iname" type="text" value="${p.name}" onclick="event.stopPropagation()" onchange="upP(${p.id},'name',this.value)">
+  <input type="text" class="iamt" value="${fmtInput(p.value)}" title="Value"
+    onfocus="moneyFocus(this);event.stopPropagation();"
+    onblur="moneyBlur(this)"
+    onchange="event.stopPropagation();upP(${p.id},'value',parseNum(this.value));go()"
+    onclick="event.stopPropagation()">
+  <input type="text" class="iamt" value="${fmtInput(p.monthlyRent)}" title="Rent/mo"
+    placeholder="rent/mo"
+    onfocus="moneyFocus(this);event.stopPropagation();"
+    onblur="moneyBlur(this)"
+    onchange="event.stopPropagation();upP(${p.id},'monthlyRent',parseNum(this.value));renderInc();go()"
+    onclick="event.stopPropagation()">
+  <input type="number" class="ifield" value="${p.rentFromAge||S.startAge}" title="Rent from age"
+    min="${S.startAge}" max="${S.endAge}"
+    onclick="event.stopPropagation()" onchange="upP(${p.id},'rentFromAge',+this.value);go()">
+  <input type="number" class="ifield" id="sa-${p.id}" value="${p.hold?'':p.saleAge}" title="Sell age (blank=hold)"
+    min="${S.startAge+1}" max="${S.endAge}" placeholder="hold"
+    onclick="event.stopPropagation()"
+    onchange="event.stopPropagation();const v=+this.value;if(!this.value||v>S.endAge){upP(${p.id},'hold',true);upP(${p.id},'saleAge',S.endAge)}else{upP(${p.id},'hold',false);upP(${p.id},'saleAge',v)};go()">
+  <button title="Appreciation override: ${appLabel}" onclick="event.stopPropagation();toggle(${p.id});renderProps()"
+    style="flex-shrink:0;font-size:10px;height:22px;padding:0 6px;border:1px solid #e6ebf1;border-radius:4px;background:${appOpen?'#635bff':'#f6f9fc'};color:${appOpen?'#fff':'#697386'};cursor:pointer;">App%</button>
+  ${sw(p.enabled, `togP(${p.id})`)}${xb(`rmP(${p.id})`)}
+</div>
+${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;border-radius:0 0 8px 8px;" onclick="event.stopPropagation()">
+  <label class="lbl">Appreciation override &nbsp;<span style="float:right;font-family:SF Mono,Menlo,monospace;font-size:11px;">${p.appRate !== undefined ? p.appRate + '%' : 'global (' + S.assetAppreciation + '%)'}</span></label>
+  <input type="range" min="0" max="12" step="0.25" value="${p.appRate !== undefined ? p.appRate : S.assetAppreciation}" oninput="upP(${p.id},'appRate',+this.value);go()">
+  ${p.appRate !== undefined ? `<button onclick="upP(${p.id},'appRate',undefined);go()" style="font-size:9px;color:#aaa;background:none;border:none;cursor:pointer;padding:0;">↺ use global</button>` : ''}
+  <div style="margin-top:6px;">
+    <label class="lbl">Description</label>
+    <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
+  </div>
+</div>` : ''}`;
+  }).join('');
+  const aSum = S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + (p.value || 0), 0);
+  const el_at = document.getElementById('assets-total'); if (el_at) el_at.textContent = aSum > 0 ? fmt(aSum) : '';
+}
+
+function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
+function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
+function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
+
+function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); }
+
+function syncSettingsPanel() {
+  const keyEl = document.getElementById('claude-key-input');
+  if (keyEl) keyEl.value = localStorage.getItem('retiro_claude_key') || '';
+  const idEl = document.getElementById('sb-id-input');
+  if (idEl) idEl.value = getSbId();
+}
+
+function applySbId() {
+  const val = document.getElementById('sb-id-input').value.trim();
+  if (!val) return;
+  localStorage.setItem(SB_ID_KEY, val);
+  localStorage.removeItem(LS_KEY); // force reload from new cloud ID
+  loadScenarios();
+}
+
+function toggleSettings() {
+  const p = document.getElementById('settings-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') syncSettingsPanel();
+}
+
+function startInflEdit() {
+  const badge = document.getElementById('infl-badge');
+  const cur = S.inflationRate;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '1'; inp.max = '8'; inp.step = '0.25'; inp.value = cur;
+  inp.style.cssText = 'width:48px;font-size:11px;font-weight:800;font-family:inherit;padding:0 3px;border:1.5px solid #1a1a2e;border-radius:2px;';
+  badge.replaceWith(inp); inp.focus(); inp.select();
+  const commit = () => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v) && v >= 1 && v <= 8) {
+      S.inflationRate = v;
+      const slider = document.getElementById('inf');
+      if (slider) { slider.value = v; document.getElementById('inf-v').textContent = v + '%'; }
+    }
+    const newBadge = document.createElement('span');
+    newBadge.id = 'infl-badge'; newBadge.ondblclick = startInflEdit;
+    newBadge.title = 'Double-click to edit';
+    newBadge.style.cssText = 'font-weight:800;color:#888;cursor:pointer;border-bottom:1px dashed #ccc;';
+    newBadge.textContent = S.inflationRate + '%';
+    inp.replaceWith(newBadge); go();
+  };
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); commit(); } if (ev.key === 'Escape') { commit(); } });
+  inp.addEventListener('blur', () => setTimeout(commit, 100));
+}
+
+function syncInputs() {
+  document.getElementById('startAge').value   = S.startAge;
+  document.getElementById('endAge').value     = S.endAge;
+  document.getElementById('liquidBase').value = fmtInput(S.liquidBase);
+  const wtEl = document.getElementById('winterTrip'); if (wtEl) wtEl.value = fmtInput(S.winterTrip);
+  const stEl = document.getElementById('summerTrip'); if (stEl) stEl.value = fmtInput(S.summerTrip);
+  updateMonthlyBaseSlider();
+  updateSpyNudgeLabel();
+  const inflNoteEl = document.getElementById('infl-note');
+  if (inflNoteEl) inflNoteEl.innerHTML = inflNote();
+  [['inf','inflationRate']].forEach(([id, k]) => {
+    document.getElementById(id).value = S[k];
+    document.getElementById(id + '-v').textContent = S[k] + '%';
+  });
+  const inflBadge = document.getElementById('infl-badge');
+  if (inflBadge && inflBadge.tagName === 'SPAN') inflBadge.textContent = S.inflationRate + '%';
+  document.getElementById('app').value = S.assetAppreciation;
+  document.getElementById('app-v').textContent = S.assetAppreciation + '%';
+}
+
+// ── AI Evaluation ──
+function showAiTab(idx) {
+  const tabsEl = document.getElementById('ai-eval-tabs');
+  const box = document.getElementById('ai-eval-box');
+  tabsEl.innerHTML = _aiSections.map((s, i) =>
+    `<button class="ai-tab${i===idx?' active':''}" onclick="showAiTab(${i})">${s.title}</button>`
+  ).join('');
+  const sec = _aiSections[idx];
+  box.innerHTML = sec ? `<p style="margin:0 0 6px">${sec.body.trim().replace(/\n\n/g,'</p><p style="margin:0 0 6px">').replace(/\n/g,'<br>')}</p>` : '';
+}
+
+function getClaudeKey() { return localStorage.getItem('retiro_claude_key') || ''; }
+
+async function requestAiEval() {
+  const box = document.getElementById('ai-eval-box');
+  const btn = document.getElementById('ai-eval-btn');
+
+  btn.disabled = true;
+  box.innerHTML = '<span style="color:#aaa;">Evaluating…</span>';
+
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const data = runSim();
+  const last = data[data.length - 1];
+  const minLiqEntry = data.reduce((m, d) => d.liq < m.liq ? d : m, data[0]);
+
+  // Build yield curve summary
+  const customYears = S.yieldCurve ? Object.entries(S.yieldCurve).map(([a,v]) => `age ${a}: ${v}%`).join(', ') : 'none';
+  const avgYield = data.map(d => S.yieldCurve?.[d.age] ?? S.yieldRate).reduce((a,b)=>a+b,0) / data.length;
+
+  // Build expense curve summary
+  const expCustom = S.expenseCurve && Object.keys(S.expenseCurve).length > 0
+    ? Object.entries(S.expenseCurve).map(([a,v]) => `age ${a}: ${fmt(v)}/mo`).join(', ')
+    : 'none (inflation-adjusted base throughout)';
+
+  const propList = S.properties.filter(p => p.enabled !== false).map(p =>
+    `${p.name}: ${fmt(p.value)}${p.monthlyRent ? `, ${fmt(p.monthlyRent)}/mo rent` : ''}${p.hold ? ', hold' : `, sell at ${p.saleAge}`}`
+  ).join('\n  ');
+
+  const incList = S.incomes.filter(i => i.enabled !== false).map(i =>
+    `${i.name}: ${fmt(i.monthly)}/mo from ${i.from} to ${i.to}`
+  ).join('\n  ');
+
+  const expList = S.expenses.filter(e => e.enabled !== false).map(e =>
+    e.type === 'oneoff'
+      ? `${e.name}: ${fmt(e.amount)} one-off at ${e.atAge}`
+      : `${e.name}: ${fmt(e.amount)} ${e.type} from ${e.from} to ${e.to}`
+  ).join('\n  ');
+
+  const prompt = `You are a personal retirement advisor. Review this plan and give a frank, concise assessment. Use markdown-style headings (## Heading). Keep total response under 350 words. Be direct — skip filler phrases.
+
+Ages: ${sa}→${ea} | Liquid: ${fmt(S.liquidBase)} | Monthly spend: ${fmt(S.monthlyExpenses)} (infl ${S.inflationRate}%) | Trips: ${fmt(S.summerTrip)}+${fmt(S.winterTrip)}/yr | Market: ${avgYield.toFixed(1)}% avg | Appreciation: ${S.assetAppreciation}%
+Real estate: ${propList || 'none'}
+Other income: ${incList || 'none'}
+Other expenses: ${expList || 'none'}
+Results: Final liquid ${fmt(last.liq)} | Final total ${fmt(last.liq + last.iliq)} | Min liquidity ${fmt(minLiqEntry.liq)} at age ${minLiqEntry.age}
+
+Use these sections (pick 3-4 that are most relevant): ## Summary, ## Strengths, ## Risks, ## Warnings, ## Advice. Be specific with numbers. No flattery.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': getClaudeKey(),
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
+    box.innerHTML = '';
+    document.getElementById('ai-eval-tabs').style.display = 'none';
+    document.getElementById('ai-eval-tabs').innerHTML = '';
+    _aiSections = [];
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.type === 'content_block_delta' && evt.delta?.text) {
+            text += evt.delta.text;
+            box.innerHTML = text.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+            box.scrollTop = box.scrollHeight;
+          }
+        } catch {}
+      }
+    }
+    if (!text) box.innerHTML = '<span style="color:#aaa;">No response received.</span>';
+
+    // Parse sections and render tabs
+    const tabsEl = document.getElementById('ai-eval-tabs');
+    _aiSections = [];
+    const lines = text.split('\n');
+    let cur = null;
+    for (const line of lines) {
+      const hm = line.match(/^##\s+(.+)/);
+      if (hm) { cur = {title: hm[1].trim(), body: ''}; _aiSections.push(cur); }
+      else if (cur) cur.body += line + '\n';
+      else if (!cur && line.trim()) { cur = {title:'Summary', body: line+'\n'}; _aiSections.push(cur); }
+    }
+    if (_aiSections.length > 1) {
+      tabsEl.style.display = 'flex';
+      showAiTab(0);
+    } else {
+      tabsEl.style.display = 'none';
+    }
+  } catch (err) {
+    box.innerHTML = `<span style="color:#C03030;">Error: ${err.message}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function requestAiOneliner() {
+  const el = document.getElementById('ai-oneliner');
+  if (!el) return;
+  const data = runSim();
+  const last = data[data.length - 1];
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const minLiq = data.reduce((m, d) => d.liq < m.liq ? d : m, data[0]);
+  const prompt = `Retirement plan: ages ${sa}-${ea}, liquid ${fmt(S.liquidBase)} start, ${fmt(S.monthlyExpenses)}/mo spend, market ${S.yieldRate}%. Final liquid: ${fmt(last.liq)}, min liquidity ${fmt(minLiq.liq)} at ${minLiq.age}. Write ONE short sentence (under 20 words) summarizing the outlook. No preamble.`;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': getClaudeKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const text = json.content?.[0]?.text?.trim();
+    if (text) el.textContent = text;
+  } catch {}
+}
+
+async function requestAiJeopardize() {
+  const el = document.getElementById('ai-jeopardize');
+  if (!el) return;
+  const data = runSim();
+  const last = data[data.length - 1];
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const minLiq = data.reduce((m, d) => d.liq < m.liq ? d : m, data[0]);
+  // Compute how much return rate can drop before plan fails (binary search)
+  let breakeven = S.yieldRate;
+  for (let lo = -10, hi = S.yieldRate, i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    const orig = S.yieldRate; S.yieldRate = mid;
+    const r = runSim(); S.yieldRate = orig;
+    if (r[r.length-1].liq > 0) hi = mid; else lo = mid;
+    breakeven = mid;
+  }
+  const annualBurn = (S.monthlyExpenses * 12 + S.winterTrip + S.summerTrip);
+  const incomePerYear = S.incomes.filter(i=>i.enabled!==false).reduce((s,i)=>s+(i.type==='oneoff'?0:i.monthly*12),0);
+  const netBurn = annualBurn - incomePerYear;
+  const yearsOfCash = netBurn > 0 ? Math.round(S.liquidBase / netBurn) : 99;
+  const prompt = `Retirement plan: ages ${sa}-${ea}, liquid ${fmt(S.liquidBase)}, net annual burn ${fmt(netBurn)}, market return ${S.yieldRate}% (plan breaks below ~${breakeven.toFixed(1)}%), inflation ${S.inflationRate}%, min liquidity ${fmt(minLiq.liq)} at age ${minLiq.age}, cash covers ${yearsOfCash}yr of expenses without returns. In ONE sharp sentence (under 22 words), name the single most credible specific threat to this plan — a market level, an inflation threshold, a healthcare cost, longevity risk, etc. Be precise. No preamble.`;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': getClaudeKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 70, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const text = json.content?.[0]?.text?.trim();
+    if (text) el.textContent = text;
+  } catch {}
+}
+
+function sassyPhrase(finalTotal, minLiqVal, minLiqAge, endAge) {
+  const pick = (arr) => arr[Math.abs(Math.round(finalTotal / 7777)) % arr.length];
+
+  if (minLiqVal < 0 || finalTotal < 0) {
+    const age = minLiqAge;
+    return pick([
+      `Broke at ${age}. Absolutely cooked.`,
+      `You run dry at ${age}. Hope you like your kids' couch.`,
+      `${age} years old and penniless. Bold strategy.`,
+      `The math doesn't lie. You're out of money at ${age}. Fix something.`,
+      `Age ${age}: account balance zero, dignity negotiable.`,
+    ]);
+  }
+  if (finalTotal < 200_000) {
+    return pick([
+      `You squeak through. Do not buy anything expensive. Ever.`,
+      `Technically alive, financially terrifying. One bad year and you're toast.`,
+      `You make it — by the skin of your teeth. Don't get sick.`,
+      `Paper-thin margins. This is a plan, not a safety net.`,
+    ]);
+  }
+  if (finalTotal <= 700_000) {
+    return pick([
+      `Clean landing. You'll die with just enough for a decent send-off.`,
+      `Right on target. Spend well, live well, die empty-ish.`,
+      `Nailed it. Half a mil left and zero regrets.`,
+      `Goldilocks retirement. Not rich, not broke. Actually kinda perfect.`,
+    ]);
+  }
+  const extra = fmtM(finalTotal - 500_000);
+  if (finalTotal <= 2_000_000) {
+    return pick([
+      `You're leaving ${extra} on the table. Spend it. What are you waiting for?`,
+      `${extra} extra at the end. Your heirs are already on Zillow.`,
+      `Dying with ${extra} surplus. The afterlife has no ATMs. Relax a little.`,
+      `You over-saved. Criminally. Spend the extra ${extra} on something stupid.`,
+    ]);
+  }
+  return pick([
+    `${extra} surplus. You've been living like a monk for absolutely no reason.`,
+    `Leaving ${extra} behind. That's not retirement planning, that's hoarding.`,
+    `${extra} over target. Are you even trying to enjoy yourself?`,
+    `${extra} surplus. Your heirs will toast you. Will you, though?`,
+    `You saved ${extra} too much. Congratulations on your future ghost money.`,
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  USER PROFILE
+// ══════════════════════════════════════════════════════════════
+const PROFILE_KEY = 'retiro_profile';
+let _userProfile = '';
+
+function loadProfile() {
+  _userProfile = localStorage.getItem(PROFILE_KEY) || '';
+  const el = document.getElementById('user-profile');
+  if (el) el.value = _userProfile;
+}
+function saveProfile() {
+  _userProfile = document.getElementById('user-profile').value || '';
+  localStorage.setItem(PROFILE_KEY, _userProfile);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AI ADVISOR CHAT
+// ══════════════════════════════════════════════════════════════
+let _chatHistory = [];
+let _chatOpen = false;
+
+function toggleChat() {
+  _chatOpen = !_chatOpen;
+  document.getElementById('chat-panel').style.display = _chatOpen ? 'block' : 'none';
+  document.getElementById('chat-toggle').textContent = _chatOpen ? '▴' : '▾';
+  if (_chatOpen && _chatHistory.length === 0) chatGreet();
+}
+
+function chatGreet() {
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const data = runSim();
+  const last = data[data.length-1];
+  const total = last.liq + last.iliq;
+  const greeting = `Hi! I've reviewed your retirement plan (ages ${sa}–${ea}). You're projecting to finish with **${fmtM(total)}** in total net worth.\n\nTo give you the best advice and scenario ideas, could you tell me:\n1. Are you currently still working, or already retired?\n2. What's your main concern — running out of money, leaving inheritance, or quality of life?\n3. Any major life events coming up you haven't modeled yet?`;
+  _chatHistory.push({role:'assistant', content: greeting});
+  renderChat();
+}
+
+function buildChatContext() {
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const data = runSim();
+  const last = data[data.length-1];
+  const minLiq = data.reduce((m,d)=>d.liq<m.liq?d:m, data[0]);
+
+  const propList = S.properties.filter(p=>p.enabled!==false).map(p=>
+    `  - ${p.name}: ${fmt(p.value)}${p.monthlyRent?`, rent ${fmt(p.monthlyRent)}/mo`:''}, ${p.hold?'hold forever':`sell at ${p.saleAge}`}${p.description?`\n    "${p.description}"`:''}` ).join('\n');
+
+  const incList = S.incomes.filter(i=>i.enabled!==false).map(i=>
+    `  - ${i.name}: ${fmt(i.monthly)}/mo, ages ${i.from}–${i.to}${i.description?`\n    "${i.description}"`:''}` ).join('\n');
+
+  const expList = S.expenses.filter(e=>e.enabled!==false).map(e=>{
+    const base = e.type==='oneoff'?`${fmt(e.amount)} one-off at ${e.atAge}`:e.type==='installments'?`${fmt(e.installTotal||0)} in ${e.installN||1}×${e.installFreq||'monthly'} from ${e.atAge||e.from}`:`${fmt(e.amount)} ${e.type} ages ${e.from}–${e.to}`;
+    return `  - ${e.name}: ${base}${e.description?`\n    "${e.description}"`:''}`; }).join('\n');
+
+  return `You are a retirement planning advisor. Be conversational, specific, and helpful.
+
+USER PROFILE:
+${_userProfile || '(no profile provided — ask if relevant)'}
+
+CURRENT SCENARIO: "${SCENARIOS.find(s=>s.id===activeScenarioId)?.name||'Base'}" | Ages ${sa}→${ea}
+Liquid: ${fmt(S.liquidBase)} | Monthly spend: ${fmt(S.monthlyExpenses)} | Inflation: ${S.inflationRate}%
+Market return: ${S.yieldRate}% avg | Asset appreciation: ${S.assetAppreciation}%
+Annual trips: ${fmt(S.summerTrip+S.winterTrip)}
+
+REAL ESTATE:
+${propList||'  (none)'}
+
+INCOME:
+${incList||'  (none)'}
+
+EXPENSES:
+${expList||'  (none)'}
+
+PROJECTED OUTCOME:
+Final liquid: ${fmt(last.liq)} | Final total: ${fmt(last.liq+last.iliq)} | Min liquidity: ${fmt(minLiq.liq)} at age ${minLiq.age}
+
+INSTRUCTIONS:
+- Ask clarifying questions to better understand the user's situation and fill gaps.
+- Reference specific numbers from the plan when relevant.
+- When proposing a concrete scenario change, output it on its own lines exactly like this:
+SCENARIO_PROPOSAL
+{"name":"Scenario Name","yieldRate":7,"liquidBase":1500000,"monthlyExpenses":7000,"inflationRate":3,"assetAppreciation":3,"summerTrip":12000,"winterTrip":5000,"expenses":[],"incomes":[],"properties":[],"expenseCurve":{},"yieldCurve":{}}
+(include only fields you want to change from current values; use complete arrays if modifying expenses/incomes/properties)
+- Keep responses to 3–5 sentences unless the user asks for detail.
+- AI-proposed scenarios should be realistic and based on information the user has shared.`;
+}
+
+function chatEscape(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderChatMsg(text) {
+  const spIdx = text.indexOf('SCENARIO_PROPOSAL');
+  if (spIdx !== -1) {
+    const jsonStart = text.indexOf('{', spIdx);
+    const jsonEnd = text.lastIndexOf('}') + 1;
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      const before = text.slice(0, spIdx).trim();
+      const jsonStr = text.slice(jsonStart, jsonEnd);
+      const after = text.slice(jsonEnd).trim();
+      let scenName = 'Proposed Scenario';
+      try { scenName = JSON.parse(jsonStr).name || scenName; } catch(e){}
+      const safejson = jsonStr.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/"/g,'&quot;');
+      const card = `<div class="chat-proposal">
+        <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Scenario Proposal</div>
+        <div style="font-size:13px;font-weight:600;color:#1a1f36;margin-bottom:8px;">${chatEscape(scenName)}</div>
+        <button onclick="applyAiScenario(\`${safejson}\`)" style="background:#635bff;color:#fff;border:none;border-radius:4px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;">Apply as new scenario</button>
+      </div>`;
+      return (before?`<div>${chatEscape(before).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>`:'') + card +
+             (after?`<div>${chatEscape(after).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>`:'');
+    }
+  }
+  return chatEscape(text).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+}
+
+function renderChat() {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  box.innerHTML = _chatHistory.map(m =>
+    `<div class="chat-msg ${m.role==='user'?'user':'ai'}">${renderChatMsg(m.content)}</div>`
+  ).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function chatSend() {
+  const input = document.getElementById('chat-input');
+  const msg = (input.value||'').trim();
+  if (!msg) return;
+  input.value = '';
+  _chatHistory.push({role:'user', content:msg});
+  renderChat();
+
+  const box = document.getElementById('chat-messages');
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'chat-msg ai';
+  typingDiv.innerHTML = '<span style="color:#aaa;font-style:italic;">thinking…</span>';
+  box.appendChild(typingDiv);
+  box.scrollTop = box.scrollHeight;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'x-api-key': getClaudeKey(),
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+        'content-type':'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 900,
+        stream: true,
+        system: buildChatContext(),
+        messages: _chatHistory
+      })
+    });
+    if (!resp.ok) throw new Error('API error ' + resp.status);
+    let text = '';
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    while(true) {
+      const {done, value} = await reader.read();
+      if(done) break;
+      for(const line of dec.decode(value).split('\n')) {
+        if(!line.startsWith('data:')) continue;
+        const d = line.slice(5).trim();
+        if(d==='[DONE]') continue;
+        try {
+          const j = JSON.parse(d);
+          if(j.type==='content_block_delta'&&j.delta?.text) {
+            text += j.delta.text;
+            typingDiv.innerHTML = renderChatMsg(text);
+            box.scrollTop = box.scrollHeight;
+          }
+        } catch(e){}
+      }
+    }
+    _chatHistory.push({role:'assistant', content:text});
+    renderChat();
+  } catch(err) {
+    typingDiv.innerHTML = `<span style="color:#f87171;">Error: ${chatEscape(err.message)}</span>`;
+  }
+}
+
+function applyAiScenario(jsonStr) {
+  try {
+    const proposed = typeof jsonStr==='string' ? JSON.parse(jsonStr) : jsonStr;
+    saveActive();
+    const base = deepCopy(S);
+    const name = proposed.name || 'AI Scenario';
+    delete proposed.name;
+    const merged = Object.assign(base, proposed);
+    const id = 'sc_' + Date.now();
+    SCENARIOS.push({ id, name, data: deepCopy(merged), source: 'ai' });
+    activeScenarioId = id;
+    S = deepCopy(merged);
+    ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); buildSpyPresetOptions(); go();
+    saveActive();
+    // Re-render chat to show updated button state
+    renderChat();
+    // Confirm to user in chat
+    _chatHistory.push({role:'assistant', content:`✓ Scenario **"${name}"** applied! You can see it in the scenario selector above. Feel free to ask me to refine it further.`});
+    renderChat();
+  } catch(e) { alert('Could not apply scenario: '+e.message); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SAGE — personal adviser
+// ══════════════════════════════════════════════════════════════
+let _sageHistory = [];
+let _sageOpen = false;
+let _sageInit = false;
+let _sagePhraseTimer = null;
+
+function buildSageContext() {
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const data = runSim();
+  const last = data[data.length-1];
+  const minLiq = data.reduce((m,d)=>d.liq<m.liq?d:m, data[0]);
+  const propList = S.properties.filter(p=>p.enabled!==false).map(p=>
+    `  - ${p.name}: ${fmt(p.value)}${p.monthlyRent?`, rent ${fmt(p.monthlyRent)}/mo`:''}, ${p.hold?'hold forever':`sell at ${p.saleAge}`}`).join('\n');
+  const incList = S.incomes.filter(i=>i.enabled!==false).map(i=>
+    `  - ${i.name}: ${fmt(i.monthly)}/mo, ages ${i.from}–${i.to}`).join('\n');
+  const expList = S.expenses.filter(e=>e.enabled!==false).map(e=>
+    e.type==='oneoff'?`  - ${e.name}: ${fmt(e.amount)} one-off at ${e.atAge}`
+    :`  - ${e.name}: ${fmt(e.amount)} ${e.type} ages ${e.from}–${e.to}`).join('\n');
+  const profileNote = _userProfile ? `\nAdditional context from user: ${_userProfile}` : '';
+  return `You are a personal financial and life adviser who knows this person well. You are the sharpest, most thorough adviser there is — but you never waste words.
+
+ABOUT THE USER:
+57-year-old male. Retired. Sold an edtech company. Designer, artist, inventor, entrepreneur. Independent, creative, experienced with risk. Risk profile: moderate-high — comfortable with equities and real estate volatility, not reckless. Will hear bold or contrarian advice when it's well-reasoned. Understands money as a tool for life, not the goal.${profileNote}
+
+YOUR VOICE:
+Level-headed. Never alarmist. Never sycophantic. Warm but direct. Brief but thorough — every sentence earns its place. You understand compounding, sequence-of-returns risk, real estate cycles, and human psychology equally well. Occasionally say something sharp or memorable. Never flatter.
+
+CURRENT SCENARIO: "${SCENARIOS.find(s=>s.id===activeScenarioId)?.name||'Base'}" | Ages ${sa}→${ea}
+Liquid: ${fmt(S.liquidBase)} | Monthly spend: ${fmt(S.monthlyExpenses)} | Inflation: ${S.inflationRate}%
+Market return: ${S.yieldRate}% avg | Asset appreciation: ${S.assetAppreciation}%
+Annual trips: ${fmt(S.summerTrip+S.winterTrip)}
+
+REAL ESTATE:
+${propList||'  (none)'}
+
+INCOME:
+${incList||'  (none)'}
+
+EXPENSES:
+${expList||'  (none)'}
+
+PROJECTED OUTCOME:
+Final liquid: ${fmt(last.liq)} | Final total: ${fmt(last.liq+last.iliq)} | Min liquidity: ${fmt(minLiq.liq)} at age ${minLiq.age}
+
+SCENARIO PROPOSALS:
+When proposing concrete changes, output exactly on its own lines:
+SCENARIO_PROPOSAL
+{"name":"Scenario Name","yieldRate":7,"liquidBase":1500000,"monthlyExpenses":7000,"inflationRate":3,"assetAppreciation":3,"summerTrip":12000,"winterTrip":5000,"expenses":[],"incomes":[],"properties":[],"expenseCurve":{},"yieldCurve":{}}
+(Only include fields you want to change; use complete arrays if modifying expenses/incomes/properties.)
+
+Keep responses to 3–5 sentences unless asked for more. Reference specific numbers when useful.`;
+}
+
+function renderSageMsg(text) {
+  const spIdx = text.indexOf('SCENARIO_PROPOSAL');
+  if (spIdx !== -1) {
+    const jsonStart = text.indexOf('{', spIdx);
+    const jsonEnd = text.lastIndexOf('}') + 1;
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      const before = text.slice(0, spIdx).trim();
+      const jsonStr = text.slice(jsonStart, jsonEnd);
+      const after = text.slice(jsonEnd).trim();
+      let scenName = 'Proposed Scenario';
+      try { scenName = JSON.parse(jsonStr).name || scenName; } catch(e){}
+      const safejson = jsonStr.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/"/g,'&quot;');
+      const card = `<div class="chat-proposal" style="margin:4px 0;background:#fdf0e0;border-color:#d4a97a;">
+        <div style="font-size:10px;font-weight:700;color:#7c4a1e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Sage proposes</div>
+        <div style="font-size:13px;font-weight:600;color:#1a1f36;margin-bottom:6px;">${chatEscape(scenName)}</div>
+        <button onclick="applyAiScenario(\`${safejson}\`)" style="background:#3d2b1e;color:#f5ede3;border:none;border-radius:4px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;">Apply</button>
+      </div>`;
+      return (before?`<div>${chatEscape(before).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>`:'') + card +
+             (after?`<div>${chatEscape(after).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</div>`:'');
+    }
+  }
+  return chatEscape(text).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+}
+
+function renderSage() {
+  const box = document.getElementById('sage-messages');
+  if (!box) return;
+  box.innerHTML = _sageHistory.map(m =>
+    `<div class="sage-msg ${m.role==='user'?'user':'ai'}">${renderSageMsg(m.content)}</div>`
+  ).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function sageGreet() {
+  const data = runSim();
+  const last = data[data.length-1];
+  const total = last.liq + last.iliq;
+  const minLiq = data.reduce((m,d)=>d.liq<m.liq?d:m, data[0]);
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const greeting = `The numbers are on the table. You're projecting **${fmtM(total)}** in total net worth by ${ea}, with your lowest liquidity point at **${fmtM(minLiq.liq)}** around age ${minLiq.age}.\n\nWhat's on your mind — the risk exposure, the real estate timing, spending, or something else entirely?`;
+  _sageHistory.push({role:'assistant', content: greeting});
+  renderSage();
+}
+
+function toggleSage() {
+  const popup = document.getElementById('sage-popup');
+  const body = document.getElementById('sage-popup-body');
+  const icon = document.getElementById('sage-toggle-icon');
+  if (!_sageInit) { popup.style.display = 'block'; _sageInit = true; }
+  _sageOpen = !_sageOpen;
+  body.style.display = _sageOpen ? 'flex' : 'none';
+  if (icon) icon.textContent = _sageOpen ? '▴' : '▾';
+  if (_sageOpen) {
+    if (_sageHistory.length === 0) sageGreet();
+    setTimeout(() => { const m = document.getElementById('sage-messages'); if(m) m.scrollTop = m.scrollHeight; }, 50);
+  }
+}
+
+async function sageSend() {
+  const input = document.getElementById('sage-input');
+  const msg = (input?.value||'').trim();
+  if (!msg) return;
+  input.value = '';
+  _sageHistory.push({role:'user', content: msg});
+  renderSage();
+  const box = document.getElementById('sage-messages');
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'sage-msg ai';
+  typingDiv.innerHTML = '<span style="color:#b8a898;font-style:italic;">thinking…</span>';
+  box.appendChild(typingDiv);
+  box.scrollTop = box.scrollHeight;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'x-api-key':getClaudeKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','content-type':'application/json'},
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,stream:true,system:buildSageContext(),messages:_sageHistory})
+    });
+    if (!resp.ok) throw new Error('API error ' + resp.status);
+    let text = '';
+    const reader = resp.body.getReader(), dec = new TextDecoder();
+    while(true) {
+      const {done,value} = await reader.read(); if(done) break;
+      for(const line of dec.decode(value).split('\n')) {
+        if(!line.startsWith('data:')) continue;
+        const d = line.slice(5).trim(); if(d==='[DONE]') continue;
+        try { const j=JSON.parse(d); if(j.type==='content_block_delta'&&j.delta?.text){text+=j.delta.text;typingDiv.innerHTML=renderSageMsg(text);box.scrollTop=box.scrollHeight;} } catch(e){}
+      }
+    }
+    _sageHistory.push({role:'assistant',content:text});
+    renderSage();
+  } catch(err) {
+    typingDiv.innerHTML = `<span style="color:#f87171;">Error: ${chatEscape(err.message)}</span>`;
+  }
+}
+
+function scheduleSagePhrase() {
+  clearTimeout(_sagePhraseTimer);
+  _sagePhraseTimer = setTimeout(requestSagePhrase, 2800);
+}
+
+async function requestSagePhrase() {
+  const data = runSim();
+  if (!data.length) return;
+  const last = data[data.length-1];
+  const minLiq = data.reduce((m,d)=>d.liq<m.liq?d:m, data[0]);
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const finalTot = last.liq + last.iliq;
+  const el = document.getElementById('footer-sassy');
+  if (!el) return;
+  const context = `Retirement projection: ages ${sa}–${ea}. Liquid start: ${fmt(S.liquidBase)}. Spend: ${fmt(S.monthlyExpenses)}/mo. Market: ${S.yieldRate}%. Inflation: ${S.inflationRate}%. Final net worth: ${fmt(finalTot)}. Min liquidity: ${fmt(minLiq.liq)} at age ${minLiq.age}.`;
+  const prompt = `${context}\n\nWrite ONE sentence for the top of this retirement dashboard. Literary, precise, and slightly dry — Hemingway writing about money. Capture the plan's actual financial state with wit and insight. Under 20 words. No quotes, no preamble.`;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'x-api-key':getClaudeKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','content-type':'application/json'},
+      body: JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:55,messages:[{role:'user',content:prompt}]})
+    });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const text = json.content?.[0]?.text?.trim();
+    if (text && el) {
+      el.textContent = text;
+      el.style.color = finalTot < 0 ? '#C03030' : finalTot < 200_000 ? '#92400E' : finalTot <= 700_000 ? '#1A8C5F' : '#555';
+    }
+  } catch(e) {}
+}
+
+// ── Boot ──
+loadScenarios().catch(e => console.error('loadScenarios failed', e));
+</script>
+
+
+</body></html>
