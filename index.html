@@ -2792,13 +2792,19 @@ function renderInc() {
       </div>
     </div>`;
     const qAmtI = oo ? inc.amount : inc.monthly;
+    const years = !oo ? Math.max(0, (inc.to || S.endAge) - (inc.from || sa) + 1) : 0;
+    const total = !oo ? (inc.type === 'annual' ? inc.amount * years : inc.monthly * 12 * years) : 0;
     const fromTag = oo
       ? `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">age ${inc.atAge||sa}</span>`
       : `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">fr.${inc.from||sa}</span>`;
+    const totalTag = !oo && total > 0
+      ? `<span style="font-size:10px;color:#34d399;font-family:'SF Mono',Menlo,monospace;flex-shrink:0;white-space:nowrap;font-weight:700;">${fmt(total)}</span>`
+      : '';
     return `<div class="item-row grn${inc.enabled===false?' disabled-row':''}" onclick="toggle(${inc.id});renderInc()">
   <span class="expand-arr">${openId===inc.id?'▼':'▶'}</span>
   <span class="item-num">${i+1}</span>
   <span class="item-name">${inc.name}</span>
+  ${totalTag}
   <input type="text" class="item-quick-amt" value="${fmtInput(qAmtI)}" title="Click to edit amount"
     onfocus="moneyFocus(this);event.stopPropagation();"
     onblur="moneyBlur(this)"
