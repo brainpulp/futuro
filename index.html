@@ -565,7 +565,7 @@ select.spy-preset-sel {
         <span style="width:14px;height:0;border-top:2px dashed #1D9E75;display:inline-block;"></span>Total
       </span>
       <span style="display:flex;align-items:center;gap:4px;">
-        <span style="width:14px;height:0;border-top:2px dashed rgba(120,120,160,0.45);display:inline-block;"></span><span style="color:#aaa;font-weight:400;">Real (today's $)</span>
+        <span style="width:14px;height:0;border-top:2px dashed rgba(160,140,200,0.7);display:inline-block;"></span><span style="color:#aaa;font-weight:400;">Real (today's $)</span>
       </span>
       <span style="display:flex;align-items:center;gap:4px;">
         <span style="width:9px;height:9px;background:#1A8C5F;transform:rotate(45deg);display:inline-block;"></span>RE sale
@@ -2388,7 +2388,7 @@ function go() {
           { label:'Liquid',   data: data.map(d => d.liq),          borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Illiquid', data: data.map(d => d.iliq),         borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Total',    data: data.map(d => d.liq + d.iliq), borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
-          { label:'Real',     data: (() => { const t0 = data[0].liq + data[0].iliq, r = (S.inflationRate||2.5)/100; return data.map((_,i) => Math.round(t0 / Math.pow(1+r, i))); })(), borderColor:'rgba(120,120,160,0.35)', borderDash:[3,5], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
+          { label:'Real',     data: data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i))), borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
           ...propSubDatasets
         ]
       },
@@ -2461,7 +2461,7 @@ function go() {
     chart.data.datasets[0].data = data.map(d => d.liq);
     chart.data.datasets[1].data = data.map(d => d.iliq);
     chart.data.datasets[2].data = data.map(d => d.liq + d.iliq);
-    chart.data.datasets[3].data = (() => { const t0 = data[0].liq + data[0].iliq, r = (S.inflationRate||2.5)/100; return data.map((_,i) => Math.round(t0 / Math.pow(1+r, i))); })();
+    chart.data.datasets[3].data = data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i)));
     // Sync per-property sub-curves (splice from index 4, re-add)
     chart.data.datasets.splice(4);
     propSubDatasets.forEach(d => chart.data.datasets.push(d));
