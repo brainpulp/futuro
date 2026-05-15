@@ -3787,9 +3787,13 @@ async function ibkrSync({ manual = false } = {}) {
   const btn = document.getElementById('ibkr-sync-btn');
   if (manual) { btn.textContent = '…'; btn.disabled = true; }
   try {
-    const { data, error } = await _sb.functions.invoke('get-ibkr-liquid');
-    if (error) throw error;
-    if (!data || typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
+    const res = await fetch(
+      `${SB_URL}/functions/v1/get-ibkr-liquid`,
+      { headers: { 'Authorization': `Bearer ${SB_ANON}`, 'Content-Type': 'application/json' } }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
+    if (typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
     S.liquidBase = data.liquid;
     document.getElementById('liquidBase').value = fmtInput(data.liquid);
     go();
