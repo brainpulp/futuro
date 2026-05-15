@@ -733,6 +733,14 @@ select.spy-preset-sel {
           <label class="lbl">Appreciation &nbsp;<span id="app-v" class="mono" style="float:right;"></span></label>
           <input type="range" id="app" min="0" max="12" step="0.25" oninput="S.assetAppreciation=+this.value;document.getElementById('app-v').textContent=this.value+'%';go()">
         </div>
+        <div style="display:flex;gap:4px;padding:0 2px 2px;font-size:9px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+          <span style="flex:1;min-width:0;visibility:hidden;">name</span>
+          <span style="width:88px;text-align:right;">value</span>
+          <span style="width:88px;text-align:right;">rent/mo</span>
+          <span style="width:44px;text-align:center;">rent fr.</span>
+          <span style="width:44px;text-align:center;">sell at</span>
+          <span style="width:100px;"></span>
+        </div>
         <div id="props-list"></div>
       </div>
 
