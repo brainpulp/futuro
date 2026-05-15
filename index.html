@@ -758,7 +758,10 @@ select.spy-preset-sel {
           </div>
           <div>
             <label class="lbl">Current liquid</label>
-            <input type="text" id="liquidBase" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="S.liquidBase=parseNum(this.value);go()">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="liquidBase" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="S.liquidBase=parseNum(this.value);go()">
+              <button class="btn-io" id="ibkr-sync-btn" onclick="ibkrSync({manual:true})" title="Sync Net Liquidation Value from IBKR (requires IB Gateway + save-server.js running)" style="white-space:nowrap;font-size:11px;padding:0 8px;height:30px;flex-shrink:0;">↓ IBKR</button>
+            </div>
           </div>
         </div>
         <div style="margin-top:8px;">
@@ -3776,8 +3779,41 @@ async function requestSagePhrase() {
   } catch(e) {}
 }
 
+// ── IBKR sync ──
+const IBKR_SYNC_MS = 5 * 60 * 1000; // auto-refresh every 5 minutes
+
+async function ibkrSync({ manual = false } = {}) {
+  if (!_sb) return;
+  const btn = document.getElementById('ibkr-sync-btn');
+  if (manual) { btn.textContent = '…'; btn.disabled = true; }
+  try {
+    const { data, error } = await _sb.functions.invoke('get-ibkr-liquid');
+    if (error) throw error;
+    if (!data || typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
+    S.liquidBase = data.liquid;
+    document.getElementById('liquidBase').value = fmtInput(data.liquid);
+    go();
+    lsSave();
+    if (manual) {
+      btn.textContent = '✓ IBKR';
+      btn.style.color = '#15803d';
+      setTimeout(() => { btn.textContent = '↓ IBKR'; btn.style.color = ''; btn.disabled = false; }, 3000);
+    }
+  } catch(e) {
+    if (manual) {
+      btn.textContent = '↓ IBKR';
+      btn.disabled = false;
+      alert('IBKR sync failed: ' + (e.message || e));
+    } else {
+      console.warn('IBKR auto-sync skipped:', e.message || e);
+    }
+  }
+}
+
 // ── Boot ──
-loadScenarios().catch(e => console.error('loadScenarios failed', e));
+loadScenarios()
+  .then(() => { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); })
+  .catch(e => console.error('loadScenarios failed', e));
 </script>
 
 
