@@ -1531,7 +1531,11 @@ function ensureFields() {
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
   if (!S.startYear) S.startYear = new Date().getFullYear();
   ['crises','expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
-  S.properties = (S.properties || []).map(p => ({ acquireAge: S.startAge || 57, rentFromAge: S.startAge || 57, enabled: true, ...p }));
+  S.properties = (S.properties || []).map(p => {
+    const sa0 = S.startAge || 57;
+    const acquireAge = p.acquireAge || ((p.rentFromAge && p.rentFromAge > sa0) ? p.rentFromAge : sa0);
+    return { rentFromAge: sa0, enabled: true, ...p, acquireAge };
+  });
   S.expenses = S.expenses.map(x => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   S.incomes  = S.incomes.map(x  => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   ['crises','expensePhases','marketPhases'].forEach(k => {
