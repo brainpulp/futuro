@@ -1531,7 +1531,7 @@ function ensureFields() {
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
   if (!S.startYear) S.startYear = new Date().getFullYear();
   ['crises','expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
-  S.properties = (S.properties || []).map(p => ({ rentFromAge: S.startAge || 57, enabled: true, ...p }));
+  S.properties = (S.properties || []).map(p => ({ acquireAge: S.startAge || 57, rentFromAge: S.startAge || 57, enabled: true, ...p }));
   S.expenses = S.expenses.map(x => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   S.incomes  = S.incomes.map(x  => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   ['crises','expensePhases','marketPhases'].forEach(k => {
@@ -1835,7 +1835,7 @@ function runSim(monthlyOverride) {
   });
 
   let props = S.properties.filter(p => p.enabled !== false)
-    .map(p => ({ ...p, cv: p.value, sold: false }));
+    .map(p => ({ ...p, cv: (p.acquireAge || sa) <= sa ? p.value : 0, sold: false }));
 
   const out = [{
     age: sa,
@@ -1856,9 +1856,17 @@ function runSim(monthlyOverride) {
       // Inflation factor for this month
       const f = Math.pow(1 + inf, (age - sa - 1) + mo / 12);
 
+      // Activate properties acquired this year
+      if (mo === 1) {
+        props = props.map(p => {
+          if (!p.sold && p.cv === 0 && (p.acquireAge || sa) === age) return { ...p, cv: p.value };
+          return p;
+        });
+      }
+
       // Appreciate real estate monthly
       props = props.map(p => {
-        if (p.sold) return p;
+        if (p.sold || p.cv === 0) return p;
         const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
         const mApp = Math.pow(1 + pApp, 1/12) - 1;
         return { ...p, cv: p.cv * (1 + mApp) };
@@ -2294,7 +2302,7 @@ function go() {
   if (pillAges[pillAges.length - 1] !== ea) pillAges.push(ea);
 
   const at = age => data.find(d => d.age === age) || data[data.length - 1];
-  const init = S.liquidBase + S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + p.value, 0);
+  const init = S.liquidBase + S.properties.filter(p => p.enabled !== false && (p.acquireAge || sa) <= sa).reduce((s, p) => s + p.value, 0);
 
   let minLiq = Infinity, minAge = sa;
   data.forEach(d => { if (d.liq < minLiq) { minLiq = d.liq; minAge = d.age; } });
@@ -2357,8 +2365,10 @@ function go() {
   // ── Per-property illiquid sub-curves ──
   const propSubDatasets = S.properties.filter(p => p.enabled !== false).map(p => {
     const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
+    const aq = p.acquireAge || sa;
     const pData = labels.map(age => {
-      if (p.hold || age <= p.saleAge) return Math.round(p.value * Math.pow(1 + pApp, age - sa));
+      if (age < aq) return 0;
+      if (p.hold || age <= p.saleAge) return Math.round(p.value * Math.pow(1 + pApp, age - aq));
       return 0;
     });
     return { label: p.name, data: pData, borderColor:'rgba(239,159,39,0.45)', borderWidth:1,
@@ -3074,19 +3084,27 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
   <label class="lbl">Appreciation override &nbsp;<span style="float:right;font-family:SF Mono,Menlo,monospace;font-size:11px;">${p.appRate !== undefined ? p.appRate + '%' : 'global (' + S.assetAppreciation + '%)'}</span></label>
   <input type="range" min="0" max="12" step="0.25" value="${p.appRate !== undefined ? p.appRate : S.assetAppreciation}" oninput="upP(${p.id},'appRate',+this.value);go()">
   ${p.appRate !== undefined ? `<button onclick="upP(${p.id},'appRate',undefined);go()" style="font-size:9px;color:#aaa;background:none;border:none;cursor:pointer;padding:0;">↺ use global</button>` : ''}
+  <div style="margin-top:6px;display:flex;align-items:center;gap:8px;">
+    <label class="lbl" style="margin:0;white-space:nowrap;">Acquire at age</label>
+    <input type="number" class="ifield" style="width:64px;" value="${p.acquireAge || S.startAge}" min="${S.startAge}" max="${S.endAge}"
+      title="Age when this asset starts existing (excluded from current total before this age)"
+      onclick="event.stopPropagation()" onchange="upP(${p.id},'acquireAge',+this.value);renderProps();go()">
+    <span style="font-size:10px;color:#aaa;">${(p.acquireAge||S.startAge) > S.startAge ? '⚠ future asset — excluded from current total' : 'currently owned'}</span>
+  </div>
   <div style="margin-top:6px;">
     <label class="lbl">Description</label>
     <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
   </div>
 </div>` : ''}`;
   }).join('');
-  const aSum = S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + (p.value || 0), 0);
+  const _sa = S.startAge || 57;
+  const aSum = S.properties.filter(p => p.enabled !== false && (p.acquireAge || _sa) <= _sa).reduce((s, p) => s + (p.value || 0), 0);
   const el_at = document.getElementById('assets-total'); if (el_at) el_at.textContent = aSum > 0 ? fmt(aSum) : '';
 }
 
 function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
-function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
+function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
 function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); }
 
