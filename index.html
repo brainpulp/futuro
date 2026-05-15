@@ -737,6 +737,7 @@ select.spy-preset-sel {
           <span style="flex:1;min-width:0;visibility:hidden;">name</span>
           <span style="width:88px;text-align:right;">value</span>
           <span style="width:88px;text-align:right;">rent/mo</span>
+          <span style="width:44px;text-align:center;">own fr.</span>
           <span style="width:44px;text-align:center;">rent fr.</span>
           <span style="width:44px;text-align:center;">sell at</span>
           <span style="width:100px;"></span>
@@ -3081,6 +3082,9 @@ function renderProps() {
     onblur="moneyBlur(this)"
     onchange="event.stopPropagation();upP(${p.id},'monthlyRent',parseNum(this.value));renderInc();go()"
     onclick="event.stopPropagation()">
+  <input type="number" class="ifield" value="${p.acquireAge||S.startAge}" title="Acquire at age (set future if not yet owned)"
+    min="${S.startAge}" max="${S.endAge}"
+    onclick="event.stopPropagation()" onchange="upP(${p.id},'acquireAge',+this.value);renderProps();go()">
   <input type="number" class="ifield" value="${p.rentFromAge||S.startAge}" title="Rent from age"
     min="${S.startAge}" max="${S.endAge}"
     onclick="event.stopPropagation()" onchange="upP(${p.id},'rentFromAge',+this.value);go()">
@@ -3096,13 +3100,6 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
   <label class="lbl">Appreciation override &nbsp;<span style="float:right;font-family:SF Mono,Menlo,monospace;font-size:11px;">${p.appRate !== undefined ? p.appRate + '%' : 'global (' + S.assetAppreciation + '%)'}</span></label>
   <input type="range" min="0" max="12" step="0.25" value="${p.appRate !== undefined ? p.appRate : S.assetAppreciation}" oninput="upP(${p.id},'appRate',+this.value);go()">
   ${p.appRate !== undefined ? `<button onclick="upP(${p.id},'appRate',undefined);go()" style="font-size:9px;color:#aaa;background:none;border:none;cursor:pointer;padding:0;">↺ use global</button>` : ''}
-  <div style="margin-top:6px;display:flex;align-items:center;gap:8px;">
-    <label class="lbl" style="margin:0;white-space:nowrap;">Acquire at age</label>
-    <input type="number" class="ifield" style="width:64px;" value="${p.acquireAge || S.startAge}" min="${S.startAge}" max="${S.endAge}"
-      title="Age when this asset starts existing (excluded from current total before this age)"
-      onclick="event.stopPropagation()" onchange="upP(${p.id},'acquireAge',+this.value);renderProps();go()">
-    <span style="font-size:10px;color:#aaa;">${(p.acquireAge||S.startAge) > S.startAge ? '⚠ future asset — excluded from current total' : 'currently owned'}</span>
-  </div>
   <div style="margin-top:6px;">
     <label class="lbl">Description</label>
     <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
