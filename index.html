@@ -3092,8 +3092,7 @@ function renderProps() {
     min="${S.startAge+1}" max="${S.endAge}" placeholder="hold"
     onclick="event.stopPropagation()"
     onchange="event.stopPropagation();const v=+this.value;if(!this.value||v>S.endAge){upP(${p.id},'hold',true);upP(${p.id},'saleAge',S.endAge)}else{upP(${p.id},'hold',false);upP(${p.id},'saleAge',v)};go()">
-  <button title="Appreciation override: ${appLabel}" onclick="event.stopPropagation();toggle(${p.id});renderProps()"
-    style="flex-shrink:0;font-size:10px;height:22px;padding:0 6px;border:1px solid #e6ebf1;border-radius:4px;background:${appOpen?'#635bff':'#f6f9fc'};color:${appOpen?'#fff':'#697386'};cursor:pointer;">App%</button>
+  ${colb(p.id, 'renderProps')}
   ${sw(p.enabled, `togP(${p.id})`)}${xb(`rmP(${p.id})`)}
 </div>
 ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;border-radius:0 0 8px 8px;" onclick="event.stopPropagation()">
