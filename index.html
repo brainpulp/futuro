@@ -507,6 +507,7 @@ select.spy-preset-sel {
   <!-- Top bar -->
   <div class="app-bar" style="justify-content:flex-end;">
     <span id="sbadge" class="sbadge ok">saved</span>
+    <span id="gastos-badge" title="Gastos actuals not loaded" onclick="gastosSync()" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;" title="Click to reload gastos actuals">gastos…</span>
     <label id="yr-toggle-wrap" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aaa;cursor:pointer;user-select:none;margin-right:4px;" title="Toggle age / year display">
       <span id="yr-lbl-age" style="font-weight:700;color:#666;">Age</span>
       <span onclick="toggleYearMode()" style="display:inline-block;width:30px;height:16px;border-radius:8px;background:#ccc;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;" id="yr-track">
@@ -938,6 +939,9 @@ const LS_KEY = 'retiro_scenarios';
 // ══════════════════════════════════════════════════════════════
 const SB_URL = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
 const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYXRkbnJ4ZnJsdGNtcXZzbXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MjYzMjcsImV4cCI6MjA5MzUwMjMyN30.4HUYkjuCk3doWShF-h0CzHS-9pC4ST5uz9yd2HHbayc';
+const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
+const GASTOS_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuemRrcXJrcmFuZWR0Z3lzcWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDM0NTcsImV4cCI6MjA5MzkxOTQ1N30.gh38kLWluvd9Z4cHo4fwm-hv0BNYeN0D-fOD_qR4gXE';
+const _currentYM  = new Date().toISOString().slice(0, 7); // "YYYY-MM" — months before this use gastos actuals
 const SB_ID_KEY = 'retiro_sb_id';
 const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
 
@@ -1160,6 +1164,7 @@ let _aiSections = [];
 let _onelineCallLog = []; // timestamps of recent one-liner calls
 let _onelinePauseUntil = 0;
 let _yearMode = false;
+let _gastosActuals = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
 
 // ── Expense propagation: drag sets new baseline, all future ages re-inflated from dragged value ──
 function applyExpenseCeiling(fromAge, val) {
@@ -1909,13 +1914,13 @@ function runSim(monthlyOverride) {
         ? S.expenseCurve[age]
         : getMonthly(age, monthlyOverride) * f;
       const inflM = _baseM * (S.expMultiplier || 1);
-      lastInflM = inflM;
 
-      // Base monthly living expenses
-      let exp = inflM;
+      // Use gastos actual for past months, otherwise projected base + trips
+      const _simYM = String((S.startYear || 2026) + (age - sa)) + '-' + String(mo).padStart(2, '0');
+      const _gastos = _simYM < _currentYM ? _gastosActuals[_simYM] : undefined;
+      lastInflM = _gastos !== undefined ? _gastos : inflM;
 
-      // Trips: spread annually as /12 per month
-      exp += (S.winterTrip + S.summerTrip) / 12;
+      let exp = _gastos !== undefined ? _gastos : inflM + (S.winterTrip + S.summerTrip) / 12;
 
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
@@ -3078,7 +3083,8 @@ function renderProps() {
   document.getElementById('props-list').innerHTML = S.properties.map((p, i) => {
     const appOpen = openId === p.id;
     const appLabel = p.appRate !== undefined ? p.appRate + '%' : 'global';
-    return `<div class="item-row${p.enabled===false?' disabled-row':''}">
+    return `<div class="item-row${p.enabled===false?' disabled-row':''}" onclick="toggle(${p.id});renderProps()">
+  <span class="expand-arr">${appOpen?'▼':'▶'}</span>
   <span class="item-num">${i+1}</span>
   <input class="iname" type="text" value="${p.name}" onclick="event.stopPropagation()" onchange="upP(${p.id},'name',this.value)">
   <input type="text" class="iamt" value="${fmtInput(p.value)}" title="Value"
@@ -3102,7 +3108,6 @@ function renderProps() {
     min="${dispA(S.startAge+1)}" max="${dispA(S.endAge)}" placeholder="hold"
     onclick="event.stopPropagation()"
     onchange="event.stopPropagation();const v=readA(this.value);if(!this.value||v>S.endAge){upP(${p.id},'hold',true);upP(${p.id},'saleAge',S.endAge)}else{upP(${p.id},'hold',false);upP(${p.id},'saleAge',v)};go()">
-  ${colb(p.id, 'renderProps')}
   ${sw(p.enabled, `togP(${p.id})`)}${xb(`rmP(${p.id})`)}
 </div>
 ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;border-radius:0 0 8px 8px;" onclick="event.stopPropagation()">
@@ -3865,9 +3870,26 @@ async function ibkrSync({ manual = false } = {}) {
   }
 }
 
+async function gastosSync() {
+  try {
+    const res = await fetch(`${GASTOS_URL}/functions/v1/monthly-actuals`,
+      { headers: { 'Authorization': `Bearer ${GASTOS_ANON}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
+    _gastosActuals = {};
+    for (const row of data) _gastosActuals[row.ym] = row.usd;
+    const n = Object.keys(_gastosActuals).length;
+    const badge = document.getElementById('gastos-badge');
+    if (badge) { badge.textContent = n + ' mo'; badge.title = 'Gastos actuals loaded: ' + n + ' months'; }
+    go();
+  } catch(e) {
+    console.warn('Gastos sync skipped:', e.message || e);
+  }
+}
+
 // ── Boot ──
 loadScenarios()
-  .then(() => { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); })
+  .then(() => { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); gastosSync(); })
   .catch(e => console.error('loadScenarios failed', e));
 </script>
 
