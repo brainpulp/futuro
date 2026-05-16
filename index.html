@@ -3836,7 +3836,7 @@ async function requestSagePhrase() {
 }
 
 // ── IBKR sync ──
-const IBKR_SYNC_MS = 5 * 60 * 1000; // auto-refresh every 5 minutes
+const IBKR_SYNC_MS = 4 * 60 * 60 * 1000; // auto-refresh every 4 hours (Flex API rate-limits on frequent calls)
 
 async function ibkrSync({ manual = false } = {}) {
   if (!_sb) return;
