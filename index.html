@@ -870,7 +870,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
             <label class="lbl">Current liquid</label>
             <div style="display:flex;gap:6px;align-items:center;">
               <input type="text" id="liquidBase" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="S.liquidBase=parseNum(this.value);go()">
-              <button class="btn-io" id="ibkr-sync-btn" onclick="ibkrSync({manual:true})" title="Sync Net Liquidation Value from IBKR (requires IB Gateway + save-server.js running)" style="white-space:nowrap;font-size:11px;padding:0 8px;height:30px;flex-shrink:0;">↓ IBKR</button>
+              <button class="btn-io" id="ibkr-sync-btn" onclick="ibkrSync({manual:true})" title="Sync Net Liquidation Value from IBKR" style="white-space:nowrap;font-size:11px;padding:0 8px;height:30px;flex-shrink:0;">↓ IBKR</button>
+              <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;cursor:pointer;white-space:nowrap;" title="Auto-sync IBKR on page load">
+                <input type="checkbox" id="ibkr-auto-chk" onchange="toggleIbkrAuto(this.checked)" style="margin:0;cursor:pointer;">auto
+              </label>
             </div>
           </div>
         </div>
@@ -3990,6 +3993,10 @@ async function gastosSync() {
   }
 }
 
+function toggleIbkrAuto(on) {
+  localStorage.setItem('retiro-ibkr-auto', on ? '1' : '0');
+}
+
 // ── Boot ──
 (function() {
   const t = localStorage.getItem('retiro-theme');
@@ -3998,9 +4005,16 @@ async function gastosSync() {
     const btn = document.getElementById('theme-btn');
     if (btn) btn.style.color = '#e6edf3';
   }
+  const autoOn = localStorage.getItem('retiro-ibkr-auto') !== '0';
+  const chk = document.getElementById('ibkr-auto-chk');
+  if (chk) chk.checked = autoOn;
 })();
 loadScenarios()
-  .then(() => { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); gastosSync(); })
+  .then(() => {
+    const autoOn = localStorage.getItem('retiro-ibkr-auto') !== '0';
+    if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
+    gastosSync();
+  })
   .catch(e => console.error('loadScenarios failed', e));
 </script>
 
