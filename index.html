@@ -229,6 +229,7 @@ input[type=text].iamt {
 input[type=number].ifield {
   width:42px!important; height:26px!important; line-height:26px!important; padding:0 3px!important;
   font-size:11px!important; text-align:center; border-radius:4px; flex-shrink:0; }
+body.year-mode input[type=number].ifield { width:54px!important; }
 select.iselect {
   width:auto!important; height:26px!important; line-height:26px!important; padding:0 4px!important;
   font-size:11px!important; border:1px solid #e6ebf1; border-radius:4px; flex-shrink:0; color:#1a1f36; }
@@ -3265,6 +3266,7 @@ function toggleYearMode() {
   lblAge.style.fontWeight = _yearMode ? '400' : '700';
   lblYr.style.color  = _yearMode ? '#666' : '#aaa';
   lblYr.style.fontWeight = _yearMode ? '700' : '400';
+  document.body.classList.toggle('year-mode', _yearMode);
   renderAll(); go();
 }
 
