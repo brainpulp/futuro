@@ -2509,7 +2509,7 @@ function go() {
           const lbs = data.labels; if (!lbs) return;
           ctx.save();
           ctx.font = '600 9px "SF Mono", Menlo, monospace';
-          ctx.fillStyle = 'rgba(80,80,100,0.45)';
+          ctx.fillStyle = document.body.dataset.theme === 'graphite' ? 'rgba(200,210,220,0.5)' : 'rgba(80,80,100,0.45)';
           ctx.textAlign = 'center';
           lbs.forEach((age, idx) => {
             if (age % 5 !== 0) return;
