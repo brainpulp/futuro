@@ -2252,13 +2252,18 @@ const msPlugin = {
 
     ctx.save();
 
+    const _dark = document.body.dataset.theme === 'graphite';
+    const _gridLine  = _dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
+    const _decadeLine = _dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.13)';
+    const _decadeText = _dark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.10)';
+
     // ── Yearly thin lines ──
     for (let yr = sa + 1; yr <= ea; yr++) {
       const yIdx = labels.indexOf(yr);
       if (yIdx === -1) continue;
       const yxp = x.getPixelForValue(yIdx);
       ctx.save();
-      ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+      ctx.strokeStyle = _gridLine;
       ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(yxp, chartArea.top); ctx.lineTo(yxp, chartArea.bottom); ctx.stroke();
       ctx.restore();
@@ -2270,16 +2275,15 @@ const msPlugin = {
       if (dIdx === -1) continue;
       const dxp = x.getPixelForValue(dIdx);
       ctx.save();
-      ctx.strokeStyle = 'rgba(0,0,0,0.13)';
+      ctx.strokeStyle = _decadeLine;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(dxp, chartArea.top); ctx.lineTo(dxp, chartArea.bottom); ctx.stroke();
-      // Label centered at midpoint of the decade (e.g. age 65 for "60s")
       const midAge = decade + 5;
       const midIdx = labels.indexOf(midAge);
       if (midIdx !== -1) {
         const mxp = x.getPixelForValue(midIdx);
         ctx.font = '800 110px "SF Mono", Menlo, monospace';
-        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.fillStyle = _decadeText;
         ctx.textAlign = 'center';
         ctx.fillText(decade + 's', mxp, (chartArea.top + chartArea.bottom) / 2 + 38);
       }
