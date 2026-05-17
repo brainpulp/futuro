@@ -1963,6 +1963,7 @@ function runSim(monthlyOverride) {
   const out = [{
     age: sa,
     liq: Math.round(liq),
+    minLiq: Math.round(liq),
     iliq: Math.round(props.reduce((s, p) => s + p.cv, 0)),
     crash: false,
     monthlyExp: Math.round(((S.expenseCurve && S.expenseCurve[sa] !== undefined) ? S.expenseCurve[sa] : S.monthlyExpenses) * (S.expMultiplier || 1))
@@ -1974,6 +1975,7 @@ function runSim(monthlyOverride) {
     const crash = S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0;
 
     let lastInflM = 0;
+    let yearMinLiq = liq;
 
     for (let mo = 1; mo <= 12; mo++) {
       // Inflation factor for this month
@@ -2082,11 +2084,13 @@ function runSim(monthlyOverride) {
       });
 
       liq += inc - exp;
+      if (liq < yearMinLiq) yearMinLiq = liq;
     }
 
     out.push({
       age,
       liq:  Math.round(liq),
+      minLiq: Math.round(yearMinLiq),
       iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
       crash,
       monthlyExp: Math.round(lastInflM)
@@ -2130,6 +2134,14 @@ function fmtM(v) {
 // ── Liquid-fill vignette background plugin ──────────────────
 let _vigSeed = 0x9e3779b9;
 function _vigRand() { _vigSeed = (Math.imul(_vigSeed^_vigSeed>>>16,0x45d9f3b)^_vigSeed>>>4)>>>0; return _vigSeed/0xffffffff; }
+const _VIG_FLOWER_COLS = [
+  'rgba(55,138,221,0.20)','rgba(90,200,120,0.20)','rgba(230,90,80,0.20)',
+  'rgba(180,100,220,0.20)','rgba(240,170,40,0.20)','rgba(45,190,200,0.20)',
+];
+const _VIG_ANIMAL_COLS = [
+  'rgba(45,190,205,0.20)','rgba(80,160,240,0.20)',
+  'rgba(100,200,150,0.20)','rgba(200,130,80,0.20)',
+];
 function _vigAnimal(ctx, type, sz) {
   const n = type % 4;
   if (n === 0) {
@@ -2195,43 +2207,37 @@ function _vig(ctx, type, sz) {
 const liquidBgPlugin = {
   id: 'liquidBg',
   afterDatasetDraw(ch, args) {
-    if (args.index !== 0) return; // only after liquid (dataset 0) is drawn
+    if (args.index !== 0) return;
     const { ctx, scales, data, chartArea } = ch;
     const { x, y } = scales;
-    const liqData = data.datasets[0].data;
-    const labels = data.labels;
+    const liqData = data.datasets[0].data, labels = data.labels;
     if (!labels || !labels.length) return;
-
     ctx.save();
-    // Clip to the liquid fill polygon (below curve, above 0-line)
     const y0 = Math.min(y.getPixelForValue(0), chartArea.bottom);
     ctx.beginPath();
     ctx.moveTo(x.getPixelForValue(0), y0);
     labels.forEach((_, idx) => {
-      const yp = y.getPixelForValue(Math.max(0, liqData[idx]||0));
-      ctx.lineTo(x.getPixelForValue(idx), yp);
+      ctx.lineTo(x.getPixelForValue(idx), y.getPixelForValue(Math.max(0, liqData[idx]||0)));
     });
     ctx.lineTo(x.getPixelForValue(labels.length - 1), y0);
     ctx.closePath();
     ctx.clip();
-
-    // Scatter vignettes — half flowers (blue), half animals (teal)
-    _vigSeed = 0x9e3779b9; // reset seed so positions are stable across redraws
-    const colFlower = 'rgba(55,138,221,0.18)';
-    const colAnimal = 'rgba(45,190,205,0.18)';
+    _vigSeed = 0x9e3779b9;
     const aw = chartArea.right - chartArea.left, ah = chartArea.bottom - chartArea.top;
     for (let i = 0; i < 960; i++) {
       const vx = chartArea.left + _vigRand() * aw;
       const vy = chartArea.top  + _vigRand() * ah;
       const sz = 16 + _vigRand() * 18;
       const isAnimal = i % 2 === 0;
-      const col = isAnimal ? colAnimal : colFlower;
+      const speed = 0.12 + (i % 7) * 0.04;
+      const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
+      const col = isAnimal ? _VIG_ANIMAL_COLS[(i >> 1) % 4] : _VIG_FLOWER_COLS[i % 6];
       ctx.save();
       ctx.translate(vx, vy);
+      ctx.rotate(rot);
       ctx.strokeStyle = col; ctx.fillStyle = col;
       ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      if (isAnimal) _vigAnimal(ctx, Math.floor(i / 2), sz);
-      else _vig(ctx, i, sz);
+      if (isAnimal) _vigAnimal(ctx, i >> 1, sz); else _vig(ctx, i, sz);
       ctx.restore();
     }
     ctx.restore();
@@ -2316,8 +2322,9 @@ const msPlugin = {
       if (!salePropsByAge[p.saleAge]) salePropsByAge[p.saleAge] = [];
       salePropsByAge[p.saleAge].push(p);
     });
+    const minLiqData2 = data.datasets[0].minLiqData || liqData;
     let minLiq2 = Infinity, minAge2 = sa2;
-    liqData.forEach((v, i) => { if (v < minLiq2) { minLiq2 = v; minAge2 = labels[i]; } });
+    minLiqData2.forEach((v, i) => { if (v < minLiq2) { minLiq2 = v; minAge2 = labels[i]; } });
 
     _saleDots = []; // reset for hover
     data.labels.forEach((age, idx) => {
@@ -2340,10 +2347,11 @@ const msPlugin = {
         ctx.restore();
       }
       if (age === minAge2) {
-        // Red circle
+        // Red circle — positioned at true minimum (may be intra-year)
+        const minYp = y.getPixelForValue(minLiq2);
         ctx.fillStyle = '#C03030';
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(xp, yp, 6, 0, Math.PI*2);
+        ctx.beginPath(); ctx.arc(xp, minYp, 6, 0, Math.PI*2);
         ctx.fill(); ctx.stroke();
       }
     });
@@ -2414,7 +2422,7 @@ function go() {
     if (sassyEl2 && data.length) {
       const lastD = data[data.length - 1];
       const finalTot2 = lastD.liq + lastD.iliq;
-      const minLiqEntry2 = data.reduce((m, d) => d.liq < m.liq ? d : m, data[0]);
+      const minLiqEntry2 = data.reduce((m, d) => (d.minLiq ?? d.liq) < (m.minLiq ?? m.liq) ? d : m, data[0]);
       if (!sassyEl2.textContent || sassyEl2.textContent === '—') {
         sassyEl2.textContent = sassyPhrase(finalTot2, minLiqEntry2.liq, minLiqEntry2.age, ea);
         sassyEl2.style.color = finalTot2 < 0 ? '#C03030' : finalTot2 < 200_000 ? '#92400E' : finalTot2 <= 700_000 ? '#1A8C5F' : '#555';
@@ -2432,7 +2440,7 @@ function go() {
   const init = S.liquidBase + S.properties.filter(p => p.enabled !== false && (p.acquireAge || sa) <= sa).reduce((s, p) => s + p.value, 0);
 
   let minLiq = Infinity, minAge = sa;
-  data.forEach(d => { if (d.liq < minLiq) { minLiq = d.liq; minAge = d.age; } });
+  data.forEach(d => { const v = d.minLiq ?? d.liq; if (v < minLiq) { minLiq = v; minAge = d.age; } });
 
   // Max monthly — debounced: expensive (44×runSim), update 600ms after last go()
   clearTimeout(_maxTimer);
@@ -2525,7 +2533,7 @@ function go() {
       data: {
         labels,
         datasets: [
-          { label:'Liquid',   data: data.map(d => d.liq),          borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Liquid',   data: data.map(d => d.liq), minLiqData: data.map(d => d.minLiq ?? d.liq), borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Illiquid', data: data.map(d => d.iliq),         borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Total',    data: data.map(d => d.liq + d.iliq), borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
           { label:'Real',     data: data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i))), borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
@@ -2599,6 +2607,7 @@ function go() {
   } else {
     chart.data.labels = labels;
     chart.data.datasets[0].data = data.map(d => d.liq);
+    chart.data.datasets[0].minLiqData = data.map(d => d.minLiq ?? d.liq);
     chart.data.datasets[1].data = data.map(d => d.iliq);
     chart.data.datasets[2].data = data.map(d => d.liq + d.iliq);
     chart.data.datasets[3].data = data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i)));
@@ -3264,6 +3273,7 @@ function toggleTheme() {
 
 function toggleYearMode() {
   _yearMode = !_yearMode;
+  localStorage.setItem('retiro-year-mode', _yearMode ? '1' : '0');
   const track = document.getElementById('yr-track');
   const thumb  = document.getElementById('yr-thumb');
   const lblAge = document.getElementById('yr-lbl-age');
@@ -4013,6 +4023,18 @@ function toggleIbkrAuto(on) {
   const autoOn = localStorage.getItem('retiro-ibkr-auto') !== '0';
   const chk = document.getElementById('ibkr-auto-chk');
   if (chk) chk.checked = autoOn;
+  if (localStorage.getItem('retiro-year-mode') === '1') {
+    _yearMode = true;
+    const track = document.getElementById('yr-track');
+    const thumb  = document.getElementById('yr-thumb');
+    const lblAge = document.getElementById('yr-lbl-age');
+    const lblYr  = document.getElementById('yr-lbl-yr');
+    if (track) track.style.background = '#5b8dee';
+    if (thumb) thumb.style.transform  = 'translateX(14px)';
+    if (lblAge) { lblAge.style.color = '#aaa'; lblAge.style.fontWeight = '400'; }
+    if (lblYr)  { lblYr.style.color  = '#666'; lblYr.style.fontWeight  = '700'; }
+    document.body.classList.add('year-mode');
+  }
 })();
 loadScenarios()
   .then(() => {
