@@ -1947,6 +1947,7 @@ function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
   const inf = S.inflationRate / 100;
   let liq = S.liquidBase;
+  let _simMinLiq = Infinity, _simMinAge = sa;
 
   // Deduct age-sa one-offs and first-year installment payments immediately (month 1)
   S.expenses.filter(e => e.enabled !== false).forEach(e => {
@@ -2085,6 +2086,7 @@ function runSim(monthlyOverride) {
 
       liq += inc - exp;
       if (liq < yearMinLiq) yearMinLiq = liq;
+      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; }
     }
 
     out.push({
@@ -2096,6 +2098,8 @@ function runSim(monthlyOverride) {
       monthlyExp: Math.round(lastInflM)
     });
   }
+  out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
+  out.simMinAge = _simMinAge;
   return out;
 }
 
@@ -2322,9 +2326,9 @@ const msPlugin = {
       if (!salePropsByAge[p.saleAge]) salePropsByAge[p.saleAge] = [];
       salePropsByAge[p.saleAge].push(p);
     });
-    const minLiqData2 = data.datasets[0].minLiqData || liqData;
-    let minLiq2 = Infinity, minAge2 = sa2;
-    minLiqData2.forEach((v, i) => { if (v < minLiq2) { minLiq2 = v; minAge2 = labels[i]; } });
+    const _ds0 = data.datasets[0];
+    const minLiq2 = _ds0._simMinLiq ?? Math.min(...(liqData));
+    const minAge2 = _ds0._simMinAge ?? labels[liqData.indexOf(minLiq2)];
 
     _saleDots = []; // reset for hover
     data.labels.forEach((age, idx) => {
@@ -2422,7 +2426,7 @@ function go() {
     if (sassyEl2 && data.length) {
       const lastD = data[data.length - 1];
       const finalTot2 = lastD.liq + lastD.iliq;
-      const minLiqEntry2 = data.reduce((m, d) => (d.minLiq ?? d.liq) < (m.minLiq ?? m.liq) ? d : m, data[0]);
+      const minLiqEntry2 = { liq: data.simMinLiq, age: data.simMinAge };
       if (!sassyEl2.textContent || sassyEl2.textContent === '—') {
         sassyEl2.textContent = sassyPhrase(finalTot2, minLiqEntry2.liq, minLiqEntry2.age, ea);
         sassyEl2.style.color = finalTot2 < 0 ? '#C03030' : finalTot2 < 200_000 ? '#92400E' : finalTot2 <= 700_000 ? '#1A8C5F' : '#555';
@@ -2439,8 +2443,8 @@ function go() {
   const at = age => data.find(d => d.age === age) || data[data.length - 1];
   const init = S.liquidBase + S.properties.filter(p => p.enabled !== false && (p.acquireAge || sa) <= sa).reduce((s, p) => s + p.value, 0);
 
-  let minLiq = Infinity, minAge = sa;
-  data.forEach(d => { const v = d.minLiq ?? d.liq; if (v < minLiq) { minLiq = v; minAge = d.age; } });
+  const minLiq = data.simMinLiq ?? data[data.length - 1].liq;
+  const minAge = data.simMinAge ?? sa;
 
   // Max monthly — debounced: expensive (44×runSim), update 600ms after last go()
   clearTimeout(_maxTimer);
@@ -2533,7 +2537,7 @@ function go() {
       data: {
         labels,
         datasets: [
-          { label:'Liquid',   data: data.map(d => d.liq), minLiqData: data.map(d => d.minLiq ?? d.liq), borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Liquid',   data: data.map(d => d.liq), _simMinLiq: data.simMinLiq, _simMinAge: data.simMinAge, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Illiquid', data: data.map(d => d.iliq),         borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
           { label:'Total',    data: data.map(d => d.liq + d.iliq), borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
           { label:'Real',     data: data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i))), borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
@@ -2607,7 +2611,8 @@ function go() {
   } else {
     chart.data.labels = labels;
     chart.data.datasets[0].data = data.map(d => d.liq);
-    chart.data.datasets[0].minLiqData = data.map(d => d.minLiq ?? d.liq);
+    chart.data.datasets[0]._simMinLiq = data.simMinLiq;
+    chart.data.datasets[0]._simMinAge = data.simMinAge;
     chart.data.datasets[1].data = data.map(d => d.iliq);
     chart.data.datasets[2].data = data.map(d => d.liq + d.iliq);
     chart.data.datasets[3].data = data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i)));
