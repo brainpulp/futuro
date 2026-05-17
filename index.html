@@ -504,6 +504,9 @@ select.spy-preset-sel {
 body[data-theme="graphite"] {
   background: #161b22;
   color: #e6edf3;
+  --border: #30363d;
+  --bg-subtle: #21262d;
+  --bg-row-alt: rgba(255,255,255,0.03);
 }
 body[data-theme="graphite"] .app-bar {
   background: #21262d;
@@ -924,6 +927,18 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <div style="font-size:10px;color:#aaa;margin-top:6px;">Shift+Enter for new line · AI can propose scenarios you can apply with one click</div>
       </div>
     </div>
+
+  <!-- ── Reality Check Table ─────────────────────────────────── -->
+  <div style="max-width:1200px;margin:0 auto;padding:0 20px 32px;">
+    <details id="rc-section" style="margin-top:20px;">
+      <summary style="cursor:pointer;font-weight:700;font-size:14px;padding:10px 14px;background:var(--bg-subtle,#f5f5f5);border-radius:6px;border:1px solid var(--border,#e8e8e8);list-style:none;display:flex;align-items:center;gap:8px;user-select:none;">
+        <span style="font-size:11px;opacity:0.5;">▶</span>
+        Monthly Reality Check
+        <span style="font-weight:400;font-size:11px;color:#aaa;margin-left:4px;">— verify the sim month by month</span>
+      </summary>
+      <div style="padding:10px 0 0;" id="rc-table"></div>
+    </details>
+  </div>
 
   </div><!-- /app-body -->
 
@@ -1969,10 +1984,10 @@ function runSim(monthlyOverride) {
     crash: false,
     monthlyExp: Math.round(((S.expenseCurve && S.expenseCurve[sa] !== undefined) ? S.expenseCurve[sa] : S.monthlyExpenses) * (S.expMultiplier || 1))
   }];
+  out.monthly = [];
+  const _startYear = S.startYear || new Date().getFullYear();
 
   // ── Partial-year loop for starting year: simulate current month → Dec ──
-  // Catches one-offs at age=sa with atMonth > 1 (missed by the pre-loop).
-  // Updates liq so the age=sa+1 loop starts from the correct projected value.
   {
     const _curMo = new Date().getMonth() + 1;
     const _saYld = getYield(sa);
@@ -1980,10 +1995,13 @@ function runSim(monthlyOverride) {
     for (let mo = _curMo; mo <= 12; mo++) {
       liq *= (1 + _saMYld);
       const _f = Math.pow(1 + inf, (mo - _curMo) / 12);
-      let exp = getMonthly(sa) * _f * (S.expMultiplier || 1) + (S.winterTrip + S.summerTrip) / 12;
+      const _baseExp = getMonthly(sa) * _f * (S.expMultiplier || 1) + (S.winterTrip + S.summerTrip) / 12;
+      const _oo = [];
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
-        if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo) exp += e.amount;
+        if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo)
+          _oo.push({ name: e.name || '?', amount: e.amount });
       });
+      const _ooAmt = _oo.reduce((s, o) => s + o.amount, 0);
       let inc = 0;
       props.filter(p => !p.sold && p.monthlyRent > 0 && sa >= (p.rentFromAge || sa))
         .forEach(p => { if (mo >= (p.rentFromMonth || 1)) inc += p.monthlyRent; });
@@ -1997,8 +2015,9 @@ function runSim(monthlyOverride) {
           inc += i.type === 'annual' ? (i.amount || i.monthly || 0) * _f / 12 : (i.monthly || 0) * _f;
         }
       });
-      liq += inc - exp;
+      liq += inc - _baseExp - _ooAmt;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
+      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
     }
   }
 
@@ -2053,11 +2072,12 @@ function runSim(monthlyOverride) {
       lastInflM = _gastos !== undefined ? _gastos : inflM;
 
       let exp = _gastos !== undefined ? _gastos : inflM + (S.winterTrip + S.summerTrip) / 12;
+      const _oo = [];
 
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
         if (e.type === 'oneoff') {
-          if (e.atAge === age && (e.atMonth || 1) === mo) exp += e.amount;
+          if (e.atAge === age && (e.atMonth || 1) === mo) { exp += e.amount; _oo.push({ name: e.name || '?', amount: e.amount }); }
         } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
           const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
@@ -2119,6 +2139,7 @@ function runSim(monthlyOverride) {
       liq += inc - exp;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; }
+      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq) });
     }
 
     out.push({
@@ -2442,6 +2463,77 @@ try {
     return { x: ca.right - 6, y: ca.top + 6 };
   };
 } catch(e) {}
+
+// ── Reality Check Table ──────────────────────────────────────
+let _rcOpen = {};
+function renderRC(data) {
+  const el = document.getElementById('rc-table');
+  if (!el) return;
+  const monthly = data.monthly || [];
+  if (!monthly.length) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px;">No monthly data.</div>'; return; }
+
+  const MONAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const fmtK = v => { const s = v < 0 ? '-' : ''; const a = Math.abs(Math.round(v)); return a >= 1000 ? s+'$'+(a/1000).toFixed(1).replace(/\.0$/,'')+'K' : s+'$'+a; };
+
+  // Group by year
+  const byYear = {};
+  monthly.forEach(r => { (byYear[r.year] = byYear[r.year] || []).push(r); });
+
+  const _yrList = Object.keys(byYear).sort((a,b) => +a - +b);
+  let html = '';
+  _yrList.forEach((yr, yrIdx) => {
+    const rows = byYear[yr];
+    const age = rows[0].age;
+    const open = yr in _rcOpen ? _rcOpen[yr] : yrIdx === 0;
+    const endLiq = rows[rows.length - 1].liq;
+    const liqCol = endLiq < 0 ? '#e05050' : endLiq < 300000 ? '#c07030' : '#1A8C5F';
+
+    html += `<div style="border:1px solid var(--border,#e8e8e8);border-radius:6px;margin-bottom:6px;overflow:hidden;">
+      <div onclick="(function(){_rcOpen['${yr}']=!(${open});renderRC(window._lastRCData);})()"
+           style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:var(--bg-subtle,#f5f5f5);cursor:pointer;user-select:none;">
+        <span style="font-weight:600;font-size:13px;">${yr} <span style="font-weight:400;color:#888;font-size:11px;">(age ${age})</span></span>
+        <span style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:12px;color:${liqCol};font-variant-numeric:tabular-nums;">end liq ${fmtK(endLiq)}</span>
+          <span style="font-size:14px;color:#999;">${open ? '▴' : '▾'}</span>
+        </span>
+      </div>`;
+
+    if (open) {
+      html += `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:SF Mono,Menlo,monospace;">
+          <thead>
+            <tr style="background:var(--bg-subtle,#f5f5f5);color:#888;">
+              <th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border,#e8e8e8);">Mo</th>
+              <th style="padding:4px 8px;text-align:right;border-bottom:1px solid var(--border,#e8e8e8);">Income</th>
+              <th style="padding:4px 8px;text-align:right;border-bottom:1px solid var(--border,#e8e8e8);">Base Exp</th>
+              <th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border,#e8e8e8);">One-offs</th>
+              <th style="padding:4px 8px;text-align:right;border-bottom:1px solid var(--border,#e8e8e8);">Liquid</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      rows.forEach((r, i) => {
+        const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
+        const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
+        const ooHtml = r.oneoffs && r.oneoffs.length
+          ? r.oneoffs.map(o => `<span style="color:#c07030;">${o.name} ${fmtK(o.amount)}</span>`).join(', ')
+          : '<span style="color:#ccc;">—</span>';
+        html += `<tr style="${bg}">
+          <td style="padding:3px 8px;">${MONAMES[r.mo-1]}</td>
+          <td style="padding:3px 8px;text-align:right;color:#1A8C5F;">${r.inc ? '+'+fmtK(r.inc) : '—'}</td>
+          <td style="padding:3px 8px;text-align:right;">${fmtK(r.baseExp)}</td>
+          <td style="padding:3px 8px;">${ooHtml}</td>
+          <td style="padding:3px 8px;text-align:right;${lqC?'color:'+lqC+';':''}">${fmtK(r.liq)}</td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+  });
+
+  el.innerHTML = html;
+}
 
 function go() {
   markDirty();
@@ -2778,6 +2870,9 @@ function go() {
     _onelineCallLog.push(now);
     requestAiOneliner(); requestAiJeopardize();
   }, 15_000);
+
+  window._lastRCData = data;
+  renderRC(data);
 }
 
 // ══════════════════════════════════════════════════════════════
