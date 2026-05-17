@@ -1970,6 +1970,38 @@ function runSim(monthlyOverride) {
     monthlyExp: Math.round(((S.expenseCurve && S.expenseCurve[sa] !== undefined) ? S.expenseCurve[sa] : S.monthlyExpenses) * (S.expMultiplier || 1))
   }];
 
+  // ── Partial-year loop for starting year: simulate current month → Dec ──
+  // Catches one-offs at age=sa with atMonth > 1 (missed by the pre-loop).
+  // Updates liq so the age=sa+1 loop starts from the correct projected value.
+  {
+    const _curMo = new Date().getMonth() + 1;
+    const _saYld = getYield(sa);
+    const _saMYld = Math.pow(1 + _saYld / 100, 1/12) - 1;
+    for (let mo = _curMo; mo <= 12; mo++) {
+      liq *= (1 + _saMYld);
+      const _f = Math.pow(1 + inf, (mo - _curMo) / 12);
+      let exp = getMonthly(sa) * _f * (S.expMultiplier || 1) + (S.winterTrip + S.summerTrip) / 12;
+      S.expenses.filter(e => e.enabled !== false).forEach(e => {
+        if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo) exp += e.amount;
+      });
+      let inc = 0;
+      props.filter(p => !p.sold && p.monthlyRent > 0 && sa >= (p.rentFromAge || sa))
+        .forEach(p => { if (mo >= (p.rentFromMonth || 1)) inc += p.monthlyRent; });
+      S.incomes.filter(i => i.enabled !== false).forEach(i => {
+        const from = i.from || sa, to = i.to || ea;
+        const startOk = sa > from || (sa === from && mo >= (i.fromMonth || 1));
+        const endOk   = sa < to   || (sa === to   && mo <= (i.toMonth || 12));
+        if (i.type === 'oneoff') {
+          if (sa === (i.atAge || i.from) && mo === (i.atMonth || 1)) inc += i.amount || 0;
+        } else if (startOk && endOk) {
+          inc += i.type === 'annual' ? (i.amount || i.monthly || 0) * _f / 12 : (i.monthly || 0) * _f;
+        }
+      });
+      liq += inc - exp;
+      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
+    }
+  }
+
   for (let age = sa + 1; age <= ea; age++) {
     const yld = getYield(age);
     const mYld = Math.pow(1 + yld, 1/12) - 1;
