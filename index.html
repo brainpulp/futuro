@@ -693,6 +693,12 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <!-- Main chart -->
     <div style="position:relative;padding-top:20px;margin-bottom:0;">
       <div style="position:absolute;top:2px;left:6px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(0,0,0,0.25);pointer-events:none;">Net Worth</div>
+      <div style="position:absolute;top:1px;right:6px;display:flex;gap:6px;z-index:1;">
+        <button id="zoom-btn-1"  onclick="setChartZoom(1)"  style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">1y</button>
+        <button id="zoom-btn-10" onclick="setChartZoom(10)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">10y</button>
+        <button id="zoom-btn-20" onclick="setChartZoom(20)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">20y</button>
+        <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
+      </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
     </div>
     <!-- SPY preset selector -->
@@ -1266,6 +1272,7 @@ let SCENARIOS = [];
 let activeScenarioId = null;
 let S = deepCopy(EMPTY);
 let nextId = 1000, chart = null, chart2 = null, chart3 = null, openId = null, _maxTimer = null;
+let _chartZoom = parseInt(localStorage.getItem('futuro-chart-zoom') || '10');
 let _lastMaxMonthly = 0;
 let _danceT = 0, _danceRaf = null;
 function _startDanceLoop() {
@@ -2561,6 +2568,54 @@ function renderRC(data) {
   el.innerHTML = html;
 }
 
+function setChartZoom(y) {
+  _chartZoom = y;
+  localStorage.setItem('futuro-chart-zoom', y);
+  renderZoomButtons();
+  go();
+}
+function renderZoomButtons() {
+  [1,10,20,30].forEach(y => {
+    const el = document.getElementById('zoom-btn-' + y);
+    if (!el) return;
+    el.style.fontWeight = _chartZoom === y ? '800' : '500';
+    el.style.opacity    = _chartZoom === y ? '1'   : '0.45';
+    el.style.borderBottom = _chartZoom === y ? '2px solid currentColor' : '2px solid transparent';
+  });
+}
+function _buildChartView(data) {
+  const sa = S.startAge || 57;
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if (_chartZoom === 1) {
+    const mo = (data.monthly || []).slice(0, 12);
+    const labels = mo.map(m => MON[m.mo-1] + ' \'' + String(m.year).slice(2));
+    const liq    = mo.map(m => m.liq);
+    const iliq0  = data.length ? data[0].iliq : 0;
+    const iliq   = mo.map(() => iliq0);
+    const yMax   = Math.max(Math.max(...liq, 0) * 1.18, 100_000);
+    return { labels, liq, iliq, total: liq.map((l,i) => l + iliq[i]), real: [], props: [], monthly: true, yMax };
+  }
+  const maxAge   = sa + _chartZoom;
+  const filtered = data.filter(d => d.age <= maxAge);
+  const labels   = filtered.map(d => d.age);
+  const liq      = filtered.map(d => d.liq);
+  const iliq     = filtered.map(d => d.iliq);
+  const total    = filtered.map(d => d.liq + d.iliq);
+  const real     = filtered.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i)));
+  const yMax     = Math.max(Math.max(...total, 0) * 1.1, 500_000);
+  const props    = S.properties.filter(p => p.enabled !== false).map(p => {
+    const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
+    const aq   = p.acquireAge || sa;
+    const pData = labels.map(age => {
+      if (age < aq) return 0;
+      if (p.hold || age <= p.saleAge) return Math.round(p.value * Math.pow(1 + pApp, age - aq));
+      return 0;
+    });
+    return { label: p.name, data: pData, borderColor:'rgba(239,159,39,0.45)', borderWidth:1, borderDash:[2,2], pointRadius:0, fill:false, tension:0.3 };
+  });
+  return { labels, liq, iliq, total, real, props, monthly: false, yMax };
+}
+
 function go() {
   markDirty();
   const data = runSim();
@@ -2651,18 +2706,9 @@ function go() {
               'rgba(192,48,48,0.9)'
   );
 
-  // ── Per-property illiquid sub-curves ──
-  const propSubDatasets = S.properties.filter(p => p.enabled !== false).map(p => {
-    const pApp = (p.appRate !== undefined ? p.appRate : S.assetAppreciation) / 100;
-    const aq = p.acquireAge || sa;
-    const pData = labels.map(age => {
-      if (age < aq) return 0;
-      if (p.hold || age <= p.saleAge) return Math.round(p.value * Math.pow(1 + pApp, age - aq));
-      return 0;
-    });
-    return { label: p.name, data: pData, borderColor:'rgba(239,159,39,0.45)', borderWidth:1,
-             borderDash:[2,2], pointRadius:0, fill:false, tension:0.3 };
-  });
+  // ── Chart view (zoom-filtered) ──
+  const view = _buildChartView(data);
+  renderZoomButtons();
 
   // ── Main chart (NW only) ──
   if (!chart) {
@@ -2677,21 +2723,22 @@ function go() {
           ctx.font = '600 9px "SF Mono", Menlo, monospace';
           ctx.fillStyle = document.body.dataset.theme === 'graphite' ? 'rgba(200,210,220,0.5)' : 'rgba(80,80,100,0.45)';
           ctx.textAlign = 'center';
-          lbs.forEach((age, idx) => {
-            if (age % 5 !== 0) return;
-            ctx.fillText(_yearMode ? ageToYear(age) : age, x.getPixelForValue(idx), chartArea.top - 8);
-          });
+          if (_chartZoom === 1) {
+            lbs.forEach((lbl, idx) => { if (idx % 3 !== 0) return; ctx.fillText(lbl, x.getPixelForValue(idx), chartArea.top - 8); });
+          } else {
+            lbs.forEach((age, idx) => { if (age % 5 !== 0) return; ctx.fillText(_yearMode ? ageToYear(age) : age, x.getPixelForValue(idx), chartArea.top - 8); });
+          }
           ctx.restore();
         }
       }],
       data: {
-        labels,
+        labels: view.labels,
         datasets: [
-          { label:'Liquid',   data: data.map(d => d.liq), _simMinLiq: data.simMinLiq, _simMinAge: data.simMinAge, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
-          { label:'Illiquid', data: data.map(d => d.iliq),         borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
-          { label:'Total',    data: data.map(d => d.liq + d.iliq), borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
-          { label:'Real',     data: data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i))), borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
-          ...propSubDatasets
+          { label:'Liquid',   data: view.liq,   _simMinLiq: data.simMinLiq, _simMinAge: data.simMinAge, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Illiquid', data: view.iliq,  borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:0, fill:true,  tension:0.3 },
+          { label:'Total',    data: view.total, borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
+          { label:'Real',     data: view.real,  borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
+          ...view.props
         ]
       },
       options: {
@@ -2700,7 +2747,7 @@ function go() {
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { display: false },
-          y: { max: 10_000_000, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
+          y: { max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
         }
       }
     });
@@ -2759,16 +2806,16 @@ function go() {
       setTimeout(() => { document.getElementById('drag-tip').style.display = 'none'; }, 1200);
     });
   } else {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data.map(d => d.liq);
+    chart.data.labels = view.labels;
+    chart.data.datasets[0].data = view.liq;
     chart.data.datasets[0]._simMinLiq = data.simMinLiq;
     chart.data.datasets[0]._simMinAge = data.simMinAge;
-    chart.data.datasets[1].data = data.map(d => d.iliq);
-    chart.data.datasets[2].data = data.map(d => d.liq + d.iliq);
-    chart.data.datasets[3].data = data.map((d,i) => Math.round((d.liq+d.iliq) / Math.pow(1+(S.inflationRate||2.5)/100, i)));
-    // Sync per-property sub-curves (splice from index 4, re-add)
+    chart.data.datasets[1].data = view.iliq;
+    chart.data.datasets[2].data = view.total;
+    chart.data.datasets[3].data = view.real;
     chart.data.datasets.splice(4);
-    propSubDatasets.forEach(d => chart.data.datasets.push(d));
+    view.props.forEach(d => chart.data.datasets.push(d));
+    chart.options.scales.y.max = view.yMax;
     chart.update('none');
   }
 
