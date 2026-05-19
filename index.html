@@ -1045,6 +1045,11 @@ const EMPTY = {
 };
 
 const LS_KEY = 'futuro_scenarios';
+// One-time migration from retiro_ keys → futuro_ keys
+['sb_id','scenarios','theme','year-mode','ibkr-auto','profile','claude_key'].forEach(k => {
+  if (!localStorage.getItem('futuro_'+k) && localStorage.getItem('retiro_'+k))
+    localStorage.setItem('futuro_'+k, localStorage.getItem('retiro_'+k));
+});
 
 // ══════════════════════════════════════════════════════════════
 //  SUPABASE PERSISTENCE
