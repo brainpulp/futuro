@@ -2726,7 +2726,8 @@ function go() {
           if (_chartZoom === 1) {
             lbs.forEach((lbl, idx) => { if (idx % 3 !== 0) return; ctx.fillText(lbl, x.getPixelForValue(idx), chartArea.top - 8); });
           } else {
-            lbs.forEach((age, idx) => { if (age % 5 !== 0) return; ctx.fillText(_yearMode ? ageToYear(age) : age, x.getPixelForValue(idx), chartArea.top - 8); });
+            const step = _chartZoom <= 10 ? 1 : _chartZoom <= 20 ? 2 : 5;
+            lbs.forEach((age, idx) => { if (age % step !== 0) return; ctx.fillText(_yearMode ? ageToYear(age) : age, x.getPixelForValue(idx), chartArea.top - 8); });
           }
           ctx.restore();
         }
