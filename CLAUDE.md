@@ -14,10 +14,8 @@ Repo: https://github.com/brainpulp/futuro
 ## Supabase projects
 | Project | ID | Purpose |
 |---------|-----|---------|
-| futuro (was retiro)  | `kbatdnrxfrltcmqvsmyy` | scenarios persistence, IBKR edge function |
+| futuro  | `kbatdnrxfrltcmqvsmyy` | scenarios persistence, IBKR edge function. Table: `futuro_state` |
 | gastos  | `fnzdkqrkranedtgysqcf` | expense actuals (monthly-actuals, auto-categorize) |
-
-Note: Supabase table is still named `retiro_state` (not renamed — internal only).
 
 Supabase access token (for CLI deploys): stored in session, ask user if needed.
 Deploy edge function: `SUPABASE_ACCESS_TOKEN=... npx supabase functions deploy get-ibkr-liquid --project-ref kbatdnrxfrltcmqvsmyy --no-verify-jwt`

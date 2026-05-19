@@ -1066,7 +1066,7 @@ function getSbId() {
 async function sbSave(payload) {
   if (!_sb) return;
   try {
-    const { error } = await _sb.from('retiro_state').upsert({
+    const { error } = await _sb.from('futuro_state').upsert({
       id: getSbId(), data: JSON.parse(payload), updated_at: new Date().toISOString()
     });
     if (error) console.warn('Supabase save error', error);
@@ -1076,7 +1076,7 @@ async function sbSave(payload) {
 async function sbLoad() {
   if (!_sb) return null;
   try {
-    const { data, error } = await _sb.from('retiro_state').select('data').eq('id', getSbId()).single();
+    const { data, error } = await _sb.from('futuro_state').select('data').eq('id', getSbId()).single();
     if (error || !data) return null;
     return data.data;
   } catch(e) { return null; }
