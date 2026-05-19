@@ -79,6 +79,8 @@ Past months use gastos actuals; future months use projected inflation-adjusted e
 - `toggleIbkrAuto(on)` — saves IBKR auto-sync preference
 
 ## Local dev
+Local path: `F:\code\retiro\` (moved out of Google Drive on 2026-05-19 — Drive sync corrupts git index)
+
 ```bash
 node save-server.js          # start local save server (port 3001)
 npx http-server . -p 8765    # serve app locally
