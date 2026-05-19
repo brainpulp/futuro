@@ -2002,6 +2002,20 @@ function runSim(monthlyOverride) {
           _oo.push({ name: e.name || '?', amount: e.amount });
       });
       const _ooAmt = _oo.reduce((s, o) => s + o.amount, 0);
+      let _itemizedExp = 0;
+      S.expenses.filter(e => e.enabled !== false).forEach(e => {
+        if (e.type === 'monthly') {
+          const from = e.from || sa, to = e.to || ea;
+          const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
+          const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
+          if (startOk && endOk) _itemizedExp += e.amount;
+        } else if (e.type === 'annual') {
+          const from = e.from || sa, to = e.to || ea;
+          const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
+          const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
+          if (startOk && endOk) _itemizedExp += e.amount / 12;
+        }
+      });
       let inc = 0;
       props.filter(p => !p.sold && p.monthlyRent > 0 && sa >= (p.rentFromAge || sa))
         .forEach(p => { if (mo >= (p.rentFromMonth || 1)) inc += p.monthlyRent; });
@@ -2015,7 +2029,7 @@ function runSim(monthlyOverride) {
           inc += i.type === 'annual' ? (i.amount || i.monthly || 0) * _f / 12 : (i.monthly || 0) * _f;
         }
       });
-      liq += inc - _baseExp - _ooAmt;
+      liq += inc - _baseExp - _ooAmt - _itemizedExp;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
       out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
     }
@@ -2148,7 +2162,7 @@ function runSim(monthlyOverride) {
       minLiq: Math.round(yearMinLiq),
       iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
       crash,
-      monthlyExp: Math.round(lastInflM)
+      monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0))
     });
   }
   out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
