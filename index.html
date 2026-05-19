@@ -4152,7 +4152,7 @@ function toggleIbkrAuto(on) {
     const btn = document.getElementById('theme-btn');
     if (btn) btn.style.color = '#e6edf3';
   }
-  const autoOn = localStorage.getItem('retiro-ibkr-auto') !== '0';
+  const autoOn = localStorage.getItem('retiro-ibkr-auto') === '1';
   const chk = document.getElementById('ibkr-auto-chk');
   if (chk) chk.checked = autoOn;
   if (localStorage.getItem('retiro-year-mode') === '1') {
@@ -4170,7 +4170,7 @@ function toggleIbkrAuto(on) {
 })();
 loadScenarios()
   .then(() => {
-    const autoOn = localStorage.getItem('retiro-ibkr-auto') !== '0';
+    const autoOn = localStorage.getItem('retiro-ibkr-auto') === '1';
     if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
     gastosSync();
   })
