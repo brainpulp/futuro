@@ -2312,7 +2312,7 @@ const liquidBgPlugin = {
       const vy = chartArea.top  + _vigRand() * ah;
       const sz = 16 + _vigRand() * 18;
       const isAnimal = i % 2 === 0;
-      const speed = 0.12 + (i % 7) * 0.04;
+      const speed = (0.12 + (i % 7) * 0.04) * 2;
       const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
       const col = isAnimal ? _VIG_ANIMAL_COLS[(i >> 1) % 4] : _VIG_FLOWER_COLS[i % 6];
       ctx.save();
