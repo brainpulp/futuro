@@ -1,9 +1,9 @@
-# Retiro — Handoff
+# Futuro — Handoff
 
 ## What it is
 Single-file HTML/JS retirement net-worth projector. No build step.
-Deployed to GitHub Pages: https://brainpulp.github.io/retiro/
-Repo: https://github.com/brainpulp/retiro
+Deployed to GitHub Pages: https://brainpulp.github.io/futuro/
+Repo: https://github.com/brainpulp/futuro
 
 ## Tech
 - `index.html` — entire app (~4100 lines). Edit this file directly.
@@ -14,8 +14,10 @@ Repo: https://github.com/brainpulp/retiro
 ## Supabase projects
 | Project | ID | Purpose |
 |---------|-----|---------|
-| retiro  | `kbatdnrxfrltcmqvsmyy` | scenarios persistence, IBKR edge function |
+| futuro (was retiro)  | `kbatdnrxfrltcmqvsmyy` | scenarios persistence, IBKR edge function |
 | gastos  | `fnzdkqrkranedtgysqcf` | expense actuals (monthly-actuals, auto-categorize) |
+
+Note: Supabase table is still named `retiro_state` (not renamed — internal only).
 
 Supabase access token (for CLI deploys): stored in session, ask user if needed.
 Deploy edge function: `SUPABASE_ACCESS_TOKEN=... npx supabase functions deploy get-ibkr-liquid --project-ref kbatdnrxfrltcmqvsmyy --no-verify-jwt`
@@ -34,14 +36,14 @@ const _currentYM = new Date().toISOString().slice(0, 7); // e.g. "2026-05"
 ```js
 let _yearMode = false;       // age vs calendar year display
 let _gastosActuals = {};     // { "2026-01": 4320.50, ... } from gastos edge fn
-let _theme = ...;            // persisted via localStorage 'retiro-theme'
+let _theme = ...;            // persisted via localStorage 'futuro-theme'
 ```
 
 ## Features implemented (recent)
 - **Age/Year toggle** — `◑` button switches all age displays to calendar years. `dispA(age)` / `readA(val)` helpers. `body.year-mode` class widens ifield inputs to 54px.
 - **Gastos actuals integration** — past months use real USD spend from gastos instead of projected base expenses. `gastosSync()` calls `monthly-actuals` edge function on load.
-- **Graphite dark theme** — `body[data-theme="graphite"]` CSS block. Toggle button `◑` in app bar. Persists via `localStorage('retiro-theme')`.
-- **IBKR auto-sync toggle** — checkbox "auto" next to ↓ IBKR button. Persists via `localStorage('retiro-ibkr-auto')`. Default OFF (avoids Flex API rate limit during dev).
+- **Graphite dark theme** — `body[data-theme="graphite"]` CSS block. Toggle button `◑` in app bar. Persists via `localStorage('futuro-theme')`.
+- **IBKR auto-sync toggle** — checkbox "auto" next to ↓ IBKR button. Persists via `localStorage('futuro-ibkr-auto')`. Default OFF (avoids Flex API rate limit during dev).
 - **IBKR verbose errors** — edge function returns `ibkr_error_code`, `ibkr_status`, `xml_snippet` on failure. Error 1001 = rate limited, wait ~15 min.
 - **Money bag favicon** — SVG data URL emoji.
 - **Chart age labels** — theme-aware color (lighter in graphite mode).
@@ -73,13 +75,13 @@ Past months use gastos actuals; future months use projected inflation-adjusted e
 - `ageToYear(age)` — `startYear + (age - startAge)`
 - `yearToAge(year)` — `startAge + (year - startYear)`
 - `gastosSync()` — fetches monthly actuals from gastos edge function
-- `ibkrSync({manual})` — fetches net liquidation from retiro edge function
+- `ibkrSync({manual})` — fetches net liquidation from futuro edge function
 - `toggleTheme()` — flips graphite/light, persists to localStorage
 - `toggleYearMode()` — flips age/year display, toggles body.year-mode class
 - `toggleIbkrAuto(on)` — saves IBKR auto-sync preference
 
 ## Local dev
-Local path: `F:\code\retiro\` (moved out of Google Drive on 2026-05-19 — Drive sync corrupts git index)
+Local path: `F:\code\futuro\` (moved out of Google Drive on 2026-05-19 — Drive sync corrupts git index)
 
 ```bash
 node save-server.js          # start local save server (port 3001)

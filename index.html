@@ -2,7 +2,7 @@
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Retiro — Net Worth Projector</title>
+<title>Futuro — Net Worth Projector</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -894,7 +894,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
           <label class="lbl">Claude API key <span style="font-weight:400;color:#aaa;">(stored in this browser only, never uploaded)</span></label>
           <div style="display:flex;gap:6px;align-items:center;">
             <input type="password" id="claude-key-input" placeholder="sk-ant-api03-…" style="flex:1;"
-              oninput="localStorage.setItem('retiro_claude_key',this.value)">
+              oninput="localStorage.setItem('futuro_claude_key',this.value)">
             <button onclick="var i=document.getElementById('claude-key-input');i.type=i.type==='password'?'text':'password'"
               style="background:#f1f3f9;border:1px solid #e0e6ed;border-radius:6px;padding:0 10px;height:30px;cursor:pointer;font-size:12px;color:#697386;flex-shrink:0;">show</button>
           </div>
@@ -1044,7 +1044,7 @@ const EMPTY = {
   ]
 };
 
-const LS_KEY = 'retiro_scenarios';
+const LS_KEY = 'futuro_scenarios';
 
 // ══════════════════════════════════════════════════════════════
 //  SUPABASE PERSISTENCE
@@ -1054,7 +1054,7 @@ const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
 const GASTOS_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuemRrcXJrcmFuZWR0Z3lzcWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDM0NTcsImV4cCI6MjA5MzkxOTQ1N30.gh38kLWluvd9Z4cHo4fwm-hv0BNYeN0D-fOD_qR4gXE';
 const _currentYM  = new Date().toISOString().slice(0, 7); // "YYYY-MM" — months before this use gastos actuals
-const SB_ID_KEY = 'retiro_sb_id';
+const SB_ID_KEY = 'futuro_sb_id';
 const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
 
 function getSbId() {
@@ -1718,6 +1718,13 @@ function _applyScenarios(saved) {
   }
   S = deepCopy(SCENARIOS.find(s => s.id === activeScenarioId)?.data || EMPTY);
   ensureFields();
+  // Reseed nextId above all existing item IDs to prevent collisions
+  const _allIds = SCENARIOS.flatMap(sc => [
+    ...(sc.data.expenses || []), ...(sc.data.incomes || []),
+    ...(sc.data.properties || []), ...(sc.data.crises || []),
+    ...(sc.data.expensePhases || []), ...(sc.data.monthlyBreakdown || []),
+  ]).map(x => x.id || 0).filter(Number.isFinite);
+  if (_allIds.length) nextId = Math.max(nextId, ..._allIds);
   saveActive();
   syncInputs();
   renderScenarioBar();
@@ -1777,7 +1784,7 @@ function exportData() {
   const blob = new Blob([JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'retiro-' + new Date().toISOString().slice(0,10) + '.json';
+  a.download = 'futuro-' + new Date().toISOString().slice(0,10) + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -3389,7 +3396,7 @@ function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); }
 
 function syncSettingsPanel() {
   const keyEl = document.getElementById('claude-key-input');
-  if (keyEl) keyEl.value = localStorage.getItem('retiro_claude_key') || '';
+  if (keyEl) keyEl.value = localStorage.getItem('futuro_claude_key') || '';
   const idEl = document.getElementById('sb-id-input');
   if (idEl) idEl.value = getSbId();
 }
@@ -3412,14 +3419,14 @@ function toggleTheme() {
   const isDark = document.body.dataset.theme === 'graphite';
   const next = isDark ? 'light' : 'graphite';
   document.body.dataset.theme = next;
-  localStorage.setItem('retiro-theme', next);
+  localStorage.setItem('futuro-theme', next);
   const btn = document.getElementById('theme-btn');
   if (btn) btn.style.color = next === 'graphite' ? '#e6edf3' : '#aaa';
 }
 
 function toggleYearMode() {
   _yearMode = !_yearMode;
-  localStorage.setItem('retiro-year-mode', _yearMode ? '1' : '0');
+  localStorage.setItem('futuro-year-mode', _yearMode ? '1' : '0');
   const track = document.getElementById('yr-track');
   const thumb  = document.getElementById('yr-thumb');
   const lblAge = document.getElementById('yr-lbl-age');
@@ -3490,7 +3497,7 @@ function showAiTab(idx) {
   box.innerHTML = sec ? `<p style="margin:0 0 6px">${sec.body.trim().replace(/\n\n/g,'</p><p style="margin:0 0 6px">').replace(/\n/g,'<br>')}</p>` : '';
 }
 
-function getClaudeKey() { return localStorage.getItem('retiro_claude_key') || ''; }
+function getClaudeKey() { return localStorage.getItem('futuro_claude_key') || ''; }
 
 async function requestAiEval() {
   const box = document.getElementById('ai-eval-box');
@@ -3716,7 +3723,7 @@ function sassyPhrase(finalTotal, minLiqVal, minLiqAge, endAge) {
 // ══════════════════════════════════════════════════════════════
 //  USER PROFILE
 // ══════════════════════════════════════════════════════════════
-const PROFILE_KEY = 'retiro_profile';
+const PROFILE_KEY = 'futuro_profile';
 let _userProfile = '';
 
 function loadProfile() {
@@ -4155,21 +4162,21 @@ async function gastosSync() {
 }
 
 function toggleIbkrAuto(on) {
-  localStorage.setItem('retiro-ibkr-auto', on ? '1' : '0');
+  localStorage.setItem('futuro-ibkr-auto', on ? '1' : '0');
 }
 
 // ── Boot ──
 (function() {
-  const t = localStorage.getItem('retiro-theme');
+  const t = localStorage.getItem('futuro-theme');
   if (t === 'graphite') {
     document.body.dataset.theme = 'graphite';
     const btn = document.getElementById('theme-btn');
     if (btn) btn.style.color = '#e6edf3';
   }
-  const autoOn = localStorage.getItem('retiro-ibkr-auto') === '1';
+  const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
   const chk = document.getElementById('ibkr-auto-chk');
   if (chk) chk.checked = autoOn;
-  if (localStorage.getItem('retiro-year-mode') === '1') {
+  if (localStorage.getItem('futuro-year-mode') === '1') {
     _yearMode = true;
     const track = document.getElementById('yr-track');
     const thumb  = document.getElementById('yr-thumb');
@@ -4184,7 +4191,7 @@ function toggleIbkrAuto(on) {
 })();
 loadScenarios()
   .then(() => {
-    const autoOn = localStorage.getItem('retiro-ibkr-auto') === '1';
+    const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
     if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
     gastosSync();
   })
