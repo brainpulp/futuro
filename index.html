@@ -2340,6 +2340,17 @@ const msPlugin = {
     const { ctx, scales, data, chartArea } = ch;
     const { x, y } = scales;
     const liqData = data.datasets[0].data, labels = data.labels;
+
+    // Always populate _totalDots for hover tooltip (all zoom modes)
+    const totalData0 = data.datasets[2].data;
+    _totalDots = [];
+    labels.forEach((age, idx) => {
+      const tv = totalData0[idx], lv = liqData[idx];
+      _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
+    });
+
+    if (_chartZoom === 1) return; // monthly view: age-based decorations not applicable
+
     const sa = S.startAge || 57, ea = S.endAge || 87, span = ea - sa;
     const step = span <= 20 ? 5 : span <= 40 ? 10 : 15;
     const ages = [];
@@ -2446,14 +2457,8 @@ const msPlugin = {
       }
     });
 
-    // Dots on every year of the Total curve (for hover)
-    const totalData = data.datasets[2].data;
-    _totalDots = [];
-    labels.forEach((age, idx) => {
-      const tv = totalData[idx];
-      const lv = liqData[idx];
-      const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
-      _totalDots.push({ xp, yp, age, liq: lv, total: tv });
+    // Draw dots on Total curve (data already in _totalDots)
+    _totalDots.forEach(({ xp, yp }) => {
       ctx.fillStyle = 'rgba(29,158,117,0.55)';
       ctx.beginPath(); ctx.arc(xp, yp, 3, 0, Math.PI*2); ctx.fill();
     });
