@@ -603,6 +603,29 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
   <!-- Top bar -->
   <div class="app-bar" style="justify-content:flex-end;">
     <span id="sbadge" class="sbadge ok">saved</span>
+    <!-- Cloud auth button + dropdown -->
+    <div style="position:relative;display:inline-block;margin-right:6px;">
+      <button id="auth-cloud-btn" onclick="_toggleAuthPanel()" title="Sign in to sync across devices"
+        style="background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:'SF Mono',Menlo,monospace;padding:2px 6px;color:#aaa;border-radius:4px;white-space:nowrap;">☁&thinsp;sign in</button>
+      <div id="auth-panel" style="display:none;position:absolute;top:28px;right:0;z-index:1000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.13);padding:16px;min-width:240px;font-family:system-ui,sans-serif;">
+        <div id="auth-out-section">
+          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">☁ Sync across devices</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">Sign in once — scenarios persist everywhere.</div>
+          <input id="auth-email-inp" type="email" placeholder="you@email.com"
+            style="width:100%;box-sizing:border-box;font-size:12px;padding:6px 9px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:8px;outline:none;"
+            onkeydown="if(event.key==='Enter')_sendMagicLink()">
+          <button id="auth-send-btn" onclick="_sendMagicLink()"
+            style="width:100%;font-size:12px;font-weight:600;padding:7px;background:#1a8c5f;color:#fff;border:none;border-radius:6px;cursor:pointer;">Send magic link</button>
+        </div>
+        <div id="auth-in-section" style="display:none;">
+          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;">☁ Signed in</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;" id="auth-in-email"></div>
+          <button onclick="_signOut()"
+            style="font-size:11px;padding:5px 10px;background:none;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;color:#6b7280;">Sign out</button>
+        </div>
+        <div id="auth-msg" style="font-size:11px;color:#6b7280;margin-top:8px;min-height:16px;"></div>
+      </div>
+    </div>
     <span id="gastos-badge" title="Gastos actuals not loaded" onclick="gastosSync()" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;" title="Click to reload gastos actuals">gastos…</span>
     <label id="yr-toggle-wrap" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aaa;cursor:pointer;user-select:none;margin-right:4px;" title="Toggle age / year display">
       <span id="yr-lbl-age" style="font-weight:700;color:#666;">Age</span>
@@ -1068,10 +1091,105 @@ const _currentYM  = new Date().toISOString().slice(0, 7); // "YYYY-MM" — month
 const SB_ID_KEY = 'futuro_sb_id';
 const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
 
+let _authUser = null; // set by onAuthStateChange when user signs in via magic link
+
 function getSbId() {
+  if (_authUser) return _authUser.id; // stable across devices when signed in
   let id = localStorage.getItem(SB_ID_KEY);
   if (!id) { id = crypto.randomUUID(); localStorage.setItem(SB_ID_KEY, id); }
   return id;
+}
+
+// Wire up auth state changes as soon as _sb is ready
+if (_sb) {
+  _sb.auth.getSession().then(({ data }) => {
+    _authUser = data.session?.user ?? null;
+    _updateAuthUI();
+  });
+  _sb.auth.onAuthStateChange(async (event, session) => {
+    const wasSignedIn = !!_authUser;
+    _authUser = session?.user ?? null;
+    _updateAuthUI();
+    if (event === 'SIGNED_IN' && !wasSignedIn) {
+      // First login this session: migrate anon data to auth row then reload
+      await _migrateAnonToAuth();
+      localStorage.removeItem(LS_KEY); // force Supabase reload
+      loadScenarios();
+    }
+    if (event === 'SIGNED_OUT') {
+      localStorage.removeItem(LS_KEY);
+      loadScenarios();
+    }
+  });
+}
+
+async function _migrateAnonToAuth() {
+  if (!_authUser || !_sb) return;
+  const anonId = localStorage.getItem(SB_ID_KEY);
+  if (!anonId || anonId === _authUser.id) return;
+  try {
+    // Check if auth row already has data — don't clobber it
+    const { data: authRow } = await _sb.from('futuro_state').select('data').eq('id', _authUser.id).single();
+    if (authRow?.data?.scenarios?.length > 0) return;
+    // Copy anon row into auth row
+    const { data: anonRow } = await _sb.from('futuro_state').select('data').eq('id', anonId).single();
+    if (anonRow?.data) {
+      await _sb.from('futuro_state').upsert({ id: _authUser.id, data: anonRow.data, updated_at: new Date().toISOString() });
+    }
+  } catch(e) { console.warn('Migration error', e); }
+}
+
+async function _sendMagicLink() {
+  const email = document.getElementById('auth-email-inp')?.value?.trim();
+  if (!email || !_sb) return;
+  const btn = document.getElementById('auth-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const { error } = await _sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  if (btn) { btn.disabled = false; btn.textContent = 'Send link'; }
+  if (error) {
+    document.getElementById('auth-msg').textContent = 'Error: ' + error.message;
+  } else {
+    document.getElementById('auth-msg').textContent = '✓ Link sent! Check your email.';
+    document.getElementById('auth-email-inp').value = '';
+  }
+}
+
+async function _signOut() {
+  if (!_sb) return;
+  await _sb.auth.signOut();
+}
+
+function _updateAuthUI() {
+  const btn = document.getElementById('auth-cloud-btn');
+  const panel = document.getElementById('auth-panel');
+  if (!btn) return;
+  if (_authUser) {
+    const name = _authUser.email?.split('@')[0] || 'user';
+    btn.innerHTML = `☁&thinsp;${name}`;
+    btn.style.color = '#15803d';
+    btn.title = `Signed in as ${_authUser.email} — click to manage`;
+    if (panel) {
+      document.getElementById('auth-out-section').style.display = 'none';
+      document.getElementById('auth-in-section').style.display = '';
+      document.getElementById('auth-in-email').textContent = _authUser.email;
+    }
+  } else {
+    btn.innerHTML = '☁&thinsp;sign in';
+    btn.style.color = '#aaa';
+    btn.title = 'Sign in to sync across devices';
+    if (panel) {
+      document.getElementById('auth-out-section').style.display = '';
+      document.getElementById('auth-in-section').style.display = 'none';
+    }
+  }
+}
+
+function _toggleAuthPanel() {
+  const panel = document.getElementById('auth-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) document.getElementById('auth-msg').textContent = '';
 }
 
 async function sbSave(payload) {
@@ -1087,9 +1205,9 @@ async function sbSave(payload) {
 async function sbLoad() {
   if (!_sb) return null;
   try {
-    const { data, error } = await _sb.from('futuro_state').select('data').eq('id', getSbId()).single();
+    const { data, error } = await _sb.from('futuro_state').select('data, updated_at').eq('id', getSbId()).single();
     if (error || !data) return null;
-    return data.data;
+    return { ...data.data, _sbUpdatedAt: data.updated_at };
   } catch(e) { return null; }
 }
 
@@ -1283,6 +1401,7 @@ function _startDanceLoop() {
 let _chartDrag = null; // { idx, age, type:'spy'|'exp' }
 let _saleDots  = []; // [{ xp, yp, age, name, value }] — populated by msPlugin for hover tooltip
 let _totalDots = []; // [{ xp, yp, age, liq, total }] — every year on the Total curve
+let _minLiqDot = null; // { xp, yp, age, liq } — the red min-liquidity dot
 let _onelineTimer = null;
 let _aiSections = [];
 let _onelineCallLog = []; // timestamps of recent one-liner calls
@@ -1696,7 +1815,7 @@ function ensureFields() {
 // ══════════════════════════════════════════════════════════════
 function lsSave() {
   try {
-    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId });
+    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId, savedAt: new Date().toISOString() });
     localStorage.setItem(LS_KEY, payload);
     sbSave(payload); // fire-and-forget cloud sync
   } catch(e) { console.error('localStorage save failed', e); }
@@ -1749,16 +1868,23 @@ function _applyScenarios(saved) {
 
 async function loadScenarios() {
   badge('loading…', 'no');
-  const saved = lsLoad();
-  if (saved && saved.scenarios && saved.scenarios.length > 0) {
-    _applyScenarios(saved);
-    return;
-  }
-  // No localStorage — try Supabase
-  const sbData = await sbLoad();
-  if (sbData && sbData.scenarios && sbData.scenarios.length > 0) {
-    _applyScenarios(sbData);
-    lsSave(); // seed localStorage from cloud
+  // Always fetch both sources in parallel — pick the newest
+  const [lsData, sbData] = await Promise.all([
+    Promise.resolve(lsLoad()),
+    sbLoad(),
+  ]);
+  const lsTime = lsData?.savedAt ? new Date(lsData.savedAt).getTime() : 0;
+  const sbTime = sbData?._sbUpdatedAt ? new Date(sbData._sbUpdatedAt).getTime() : 0;
+
+  // Prefer Supabase when it's strictly newer, otherwise prefer localStorage
+  const best = (sbData?.scenarios?.length > 0 && sbTime >= lsTime) ? sbData
+             : (lsData?.scenarios?.length > 0) ? lsData
+             : (sbData?.scenarios?.length > 0) ? sbData
+             : null;
+
+  if (best) {
+    _applyScenarios(best);
+    lsSave(); // keep both in sync
     return;
   }
   // Fall back to bundled scenarios.json seed
@@ -2462,6 +2588,7 @@ const msPlugin = {
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(xp, minYp, 6, 0, Math.PI*2);
         ctx.fill(); ctx.stroke();
+        _minLiqDot = { xp, yp: minYp, age: minAge2, liq: minLiq2 };
       }
     });
 
@@ -2471,42 +2598,65 @@ const msPlugin = {
       ctx.beginPath(); ctx.arc(xp, yp, 3, 0, Math.PI*2); ctx.fill();
     });
 
-    // Labels on Total line at ages ending in 0 — dancing rotation
+    // Labels on Total line — every decade normally, every year in ≤10y zoom
     ctx.textAlign = 'center';
     let labelSeq = 0;
+    const denseLabels = _chartZoom <= 10;
+    const labelEvery = denseLabels ? 1 : 10;
     labels.forEach((age, idx) => {
-      if (age % 10 !== 0) return;
+      if (age % labelEvery !== 0) return;
       const tv = totalData0[idx];
       const lv = liqData[idx];
       const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
       const label = fmtM(tv);
-      ctx.font = '700 22px SF Mono, Menlo, monospace';
-      const textW = ctx.measureText(label).width;
-      ctx.font = '500 10px SF Mono, Menlo, monospace';
-      const subLabel = `tot · liq ${fmtM(lv)}`;
-      const subW = ctx.measureText(subLabel).width;
-      const maxW = Math.max(textW, subW);
-      const pad = 6, mainH = 22, subH = 13, h = mainH + subH + 2;
-      // Pivot label so bottom of pill aligns with Total curve point
-      const phase = labelSeq++ * 1.3;
-      const angle = Math.sin(_danceT * 0.0016 + phase) * 0.12;
-      ctx.save();
-      ctx.translate(xp, yp - h - 4);
-      ctx.rotate(angle);
-      // Background pill
-      ctx.fillStyle = 'rgba(255,255,255,0.82)';
-      ctx.beginPath();
-      ctx.roundRect(-maxW / 2 - pad, 0, maxW + pad * 2, h, 5);
-      ctx.fill();
-      // Main value
-      ctx.font = '700 22px SF Mono, Menlo, monospace';
-      ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
-      ctx.fillText(label, 0, mainH - 3);
-      // Sub label: "tot · liq $Xm"
-      ctx.font = '500 10px SF Mono, Menlo, monospace';
-      ctx.fillStyle = 'rgba(80,80,80,0.7)';
-      ctx.fillText(subLabel, 0, h - 3);
-      ctx.restore();
+      if (denseLabels) {
+        // Compact single-line label for dense (per-year) mode
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        const pad = 5, h = 18;
+        const phase = labelSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
+        ctx.fill();
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+        ctx.fillText(label, 0, h - 4);
+        ctx.restore();
+      } else {
+        // Full two-line pill for decade labels
+        ctx.font = '700 22px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        ctx.font = '500 10px SF Mono, Menlo, monospace';
+        const subLabel = `tot · liq ${fmtM(lv)}`;
+        const subW = ctx.measureText(subLabel).width;
+        const maxW = Math.max(textW, subW);
+        const pad = 6, mainH = 22, subH = 13, h = mainH + subH + 2;
+        // Pivot label so bottom of pill aligns with Total curve point
+        const phase = labelSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.12;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        // Background pill
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.beginPath();
+        ctx.roundRect(-maxW / 2 - pad, 0, maxW + pad * 2, h, 5);
+        ctx.fill();
+        // Main value
+        ctx.font = '700 22px SF Mono, Menlo, monospace';
+        ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+        ctx.fillText(label, 0, mainH - 3);
+        // Sub label: "tot · liq $Xm"
+        ctx.font = '500 10px SF Mono, Menlo, monospace';
+        ctx.fillStyle = 'rgba(80,80,80,0.7)';
+        ctx.fillText(subLabel, 0, h - 3);
+        ctx.restore();
+      }
     });
 
     ctx.restore();
@@ -2808,8 +2958,15 @@ function go() {
       const rect = e.currentTarget.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       const saleHit = _saleDots.find(d => Math.hypot(d.xp - mx, d.yp - my) < 14);
+      const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14 ? _minLiqDot : null;
       if (saleHit) {
         tip.innerHTML = `${saleHit.name} &nbsp;·&nbsp; sell age ${saleHit.age} &nbsp;·&nbsp; ≈${fmtM(saleHit.value)}`;
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+        tip.style.display = 'block';
+      } else if (minLiqHit) {
+        const liqCol = minLiqHit.liq >= 0 ? '#5DC49A' : '#f87171';
+        tip.innerHTML = `Min liquidity &nbsp;·&nbsp; age ${minLiqHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">${fmtM(minLiqHit.liq)}</span>`;
         tip.style.left = (e.clientX + 14) + 'px';
         tip.style.top  = (e.clientY - 10) + 'px';
         tip.style.display = 'block';
@@ -3019,6 +3176,12 @@ function go() {
 document.addEventListener('click', e => {
   if (openId !== null && !e.target.closest('.expand-card') && !e.target.closest('.item-row')) {
     openId = null; renderAll();
+  }
+  // Close auth panel when clicking outside
+  const authPanel = document.getElementById('auth-panel');
+  if (authPanel && authPanel.style.display !== 'none' &&
+      !e.target.closest('#auth-panel') && !e.target.closest('#auth-cloud-btn')) {
+    authPanel.style.display = 'none';
   }
 });
 
