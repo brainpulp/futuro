@@ -2483,7 +2483,39 @@ const msPlugin = {
       _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
     });
 
-    if (_chartZoom === 1) return; // monthly view: age-based decorations not applicable
+    if (_chartZoom === 1) {
+      // Monthly view: label the liquid curve (total is off-scale in 1y mode)
+      // Use actual rendered pixel positions from Chart.js meta
+      const meta0 = ch.getDatasetMeta(0); // Liquid dataset
+      ctx.save();
+      ctx.textAlign = 'center';
+      let lSeq = 0;
+      labels.forEach((lbl, idx) => {
+        const lv = liqData[idx];
+        const pt = meta0.data[idx];
+        if (!pt) return;
+        const xp = pt.x, yp = pt.y;
+        const label = fmtM(lv);
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        const pad = 5, h = 18;
+        const phase = lSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
+        ctx.fill();
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030'; // blue for liquid
+        ctx.fillText(label, 0, h - 4);
+        ctx.restore();
+      });
+      ctx.restore();
+      return;
+    }
 
     const sa = S.startAge || 57, ea = S.endAge || 87, span = ea - sa;
     const step = span <= 20 ? 5 : span <= 40 ? 10 : 15;
