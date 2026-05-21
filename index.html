@@ -2477,7 +2477,7 @@ const msPlugin = {
     let labelSeq = 0;
     labels.forEach((age, idx) => {
       if (age % 10 !== 0) return;
-      const tv = totalData[idx];
+      const tv = totalData0[idx];
       const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
       const label = fmtM(tv);
       const textW = ctx.measureText(label).width;
