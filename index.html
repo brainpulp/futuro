@@ -2958,6 +2958,8 @@ function go() {
     chart2.data.datasets[0].pointBackgroundColor = spyColors;
     chart2.options.scales.y.min = _spyMin;
     chart2.options.scales.y.max = _spyMax;
+    // update() processes new data into Chart.js internal state; draw() guarantees paint
+    chart2.update('none');
     chart2.draw();
   }
 
@@ -2987,6 +2989,7 @@ function go() {
     chart3.data.labels = labels;
     chart3.data.datasets[0].data = expData;
     chart3.options.scales.y.max = expMax;
+    chart3.update('none');
     chart3.draw();
   }
 
