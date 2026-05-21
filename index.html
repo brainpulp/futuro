@@ -2011,6 +2011,7 @@ function runSim(monthlyOverride) {
     const _curMo = new Date().getMonth() + 1;
     const _saYld = getYield(sa);
     const _saMYld = Math.pow(1 + _saYld / 100, 1/12) - 1;
+    let _saNetBurn = 0;
     for (let mo = _curMo; mo <= 12; mo++) {
       liq *= (1 + _saMYld);
       const _f = Math.pow(1 + inf, (mo - _curMo) / 12);
@@ -2049,9 +2050,13 @@ function runSim(monthlyOverride) {
         }
       });
       liq += inc - _baseExp - _ooAmt - _itemizedExp;
+      _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
       out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
     }
+    // Annualise partial-year burn so pill shows a full-year equivalent
+    const _saMonths = 13 - _curMo;
+    out[0].annualNetBurn = Math.round(_saNetBurn * 12 / Math.max(_saMonths, 1));
   }
 
   for (let age = sa + 1; age <= ea; age++) {
@@ -2061,6 +2066,7 @@ function runSim(monthlyOverride) {
 
     let lastInflM = 0;
     let yearMinLiq = liq;
+    let yearBurn = 0;
 
     for (let mo = 1; mo <= 12; mo++) {
       // Inflation factor for this month
@@ -2170,6 +2176,7 @@ function runSim(monthlyOverride) {
       });
 
       liq += inc - exp;
+      yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; }
       out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq) });
@@ -2181,7 +2188,8 @@ function runSim(monthlyOverride) {
       minLiq: Math.round(yearMinLiq),
       iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
       crash,
-      monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0))
+      monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0)),
+      annualNetBurn: Math.round(yearBurn)
     });
   }
   out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
@@ -2666,16 +2674,35 @@ function go() {
 
   // Pills
   const pills = [];
+  const swrColor = r => r <= 0 ? '#5DC49A' : r < 3 ? '#1A8C5F' : r < 5 ? '#c07030' : '#C03030';
   pillAges.forEach((age, i) => {
     const d     = i === 0 ? null : at(age);
-    const total = i === 0 ? init       : d.liq + d.iliq;
+    const total = i === 0 ? init         : d.liq + d.iliq;
     const liq   = i === 0 ? S.liquidBase : d.liq;
+    const burn  = i === 0 ? (data[0]?.annualNetBurn ?? null) : (d?.annualNetBurn ?? null);
     const totalCol = i === 0 ? '#1a1a1a' : total >= 0 ? '#1A8C5F' : '#C03030';
     const liqCol   = i === 0 ? '#888'    : liq   >= 0 ? '#5DC49A' : '#E07070';
+    // SWR rows — only show when burn is meaningful and denominator is positive
+    let swrHtml = '';
+    if (burn !== null) {
+      const swrL = liq   > 0 ? (burn / liq   * 100) : null;
+      const swrT = total > 0 ? (burn / total * 100) : null;
+      const fmtR = r => r === null ? '—' : (r <= 0 ? '▲surplus' : r.toFixed(1) + '%');
+      swrHtml = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px;">
+        <div style="font-size:10px;color:#aaa;font-family:'SF Mono',Menlo,monospace;font-weight:500;">
+          <span style="color:${swrL !== null ? swrColor(swrL) : '#aaa'};">${fmtR(swrL)}</span>
+          <span style="color:#ccc;"> liq · </span>
+          <span style="color:${swrT !== null ? swrColor(swrT) : '#aaa'};">${fmtR(swrT)}</span>
+          <span style="color:#ccc;"> tot</span>
+        </div>
+        <div style="font-size:9px;color:#bbb;">withdrawal rate</div>
+      </div>`;
+    }
     pills.push(`<div class="pill">
       <div class="pill-label">${i === 0 ? 'Current' : _yearMode ? String(ageToYear(age)) : 'Age ' + age}</div>
       <div class="pill-val" style="color:${totalCol}">${fmt(total)}</div>
       <div style="font-size:12px;font-weight:700;font-family:'SF Mono',Menlo,monospace;color:${liqCol};margin-top:2px;">${fmt(liq)} <span style="font-weight:400;font-size:10px;">liq</span></div>
+      ${swrHtml}
     </div>`);
   });
   const minBg  = '#FEF9C3';
