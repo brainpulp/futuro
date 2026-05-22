@@ -1856,6 +1856,11 @@ function _applyScenarios(saved) {
     ...(sc.data.expensePhases || []), ...(sc.data.monthlyBreakdown || []),
   ]).map(x => x.id || 0).filter(Number.isFinite);
   if (_allIds.length) nextId = Math.max(nextId, ..._allIds);
+  // Restore IBKR-pulled value: apply if the active scenario still shows the default (never customised)
+  const _ibkrLiq = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+  if (_ibkrLiq > 0 && S.liquidBase === 1500000) {
+    S.liquidBase = _ibkrLiq;
+  }
   saveActive();
   syncInputs();
   renderScenarioBar();
@@ -4436,8 +4441,11 @@ async function ibkrSync({ manual = false } = {}) {
     if (typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
     S.liquidBase = data.liquid;
     document.getElementById('liquidBase').value = fmtInput(data.liquid);
+    // Sticky cache — persists across scenario resets / reloads
+    localStorage.setItem('futuro-ibkr-liquid', data.liquid);
+    localStorage.setItem('futuro-ibkr-liquid-ts', new Date().toISOString());
     go();
-    lsSave();
+    saveActive(); // flush S into SCENARIOS *before* persisting — not lsSave() which would save stale SCENARIOS
     if (manual) {
       btn.textContent = '✓ IBKR';
       btn.style.color = '#15803d';
