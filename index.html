@@ -1881,15 +1881,15 @@ async function loadScenarios() {
   const lsTime = lsData?.savedAt ? new Date(lsData.savedAt).getTime() : 0;
   const sbTime = sbData?._sbUpdatedAt ? new Date(sbData._sbUpdatedAt).getTime() : 0;
 
-  // Prefer Supabase when it's strictly newer, otherwise prefer localStorage
-  const best = (sbData?.scenarios?.length > 0 && sbTime >= lsTime) ? sbData
+  // Prefer Supabase only when it's STRICTLY newer — localStorage wins on tie
+  // (LS is always written before sbSave completes, so equal timestamps = same data)
+  const best = (sbData?.scenarios?.length > 0 && sbTime > lsTime) ? sbData
              : (lsData?.scenarios?.length > 0) ? lsData
              : (sbData?.scenarios?.length > 0) ? sbData
              : null;
 
   if (best) {
-    _applyScenarios(best);
-    lsSave(); // keep both in sync
+    _applyScenarios(best); // _applyScenarios already calls saveActive() → lsSave() → sbSave()
     return;
   }
   // Fall back to bundled scenarios.json seed
@@ -1911,7 +1911,7 @@ let _saveTimer;
 function markDirty() {
   badge('unsaved', 'no');
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveActive, 1500);
+  _saveTimer = setTimeout(saveActive, 600); // debounce: short enough to survive reloads
 }
 
 function saveActive() {
@@ -4514,6 +4514,23 @@ loadScenarios()
     gastosSync();
   })
   .catch(e => console.error('loadScenarios failed', e));
+
+// Save immediately to localStorage (sync) before page unloads so changes survive a reload.
+// Supabase (async) gets synced on the next load via _applyScenarios → saveActive.
+window.addEventListener('beforeunload', () => {
+  clearTimeout(_saveTimer);
+  try {
+    const payload = JSON.stringify({ scenarios: SCENARIOS.map(sc =>
+      sc.id === activeScenarioId ? { ...sc, data: deepCopy(S) } : sc
+    ), activeId: activeScenarioId, savedAt: new Date().toISOString() });
+    localStorage.setItem(LS_KEY, payload);
+  } catch(e) {}
+});
+
+// Also save when the tab loses visibility (user switches tabs before reloading)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveActive();
+});
 </script>
 
 
