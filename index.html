@@ -2207,6 +2207,8 @@ function getYield(age) {
 function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
   const inf = S.inflationRate / 100;
+  const _curMo = new Date().getMonth() + 1;          // hoist: used in both loops
+  const _partFrac = (12 - _curMo) / 12;              // fraction of year sa already in partial loop
   let liq = S.liquidBase;
   let _simMinLiq = Infinity, _simMinAge = sa;
 
@@ -2235,7 +2237,6 @@ function runSim(monthlyOverride) {
 
   // ── Partial-year loop for starting year: simulate current month → Dec ──
   {
-    const _curMo = new Date().getMonth() + 1;
     const _saYld = getYield(sa);
     const _saMYld = Math.pow(1 + _saYld, 1/12) - 1;
     let _saNetBurn = 0;
@@ -2289,15 +2290,22 @@ function runSim(monthlyOverride) {
   for (let age = sa + 1; age <= ea; age++) {
     const yld = getYield(age);
     const mYld = Math.pow(1 + yld, 1/12) - 1;
-    const crash = S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0;
+    const crash = (S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0)
+      || (S.crises || []).some(c => c.enabled !== false && c.age === age && (c.drop || 0) > 0);
+
+    // ── Apply crisis drops (portfolio corrections) at start of year ──
+    (S.crises || []).filter(c => c.enabled !== false && c.age === age).forEach(c => {
+      liq *= (1 - (c.drop || 0) / 100);
+    });
 
     let lastInflM = 0;
     let yearMinLiq = liq;
     let yearBurn = 0;
 
     for (let mo = 1; mo <= 12; mo++) {
-      // Inflation factor for this month
-      const f = Math.pow(1 + inf, (age - sa - 1) + mo / 12);
+      // Inflation factor for this month (anchored to _curMo so partial-year and
+      // main loop share a continuous timeline — no reset at year boundary)
+      const f = Math.pow(1 + inf, _partFrac + (age - sa - 1) + mo / 12);
 
       // Activate properties acquired this year
       if (mo === 1) {
