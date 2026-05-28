@@ -164,6 +164,29 @@ input[type=range]::-moz-range-thumb {
 .secondary-sliders { border-top: 1px solid #f0f2f8; margin-top: 5px; padding-top: 5px; }
 .disabled-row { opacity: .35; }
 
+/* ── SYNC TICKER ───────────────────────────────────────────── */
+#sync-ticker {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(60px);
+  background: rgba(10,12,18,0.93); color: #e2e8f0;
+  font-family: 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 600;
+  padding: 9px 18px 9px 14px; border-radius: 30px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.07);
+  display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  z-index: 9999; pointer-events: none;
+  transition: transform 0.38s cubic-bezier(.22,1,.36,1), opacity 0.38s ease;
+  opacity: 0;
+}
+#sync-ticker.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#sync-ticker .tick-icon { font-size: 16px; line-height: 1; }
+#sync-ticker .tick-bar {
+  width: 2px; height: 22px; border-radius: 2px; background: rgba(255,255,255,0.15);
+  overflow: hidden; position: relative; flex-shrink: 0;
+}
+#sync-ticker .tick-bar-fill {
+  position: absolute; bottom: 0; left: 0; right: 0; background: #5DC49A;
+  transition: height 0s linear;
+}
+
 /* ── SAVE BADGE ────────────────────────────────────────────── */
 .sbadge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
 .sbadge.ok  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
@@ -775,6 +798,11 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
+    <div id="sync-ticker">
+      <span class="tick-icon" id="tick-icon">📡</span>
+      <span id="tick-msg">Syncing…</span>
+      <div class="tick-bar"><div class="tick-bar-fill" id="tick-bar-fill" style="height:0%"></div></div>
+    </div>
 
     <!-- 2-column control grid -->
     <div class="grid-2col">
@@ -2984,7 +3012,7 @@ function go() {
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { display: false },
-          y: { max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
+          y: { min: 0, max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
         }
       }
     });
@@ -3061,6 +3089,7 @@ function go() {
     chart.data.datasets[3].data = view.real;
     chart.data.datasets.splice(4);
     view.props.forEach(d => chart.data.datasets.push(d));
+    chart.options.scales.y.min = 0;
     chart.options.scales.y.max = view.yMax;
     chart.update('none');
   }
@@ -4446,6 +4475,7 @@ async function ibkrSync({ manual = false } = {}) {
     localStorage.setItem('futuro-ibkr-liquid-ts', new Date().toISOString());
     go();
     saveActive(); // flush S into SCENARIOS *before* persisting — not lsSave() which would save stale SCENARIOS
+    showTicker('☁', `IBKR · ${fmtM(data.liquid)} liquid`);
     if (manual) {
       btn.textContent = '✓ IBKR';
       btn.style.color = '#15803d';
@@ -4474,9 +4504,38 @@ async function gastosSync() {
     const badge = document.getElementById('gastos-badge');
     if (badge) { badge.textContent = n + ' mo'; badge.title = 'Gastos actuals loaded: ' + n + ' months'; }
     go();
+    showTicker('📊', `Gastos · ${n} months loaded`);
   } catch(e) {
     console.warn('Gastos sync skipped:', e.message || e);
   }
+}
+
+function showTicker(icon, msg, durationMs = 4000) {
+  const el   = document.getElementById('sync-ticker');
+  const ico  = document.getElementById('tick-icon');
+  const txt  = document.getElementById('tick-msg');
+  const fill = document.getElementById('tick-bar-fill');
+  if (!el) return;
+  // Reset
+  el.classList.remove('show');
+  fill.style.transition = 'none';
+  fill.style.height = '0%';
+  ico.textContent = icon;
+  txt.textContent = msg;
+  // Force reflow so the transition fires fresh
+  void el.offsetWidth;
+  el.classList.add('show');
+  // Animate the progress bar over durationMs
+  requestAnimationFrame(() => {
+    fill.style.transition = `height ${durationMs}ms linear`;
+    fill.style.height = '100%';
+  });
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => {
+    el.classList.remove('show');
+    fill.style.transition = 'none';
+    fill.style.height = '0%';
+  }, durationMs);
 }
 
 function toggleIbkrAuto(on) {
