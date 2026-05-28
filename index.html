@@ -2237,7 +2237,7 @@ function runSim(monthlyOverride) {
   {
     const _curMo = new Date().getMonth() + 1;
     const _saYld = getYield(sa);
-    const _saMYld = Math.pow(1 + _saYld / 100, 1/12) - 1;
+    const _saMYld = Math.pow(1 + _saYld, 1/12) - 1;
     let _saNetBurn = 0;
     for (let mo = _curMo; mo <= 12; mo++) {
       liq *= (1 + _saMYld);
