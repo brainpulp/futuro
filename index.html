@@ -2960,7 +2960,9 @@ function go() {
   if (pillAges[pillAges.length - 1] !== ea) pillAges.push(ea);
 
   const at = age => data.find(d => d.age === age) || data[data.length - 1];
-  const init = S.liquidBase + S.properties.filter(p => p.enabled !== false && (p.acquireAge || sa) <= sa).reduce((s, p) => s + p.value, 0);
+  // Use data[0] for "Current" so the pill and the chart's first data point
+  // always show the same numbers (both post–pre-deduction, pre–partial-year).
+  const d0 = data[0];
 
   const minLiq = data.simMinLiq ?? data[data.length - 1].liq;
   const minAge = data.simMinAge ?? sa;
@@ -2977,10 +2979,10 @@ function go() {
   const pills = [];
   const swrColor = r => r <= 0 ? '#5DC49A' : r < 3 ? '#1A8C5F' : r < 5 ? '#c07030' : '#C03030';
   pillAges.forEach((age, i) => {
-    const d     = i === 0 ? null : at(age);
-    const total = i === 0 ? init         : d.liq + d.iliq;
-    const liq   = i === 0 ? S.liquidBase : d.liq;
-    const burn  = i === 0 ? (data[0]?.annualNetBurn ?? null) : (d?.annualNetBurn ?? null);
+    const d     = i === 0 ? d0   : at(age);
+    const total = d.liq + d.iliq;
+    const liq   = d.liq;
+    const burn  = d?.annualNetBurn ?? null;
     const totalCol = i === 0 ? '#1a1a1a' : total >= 0 ? '#1A8C5F' : '#C03030';
     const liqCol   = i === 0 ? '#888'    : liq   >= 0 ? '#5DC49A' : '#E07070';
     // SWR rows — only show when burn is meaningful and denominator is positive
