@@ -1462,7 +1462,7 @@ function initSubChartsInteraction() {
       meta.data.forEach((pt, i) => { const d = Math.hypot(pt.x-mx, pt.y-my); if (d < bestDist) { bestDist = d; best = i; } });
       if (best !== -1) {
         e.preventDefault();
-        _chartDrag = { idx: best, age: ch.data.labels[best], type, canvas,
+        _chartDrag = { idx: best, age: ch._subAges ? ch._subAges[best] : ch.data.labels[best], type, canvas,
           startClientY: e.clientY,
           startVal: ch.data.datasets[dsIdx].data[best] };
       }
@@ -2936,25 +2936,41 @@ function go() {
   document.getElementById('metrics').style.gridTemplateColumns = `repeat(${pills.length}, minmax(0,1fr))`;
   document.getElementById('metrics').innerHTML = pills.join('');
 
-  // SPY avg across full span
-  const spyValues = data.map(d => S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate);
-  const spyAvg = spyValues.reduce((a, b) => a + b, 0) / spyValues.length;
+  // ── Sub-chart data: zoom-filtered to match main chart period ──
+  const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let labels, yieldData, expData, subAges;
+  if (_chartZoom === 1) {
+    const mo12 = (data.monthly || []).slice(0, 12);
+    labels    = mo12.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
+    subAges   = mo12.map(m => m.age);
+    yieldData = mo12.map(m => {
+      const base = S.yieldCurve && S.yieldCurve[m.age] !== undefined ? S.yieldCurve[m.age] : S.yieldRate;
+      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
+    });
+    expData   = mo12.map(m => m.baseExp);
+  } else {
+    const maxAge     = (S.startAge || 57) + _chartZoom;
+    const filtered   = data.filter(d => d.age <= maxAge);
+    labels    = filtered.map(d => d.age);
+    subAges   = labels;
+    yieldData = filtered.map(d => {
+      const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
+      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
+    });
+    expData   = filtered.map(d => d.monthlyExp);
+  }
+
+  // SPY avg across visible period
+  const spyAvg = yieldData.reduce((a, b) => a + b, 0) / (yieldData.length || 1);
   const spyEl = document.getElementById('spy-avg');
   if (spyEl) spyEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
   const spyAvgEl = document.getElementById('spy-avg-label');
   if (spyAvgEl) spyAvgEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
 
-  const labels    = data.map(d => d.age);
-  const yieldData = data.map(d => {
-    const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
-    return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
-  });
-  const expData   = data.map(d => d.monthlyExp);
-  const expAvg = expData.reduce((a,b)=>a+b,0) / expData.length;
+  const expAvg = expData.reduce((a,b)=>a+b,0) / (expData.length || 1);
   const expAvgEl = document.getElementById('exp-avg-label');
   if (expAvgEl) expAvgEl.textContent = `avg ${fmtM(expAvg)}/mo`;
-  const expMax    = Math.ceil(Math.max(...expData) * 1.5 / 1000) * 1000;
-
+  const expMax    = Math.ceil(Math.max(...expData, 1) * 1.5 / 1000) * 1000;
 
   // SPY dot colors: green positive, red negative, amber near zero
   const spyColors = yieldData.map(v =>
@@ -3169,6 +3185,7 @@ function go() {
       ]},
       options: spySubOpts
     });
+    chart2._subAges = subAges;
     initSubChartsInteraction();
     initExpMultWheel();
     initSpyNudgeWheel();
@@ -3181,6 +3198,7 @@ function go() {
     chart2.data.datasets[0].pointBackgroundColor = spyColors;
     chart2.options.scales.y.min = _spyMin;
     chart2.options.scales.y.max = _spyMax;
+    chart2._subAges = subAges;
     // update() processes new data into Chart.js internal state; draw() guarantees paint
     chart2.update('none');
     chart2.draw();
@@ -3208,10 +3226,12 @@ function go() {
       ]},
       options: expSubOpts
     });
+    chart3._subAges = subAges;
   } else {
     chart3.data.labels = labels;
     chart3.data.datasets[0].data = expData;
     chart3.options.scales.y.max = expMax;
+    chart3._subAges = subAges;
     chart3.update('none');
     chart3.draw();
   }
