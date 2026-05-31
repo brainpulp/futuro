@@ -2581,9 +2581,11 @@ const mcBandPlugin = {
                        Math.min(chartArea.bottom, y.getPixelForValue(val)));
 
     const dark = document.body.dataset.theme === 'graphite';
-    const c1   = dark ? 'rgba(55,138,221,0.09)' : 'rgba(55,138,221,0.08)'; // p10–p90
-    const c2   = dark ? 'rgba(55,138,221,0.16)' : 'rgba(55,138,221,0.14)'; // p25–p75
-    const cMed = dark ? 'rgba(55,138,221,0.55)' : 'rgba(55,138,221,0.45)'; // p50
+    // Use amber/gold — clearly distinct from the blue/teal flower background
+    const cFill1 = dark ? 'rgba(251,191,36,0.07)'  : 'rgba(180,120,0,0.06)';  // p10–p90 outer fill
+    const cFill2 = dark ? 'rgba(251,191,36,0.13)'  : 'rgba(180,120,0,0.11)';  // p25–p75 inner fill
+    const cEdge  = dark ? 'rgba(251,191,36,0.55)'  : 'rgba(160,100,0,0.50)';  // p10/p90 boundary
+    const cMed   = dark ? 'rgba(251,191,36,0.85)'  : 'rgba(140,85,0,0.80)';   // p50 median
 
     // Draw filled band between two value arrays
     function band(upper, lower, color) {
@@ -2607,8 +2609,30 @@ const mcBandPlugin = {
       ctx.restore();
     }
 
-    band(_mcResult.p90, _mcResult.p10, c1);
-    band(_mcResult.p75, _mcResult.p25, c2);
+    // Draw a single boundary line along one value array
+    function boundaryLine(vals, color, dash) {
+      ctx.save();
+      ctx.setLineDash(dash || []);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < _mcResult.ages.length; i++) {
+        const xp = px(_mcResult.ages[i]);
+        if (xp === null) continue;
+        const yp = py(vals[i]);
+        if (!started) { ctx.moveTo(xp, yp); started = true; }
+        else ctx.lineTo(xp, yp);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    band(_mcResult.p90, _mcResult.p10, cFill1);
+    band(_mcResult.p75, _mcResult.p25, cFill2);
+    boundaryLine(_mcResult.p90, cEdge, [4, 4]);
+    boundaryLine(_mcResult.p10, cEdge, [4, 4]);
 
     // p50 median dashed line
     ctx.save();
