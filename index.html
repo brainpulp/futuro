@@ -189,17 +189,21 @@ input[type=range]::-moz-range-thumb {
 /* ── Timeline strip ── */
 #timeline-strip {
   position: relative; overflow: visible;
-  background: rgba(10,12,18,0.72);
-  border-top: 1px solid rgba(255,255,255,0.07);
+  background: #fff;
+  border-top: 1px solid #e6ebf1;
   border-radius: 0 0 4px 4px;
 }
 #timeline-inner { position: relative; }
 .tl-row-label {
   position: absolute; left: 0; font-size: 9px; font-weight: 700;
   font-family: 'SF Mono', Menlo, monospace; letter-spacing: .04em;
-  color: rgba(255,255,255,0.28); line-height: 16px; white-space: nowrap;
+  color: #697386; line-height: 16px; white-space: nowrap;
   pointer-events: none;
 }
+body[data-theme="graphite"] #timeline-strip { background: #21262d; border-color: #30363d; }
+body[data-theme="graphite"] .tl-row-label { color: #6e7681; }
+body[data-theme="graphite"] .tl-age-line { background: rgba(255,255,255,0.08) !important; }
+body[data-theme="graphite"] .tl-age-lbl  { color: rgba(255,255,255,0.25) !important; }
 .tl-chip {
   position: absolute; height: 16px; border-radius: 8px;
   font-family: 'SF Mono', Menlo, monospace; font-size: 10px; font-weight: 600;
@@ -810,7 +814,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <button id="zoom-btn-20" onclick="setChartZoom(20)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">20y</button>
         <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
         <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
-        <button id="timeline-btn" onclick="toggleTimeline()" title="Show/hide event timeline">tl</button>
+        <button id="timeline-btn" onclick="toggleTimeline()" title="Show/hide event timeline">Timeline</button>
         <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
         <button id="mc-btn" onclick="triggerMC()" title="Run Montecarlo: 500 random return sequences → success rate" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 2px;font-size:11px;font-weight:700;color:#378ADD;cursor:pointer;letter-spacing:.03em;">Montecarlo</button>
       </div>
@@ -4936,13 +4940,13 @@ function renderTimeline() {
   });
 
   const sa = S.startAge || 57;
-  const ea = _chartZoom === 1 ? sa : sa + _chartZoom;
-  const lw = ca.right - ca.left; // lane width in px
+  const ea = _chartZoom === 1 ? sa : (S.endAge || 87);
+  const viewEa = _chartZoom === 1 ? sa : Math.min(S.endAge || 87, sa + _chartZoom);
+  const lw = ca.right - ca.left;
 
   function xFor(age) {
     if (_chartZoom === 1) {
-      // In 1y monthly mode, map age to pixel by proportion (startAge = left)
-      if (age > sa) return lw; // beyond current year → clamp right
+      if (age > sa) return lw;
       return 0;
     }
     const lbs = chart.data.labels;
@@ -4953,76 +4957,130 @@ function renderTimeline() {
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-  function addChip(ev, type, rowIdx, x0, x1, color) {
+  // ── Vertical age/year lines ──────────────────────────────────
+  if (_chartZoom !== 1) {
+    const lbs = chart.data.labels;
+    lbs.forEach(age => {
+      const isMajor = (age - sa) % 10 === 0 && age !== sa;
+      const isMinor = (age - sa) % 5 === 0 && (age - sa) % 10 !== 0;
+      if (!isMajor && !isMinor) return;
+      const xp = xFor(age);
+      if (xp <= 0 || xp >= lw) return;
+      const vline = document.createElement('div');
+      vline.className = 'tl-age-line';
+      vline.style.cssText = `position:absolute;left:${xp}px;top:0;bottom:0;width:${isMajor?1.5:1}px;background:rgba(0,0,0,${isMajor?0.14:0.07});pointer-events:none;`;
+      inner.appendChild(vline);
+      const ageLbl = document.createElement('div');
+      ageLbl.className = 'tl-age-lbl';
+      ageLbl.textContent = _yearMode ? ageToYear(age) : age;
+      ageLbl.style.cssText = `position:absolute;left:${xp+2}px;bottom:2px;font-size:8px;font-family:'SF Mono',Menlo,monospace;color:rgba(0,0,0,0.28);pointer-events:none;white-space:nowrap;`;
+      inner.appendChild(ageLbl);
+    });
+  }
+
+  function addChip(ev, type, rowIdx, x0, x1, color, tooltip) {
     const enabled = ev.enabled !== false;
     const isBar = x1 !== null && x1 - x0 > 2;
     const barW = isBar ? clamp(x1 - x0, 4, lw - x0) : null;
-    const chipW = isBar ? barW : 6;
+    const chipW = isBar ? barW : 7;
     const rowY = PAD_TOP + rowIdx * (ROW_H + ROW_GAP);
 
     const el = document.createElement('div');
     el.className = 'tl-chip';
+    el.title = tooltip || ev.name || type;
     el.style.cssText = [
       `left:${clamp(x0, 0, lw - 4)}px`,
       `top:${rowY}px`,
       `width:${chipW}px`,
       `background:${color}`,
-      `opacity:${enabled ? 1 : 0.38}`,
+      `opacity:${enabled ? 1 : 0.35}`,
       isBar ? '' : 'border-radius:50%',
     ].filter(Boolean).join(';');
 
-    if (isBar) {
-      // Name label clamped to visible left edge
-      el.title = ev.name || type;
-      const nameX = clamp(0, -clamp(x0, 0, lw - 4), barW - 4);
-      el.textContent = barW > 28 ? (ev.name || '').slice(0, Math.floor(barW / 7)) : '';
-    } else {
-      el.title = ev.name || type;
+    if (isBar && barW > 22) {
+      el.textContent = (ev.name || '').slice(0, Math.max(1, Math.floor((barW - 8) / 7)));
     }
 
     el.addEventListener('click', e => { e.stopPropagation(); openTimelinePopover(ev, type, el); });
     inner.appendChild(el);
   }
 
-  // ── Incomes ──
+  // ── Incomes (explicit income items) ──
   (S.incomes || []).forEach(inc => {
     const oo = inc.type === 'oneoff';
-    const a0 = oo ? (inc.atAge || sa) : (inc.from || sa);
+    const a0 = oo ? (inc.atAge || inc.from || sa) : (inc.from || sa);
     const a1 = oo ? null : (inc.to || ea);
-    if (a0 > ea) return; // fully out of view
+    if (a0 > viewEa) return;
     const x0 = xFor(a0);
     const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
-    addChip(inc, 'income', 0, x0, x1, '#2a6e47');
+    const ttip = `${inc.name||'Income'}: $${(inc.monthly||inc.amount||0).toLocaleString()}${oo?'':`/mo · age ${a0}–${a1}`}`;
+    addChip(inc, 'income', 0, x0, x1, '#16a34a', ttip);
+  });
+
+  // ── Rental income from properties (shown in INC row) ──
+  (S.properties || []).forEach(prop => {
+    if (prop.enabled === false || !(prop.monthlyRent > 0)) return;
+    const a0 = prop.rentFromAge || prop.acquireAge || sa;
+    const a1 = prop.hold ? ea : (prop.saleAge || ea);
+    if (a0 > viewEa) return;
+    const x0 = xFor(a0);
+    const x1 = Math.min(xFor(a1), lw);
+    if (x1 - x0 < 2) return;
+    const ttip = `${prop.name} rent: $${prop.monthlyRent.toLocaleString()}/mo · age ${a0}–${prop.hold?'∞':a1}`;
+    addChip(prop, 'income', 0, x0, x1, '#86efac', ttip); // lighter green — rental income
   });
 
   // ── Expenses ──
   (S.expenses || []).forEach(exp => {
     const oo = exp.type === 'oneoff' || exp.type === 'installments';
-    const a0 = oo ? (exp.atAge || sa) : (exp.from || sa);
+    const a0 = oo ? (exp.atAge || exp.from || sa) : (exp.from || sa);
     const a1 = oo ? null : (exp.to || ea);
-    if (a0 > ea) return;
+    if (a0 > viewEa) return;
     const x0 = xFor(a0);
     const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
-    addChip(exp, 'expense', 1, x0, x1, '#6e2a2a');
+    const ttip = `${exp.name||'Expense'}: $${(exp.amount||0).toLocaleString()}${oo?' (one-off)':'/mo'}`;
+    addChip(exp, 'expense', 1, x0, x1, '#ef4444', ttip);
   });
 
-  // ── Properties ──
+  // ── Properties ──────────────────────────────────────────────
+  // Show two distinct segments when rentFromAge > acquireAge:
+  //   [acquireAge → rentFromAge) = owned, not renting (muted)
+  //   [rentFromAge → saleAge]    = owned + renting (saturated)
+  // If no rent or rent starts at acquire, single bar.
   (S.properties || []).forEach(prop => {
     if (prop.enabled === false) return;
-    const a0 = prop.acquireAge || sa;
-    const a1 = prop.hold ? ea : (prop.saleAge || ea);
-    if (a0 > ea) return;
-    const x0 = xFor(a0);
-    const x1 = Math.min(xFor(a1), lw);
-    addChip(prop, 'property', 2, x0, x1, '#2a416e');
+    const a0   = prop.acquireAge !== undefined ? prop.acquireAge : sa;
+    const a1   = prop.hold ? ea : (prop.saleAge !== undefined ? prop.saleAge : ea);
+    const rent = prop.monthlyRent > 0;
+    const ra   = rent ? (prop.rentFromAge !== undefined ? prop.rentFromAge : a0) : null;
+    if (a0 > viewEa) return;
+
+    const ttipBase = `${prop.name}: $${(prop.value||0).toLocaleString()} · ${prop.hold?'hold forever':`sell age ${a1}`}`;
+
+    if (rent && ra > a0) {
+      // Pre-rent segment: lighter blue
+      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(ra), lw), '#93c5fd',
+        ttipBase + ` (no rent until age ${ra})`);
+      // Renting segment: saturated blue
+      addChip(prop, 'property', 2, xFor(ra), Math.min(xFor(a1), lw), '#2563eb',
+        ttipBase + ` + $${prop.monthlyRent.toLocaleString()}/mo rent from age ${ra}`);
+    } else if (rent) {
+      // Renting from acquire — saturated blue
+      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(a1), lw), '#2563eb',
+        ttipBase + ` + $${prop.monthlyRent.toLocaleString()}/mo rent`);
+    } else {
+      // No rent — muted blue
+      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(a1), lw), '#60a5fa', ttipBase);
+    }
   });
 
   // ── Crises ──
   (S.crises || []).forEach(crisis => {
     const a0 = crisis.age || sa;
-    if (a0 > ea || a0 < sa) return;
+    if (a0 > viewEa || a0 < sa) return;
     const x0 = xFor(a0);
-    addChip(crisis, 'crisis', 3, x0, null, '#6e5e1a');
+    const ttip = `${crisis.name||'Crisis'}: −${crisis.drop||0}% at age ${a0}`;
+    addChip(crisis, 'crisis', 3, x0, null, '#f59e0b', ttip);
   });
 }
 
