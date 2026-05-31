@@ -863,6 +863,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <div style="position:absolute;top:2px;left:6px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(0,0,0,0.25);pointer-events:none;">Net Worth</div>
       <div style="position:absolute;top:1px;right:6px;display:flex;gap:6px;z-index:1;">
         <button id="zoom-btn-1"  onclick="setChartZoom(1)"  style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">1y</button>
+        <button id="zoom-btn-5"  onclick="setChartZoom(5)"  style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">5y</button>
         <button id="zoom-btn-10" onclick="setChartZoom(10)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">10y</button>
         <button id="zoom-btn-20" onclick="setChartZoom(20)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">20y</button>
         <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
@@ -3306,7 +3307,7 @@ function setChartZoom(y) {
   lsSave();
 }
 function renderZoomButtons() {
-  [1,10,20,30].forEach(y => {
+  [1,5,10,20,30].forEach(y => {
     const el = document.getElementById('zoom-btn-' + y);
     if (!el) return;
     el.style.fontWeight = _chartZoom === y ? '800' : '500';
