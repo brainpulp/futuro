@@ -850,9 +850,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <div id="timeline-strip" style="display:none;"></div>
     </div>
     <!-- Project budget panel (populated by renderProjectBudgets()) -->
-    <div id="projects-panel" style="display:none;">
+    <div style="display:flex;">
+    <div id="projects-panel" style="display:none;max-width:520px;flex:0 0 auto;">
       <div id="projects-panel-header" onclick="toggleProjectsPanel()">
-        <span id="projects-panel-title">🏗 Projects</span>
+        <span id="projects-panel-title">📊 Project Budget Status</span>
         <span style="display:flex;align-items:center;gap:8px;">
           <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
             style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
@@ -861,6 +862,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
       <div id="projects-panel-body"></div>
     </div>
+    </div><!-- /projects flex wrapper -->
     <!-- SPY preset selector -->
     <div class="spy-preset-bar">
       <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Market Scenario</span>
@@ -984,12 +986,6 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         </div><!-- /sec-body-exp-yearly -->
         </div><!-- /sec-body-outgoing -->
 
-        <div class="sep"></div>
-        <div class="sec-band def">AI Evaluation <button class="btn-io" onclick="requestAiEval()" id="ai-eval-btn" style="margin-left:auto;font-size:10px;height:22px;padding:0 8px;">Evaluate</button></div>
-        <div id="ai-eval-tabs" style="display:none;margin-bottom:4px;display:flex;gap:4px;flex-wrap:wrap;"></div>
-        <div id="ai-eval-box" style="font-size:12px;color:#444;line-height:1.65;min-height:80px;max-height:520px;overflow-y:auto;background:#f9f8f5;border:0.5px solid #e0dfd8;border-radius:3px;padding:9px 11px;">
-          <span style="color:#bbb;">Press Evaluate to get an AI assessment of your retirement plan.</span>
-        </div>
       </div>
 
       <!-- ── COL 2: INCOMING + ASSETS ──────────────────────────── -->
@@ -1099,21 +1095,6 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
     </div>
 
-    <!-- ── AI Advisor Chat ──────────────────────────────────────── -->
-    <div style="margin-top:20px;">
-      <div class="sec-band def" style="cursor:pointer;user-select:none;" onclick="toggleChat()">
-        AI Advisor
-        <span id="chat-toggle" style="margin-left:auto;font-size:14px;font-weight:400;">▾</span>
-      </div>
-      <div id="chat-panel" style="display:none;background:#fff;border:1px solid #e6ebf1;border-radius:0 0 8px 8px;padding:12px 14px;box-shadow:0 2px 5px rgba(50,50,93,.06);">
-        <div id="chat-messages" style="min-height:60px;max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;padding-right:2px;"></div>
-        <div style="display:flex;gap:8px;align-items:flex-end;">
-          <textarea id="chat-input" class="desc" rows="2" placeholder="Ask about your plan, explore scenarios, get recommendations…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}" style="flex:1;margin:0;"></textarea>
-          <button onclick="chatSend()" style="background:#635bff;color:#fff;border:none;border-radius:6px;padding:0 16px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;height:52px;white-space:nowrap;">Send</button>
-        </div>
-        <div style="font-size:10px;color:#aaa;margin-top:6px;">Shift+Enter for new line · AI can propose scenarios you can apply with one click</div>
-      </div>
-    </div>
 
   <!-- ── Reality Check Table ─────────────────────────────────── -->
   <div style="max-width:1200px;margin:0 auto;padding:0 20px 32px;">
@@ -4134,7 +4115,7 @@ function renderExpItem(e, i) {
     onblur="moneyBlur(this)"
     onchange="event.stopPropagation();upE(${e.id},'${amtField}',parseNum(this.value));go()"
     onclick="event.stopPropagation()">
-  <select class="iselect" onchange="event.stopPropagation();upE(${e.id},'type',this.value);renderExp();go();" onclick="event.stopPropagation()">
+  <select class="iselect" onchange="event.stopPropagation();upE(${e.id},'type',this.value);(this.value==='installments'||this.value==='annual')?openSec('exp-yearly'):this.value==='oneoff'?openSec('exp-oneoff'):openSec('exp-monthly');renderExp();go();" onclick="event.stopPropagation()">
     <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
     <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
     <option value="oneoff"${e.type==='oneoff'?' selected':''}>One-off</option>
@@ -4257,28 +4238,6 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
   <div style="margin-top:6px;">
     <label class="lbl">Description</label>
     <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
-    <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <input type="text" placeholder="e.g. delta" value="${p.gastosCategory||''}"
-        style="flex:1;" onclick="event.stopPropagation()"
-        oninput="upP(${p.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
-      <span style="font-size:10px;color:rgba(255,255,255,0.4);white-space:nowrap;">since</span>
-      <input type="month" value="${p.gastosStartYM||_TODAY_YM}"
-        style="width:120px;font-size:11px;" onclick="event.stopPropagation()"
-        onchange="upP(${p.id},'gastosStartYM',this.value);renderProjectBudgets()">
-    </div>
-    ${(()=>{
-      const gc = p.gastosCategory && p.gastosCategory.trim().toLowerCase();
-      const pa = gc && _projectActuals[gc];
-      if (!pa) return '';
-      const startYM = p.gastosStartYM || _TODAY_YM;
-      const budget  = p.value || 0;
-      const actual  = _projActual(gc, startYM);
-      const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
-      const color   = _projColor(pct);
-      return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
-      <div class="proj-inline-label">${fmtM(actual)} spent since ${_fmtYM(startYM)}${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
-    })()}
   </div>
 </div>` : ''}`;
   }).join('');
@@ -5121,11 +5080,8 @@ function renderProjectBudgets() {
   const body  = document.getElementById('projects-panel-body');
   if (!panel || !body) return;
 
-  // Collect all linked items (expenses + properties that have gastosCategory set)
-  const allItems = [
-    ...(S.expenses || []).map(e => ({ ...e, _kind: 'exp' })),
-    ...(S.properties || []).map(p => ({ ...p, _kind: 'prop' })),
-  ].filter(item => item.gastosCategory && item.gastosCategory.trim());
+  // Collect all expenses that have a gastosCategory set
+  const allItems = (S.expenses || []).filter(item => item.gastosCategory && item.gastosCategory.trim());
 
   // Group budgets by category key; track earliest startYM across linked items
   const byProj = {};
@@ -5187,6 +5143,15 @@ function toggleSec(key) {
   body.style.display = open ? 'none' : '';
   if (arr) arr.textContent = open ? '▸' : '▾';
   localStorage.setItem('futuro-sec-' + key, open ? '0' : '1');
+}
+function openSec(key) {
+  // Force-expand a section (e.g. when an item is moved there by type change)
+  const body = document.getElementById('sec-body-' + key);
+  const arr  = document.getElementById('sec-arr-' + key);
+  if (!body || body.style.display !== 'none') return;
+  body.style.display = '';
+  if (arr) arr.textContent = '▾';
+  localStorage.setItem('futuro-sec-' + key, '1');
 }
 function initSections() {
   ['outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
