@@ -4971,14 +4971,13 @@ function renderTimeline() {
 
   // PROP section — one row per property
   addSec('PROP', '#2563eb');
-  (S.properties || []).filter(p => p.enabled !== false).forEach(prop => {
+  (S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).forEach(prop => {
     const a0  = prop.acquireAge !== undefined ? prop.acquireAge : sa;
     const a1  = prop.hold ? ea : (prop.saleAge !== undefined ? prop.saleAge : ea);
-    const ra  = prop.monthlyRent > 0 ? (prop.rentFromAge !== undefined ? prop.rentFromAge : a0) : null;
-    const color = prop.monthlyRent > 0 ? '#2563eb' : '#93c5fd';
-    addItem(prop, 'property', a0, a1, color, ra !== null && ra > a0 ? { splitAt: ra } : null);
+    const ra  = prop.rentFromAge !== undefined ? prop.rentFromAge : a0;
+    addItem(prop, 'property', a0, a1, '#2563eb', ra > a0 ? { splitAt: ra } : null);
   });
-  if (!(S.properties || []).filter(p => p.enabled !== false).length)
+  if (!(S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).length)
     allRows.push({ isHeader: false, empty: true, label: '—' });
 
   // CRISIS section
