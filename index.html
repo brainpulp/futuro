@@ -4185,7 +4185,7 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
       onchange="upE(${e.id},'gastosStartYM',this.value);renderProjectBudgets()">
   </div>
   ${(()=>{
-    const gc = e.gastosCategory && e.gastosCategory.trim();
+    const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
     const pa = gc && _projectActuals[gc];
     if (!pa) return '';
     const startYM = e.gastosStartYM || _TODAY_YM;
@@ -4280,7 +4280,7 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
         onchange="upP(${p.id},'gastosStartYM',this.value);renderProjectBudgets()">
     </div>
     ${(()=>{
-      const gc = p.gastosCategory && p.gastosCategory.trim();
+      const gc = p.gastosCategory && p.gastosCategory.trim().toLowerCase();
       const pa = gc && _projectActuals[gc];
       if (!pa) return '';
       const startYM = p.gastosStartYM || _TODAY_YM;
@@ -5084,7 +5084,9 @@ async function projectActualsSync() {
       { headers: { 'Authorization': `Bearer ${GASTOS_ANON}` } });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
-    _projectActuals = data;
+    // Normalize keys to lowercase so matching is case-insensitive
+    _projectActuals = {};
+    Object.entries(data).forEach(([k, v]) => { _projectActuals[k.toLowerCase()] = v; });
     renderProjectBudgets();
     const n = Object.keys(data).length;
     if (n > 0) showTicker('🏗', `Projects · ${n} loaded`);
@@ -5140,7 +5142,7 @@ function renderProjectBudgets() {
   // Group budgets by category key; track earliest startYM across linked items
   const byProj = {};
   allItems.forEach(item => {
-    const key     = item.gastosCategory.trim();
+    const key     = item.gastosCategory.trim().toLowerCase();
     const startYM = item.gastosStartYM || _TODAY_YM;
     if (!byProj[key]) byProj[key] = { budget: 0, startYM };
     byProj[key].budget  += _projBudget(item);
