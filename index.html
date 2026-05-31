@@ -2917,14 +2917,10 @@ const msPlugin = {
         const textW = ctx.measureText(label).width;
         const pad = 5, h = 18;
         const phase = lSeq++ * 1.3;
-        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        const angle = Math.sin(_danceT * 0.0024 + phase) * 0.08;
         ctx.save();
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.beginPath();
-        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
-        ctx.fill();
         ctx.font = '600 13px SF Mono, Menlo, monospace';
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030'; // blue for liquid
         ctx.fillText(label, 0, h - 4);
@@ -3064,14 +3060,10 @@ const msPlugin = {
         const textW = ctx.measureText(label).width;
         const pad = 5, h = 18;
         const phase = labelSeq++ * 1.3;
-        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        const angle = Math.sin(_danceT * 0.0024 + phase) * 0.08;
         ctx.save();
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.beginPath();
-        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
-        ctx.fill();
         ctx.font = '600 13px SF Mono, Menlo, monospace';
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, h - 4);
@@ -3087,15 +3079,10 @@ const msPlugin = {
         const pad = 6, mainH = 22, subH = 13, h = mainH + subH + 2;
         // Pivot label so bottom of pill aligns with Total curve point
         const phase = labelSeq++ * 1.3;
-        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.12;
+        const angle = Math.sin(_danceT * 0.0024 + phase) * 0.12;
         ctx.save();
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
-        // Background pill
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
-        ctx.beginPath();
-        ctx.roundRect(-maxW / 2 - pad, 0, maxW + pad * 2, h, 5);
-        ctx.fill();
         // Main value
         ctx.font = '700 22px SF Mono, Menlo, monospace';
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
