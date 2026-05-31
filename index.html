@@ -2981,11 +2981,17 @@ const liquidBgPlugin = {
       const vy = chartArea.top  + _vigRand() * ah;
       const sz = 16 + _vigRand() * 18;
       const isAnimal = i % 2 === 0;
-      const speed = (0.12 + (i % 7) * 0.04) * 2;
+      const speed = (0.12 + (i % 7) * 0.04) * 4; // 2× faster spin
       const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
       const col = isAnimal ? _VIG_ANIMAL_COLS[(i >> 1) % 4] : _VIG_FLOWER_COLS[i % 6];
+      // Eccentric orbit: each flower drifts elliptically around its base position
+      const oPhase = (i * 2.39996) % (Math.PI * 2); // golden-angle phase spread
+      const orx = sz * (0.35 + (i % 5) * 0.13);     // semi-major axis
+      const ory = sz * (0.12 + (i % 3) * 0.10);     // semi-minor axis (flattened = eccentric)
+      const ox = Math.sin(_danceT * 0.001 * speed * 0.45 + oPhase) * orx;
+      const oy = Math.cos(_danceT * 0.001 * speed * 0.32 + oPhase * 1.5) * ory;
       ctx.save();
-      ctx.translate(vx, vy);
+      ctx.translate(vx + ox, vy + oy);
       ctx.rotate(rot);
       ctx.strokeStyle = col; ctx.fillStyle = col;
       ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
