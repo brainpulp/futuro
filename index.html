@@ -1940,7 +1940,12 @@ function ensureFields() {
 // ══════════════════════════════════════════════════════════════
 function lsSave() {
   try {
-    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId, savedAt: new Date().toISOString() });
+    const payload = JSON.stringify({
+      scenarios: SCENARIOS,
+      activeId: activeScenarioId,
+      savedAt: new Date().toISOString(),
+      prefs: { yearMode: _yearMode }   // persist user preferences across devices
+    });
     localStorage.setItem(LS_KEY, payload);
     sbSave(payload); // fire-and-forget cloud sync
   } catch(e) { console.error('localStorage save failed', e); }
@@ -1987,6 +1992,20 @@ function _applyScenarios(saved) {
     S.liquidBase = _ibkrLiq;
   }
   saveActive();
+  // Restore cross-device preferences from saved payload
+  if (saved?.prefs?.yearMode !== undefined && saved.prefs.yearMode !== _yearMode) {
+    _yearMode = saved.prefs.yearMode;
+    localStorage.setItem('futuro-year-mode', _yearMode ? '1' : '0');
+    const track = document.getElementById('yr-track');
+    const thumb  = document.getElementById('yr-thumb');
+    const lblAge = document.getElementById('yr-lbl-age');
+    const lblYr  = document.getElementById('yr-lbl-yr');
+    if (track) track.style.background = _yearMode ? '#5b8dee' : '#ccc';
+    if (thumb) thumb.style.transform  = _yearMode ? 'translateX(14px)' : 'translateX(0)';
+    if (lblAge) { lblAge.style.color = _yearMode ? '#aaa' : '#666'; lblAge.style.fontWeight = _yearMode ? '400' : '700'; }
+    if (lblYr)  { lblYr.style.color  = _yearMode ? '#666' : '#aaa'; lblYr.style.fontWeight  = _yearMode ? '700' : '400'; }
+    document.body.classList.toggle('year-mode', _yearMode);
+  }
   syncInputs();
   renderScenarioBar();
   buildSpyPresetOptions();
@@ -4122,6 +4141,7 @@ function toggleTheme() {
 function toggleYearMode() {
   _yearMode = !_yearMode;
   localStorage.setItem('futuro-year-mode', _yearMode ? '1' : '0');
+  lsSave(); // sync preference to Supabase so other devices see it
   const track = document.getElementById('yr-track');
   const thumb  = document.getElementById('yr-thumb');
   const lblAge = document.getElementById('yr-lbl-age');
