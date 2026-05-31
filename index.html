@@ -5231,6 +5231,10 @@ function expTypeChanged(id, value) {
   go();
 }
 function initSections() {
+  // 'exp-installments' is a new section — always force-open it so items are never hidden on first load
+  if (!localStorage.getItem('futuro-sec-exp-installments')) {
+    localStorage.setItem('futuro-sec-exp-installments', '1');
+  }
   ['chart-nw','chart-market','chart-exp','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
     const body = document.getElementById('sec-body-' + key);
@@ -5313,7 +5317,11 @@ function renderTimeline() {
   if (_tlSec && _tlSec.style.display === 'none') return;
   const strip = document.getElementById('timeline-strip');
   const ca = chart.chartArea;
-  if (!ca) return;
+  if (!ca || !ca.left || ca.left === ca.right) {
+    // Chart area not painted yet — retry on next frame
+    requestAnimationFrame(renderTimeline);
+    return;
+  }
 
   const ROW_H = 14, ROW_GAP = 2, SEC_GAP = 6, PAD_TOP = 4, PAD_BOT = 4;
 

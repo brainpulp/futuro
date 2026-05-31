@@ -15,14 +15,14 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  // Fetch all transactions tagged with a project label (outflows only, non-xfer)
+  // Fetch all outflow transactions — query both `cat` and `project` fields
+  // so we catch historically-tagged (via cat) and newly-tagged (via project) transactions
   const { data, error } = await supabase
     .from('transactions')
-    .select('project, ym, usd, xfer')
+    .select('project, cat, ym, usd, xfer')
     .is('deleted_at', null)
     .not('usd', 'is', null)
-    .not('project', 'is', null)
-    .neq('project', '');
+    .lt('usd', 0); // outflows only
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -31,20 +31,25 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Aggregate: { [project]: { total, byMonth: { [ym]: amount } } }
-  const result: Record<string, { total: number; byMonth: Record<string, number> }> = {};
+  // Aggregate by tag: use `project` if set, else `cat`
+  // This covers transactions tagged either way
+  const result: Record<string, { byMonth: Record<string, number> }> = {};
 
   for (const tx of data) {
     if (tx.xfer) continue;
     const usd = Number(tx.usd);
-    if (usd >= 0) continue; // outflows only (expenses are negative in DB)
-    const amt = Math.round(Math.abs(usd) * 100) / 100;
-    const proj = tx.project as string;
-    const ym = tx.ym as string;
+    if (usd >= 0) continue;
 
-    if (!result[proj]) result[proj] = { total: 0, byMonth: {} };
-    result[proj].total = Math.round((result[proj].total + amt) * 100) / 100;
-    result[proj].byMonth[ym] = Math.round(((result[proj].byMonth[ym] || 0) + amt) * 100) / 100;
+    // Use project field if non-empty, otherwise fall back to cat
+    const tag = (tx.project || '').trim() || (tx.cat || '').trim();
+    if (!tag) continue;
+
+    const amt = Math.round(Math.abs(usd) * 100) / 100;
+    const ym = tx.ym as string;
+    const key = tag.toLowerCase();
+
+    if (!result[key]) result[key] = { byMonth: {} };
+    result[key].byMonth[ym] = Math.round(((result[key].byMonth[ym] || 0) + amt) * 100) / 100;
   }
 
   return new Response(JSON.stringify(result), {
