@@ -164,6 +164,94 @@ input[type=range]::-moz-range-thumb {
 .secondary-sliders { border-top: 1px solid #f0f2f8; margin-top: 5px; padding-top: 5px; }
 .disabled-row { opacity: .35; }
 
+/* ── SYNC TICKER ───────────────────────────────────────────── */
+#sync-ticker {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(60px);
+  background: rgba(10,12,18,0.93); color: #e2e8f0;
+  font-family: 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 600;
+  padding: 9px 18px 9px 14px; border-radius: 30px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.07);
+  display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  z-index: 9999; pointer-events: none;
+  transition: transform 0.38s cubic-bezier(.22,1,.36,1), opacity 0.38s ease;
+  opacity: 0;
+}
+#sync-ticker.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#sync-ticker .tick-icon { font-size: 16px; line-height: 1; }
+#sync-ticker .tick-bar {
+  width: 2px; height: 22px; border-radius: 2px; background: rgba(255,255,255,0.15);
+  overflow: hidden; position: relative; flex-shrink: 0;
+}
+#sync-ticker .tick-bar-fill {
+  position: absolute; bottom: 0; left: 0; right: 0; background: #5DC49A;
+  transition: height 0s linear;
+}
+/* ── Timeline strip ── */
+#timeline-strip {
+  position: relative; overflow: visible;
+  background: rgba(10,12,18,0.72);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  border-radius: 0 0 4px 4px;
+}
+#timeline-inner { position: relative; }
+.tl-row-label {
+  position: absolute; left: 0; font-size: 9px; font-weight: 700;
+  font-family: 'SF Mono', Menlo, monospace; letter-spacing: .04em;
+  color: rgba(255,255,255,0.28); line-height: 16px; white-space: nowrap;
+  pointer-events: none;
+}
+.tl-chip {
+  position: absolute; height: 16px; border-radius: 8px;
+  font-family: 'SF Mono', Menlo, monospace; font-size: 10px; font-weight: 600;
+  line-height: 16px; padding: 0 6px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: rgba(255,255,255,0.92);
+  cursor: pointer; user-select: none; box-sizing: border-box;
+  transition: filter 0.13s;
+}
+.tl-chip:hover { filter: brightness(1.3); }
+/* ── Timeline popover ── */
+#timeline-popover {
+  display: none; position: fixed; z-index: 9998;
+  background: #16192a; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; padding: 14px 16px 16px;
+  width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12px; color: #c8d0e0;
+}
+#timeline-popover .tl-pop-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: rgba(255,255,255,0.4); margin-bottom: 10px;
+}
+#timeline-popover label { display:block; font-size:11px; color:rgba(255,255,255,0.45); margin-bottom:2px; }
+#timeline-popover input, #timeline-popover select {
+  width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px; color: #e2e8f0; font-size: 12px; font-family: inherit;
+  padding: 4px 7px; box-sizing: border-box; outline: none;
+}
+#timeline-popover input:focus, #timeline-popover select:focus {
+  border-color: rgba(100,160,255,0.5);
+}
+#timeline-popover .tl-pop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 10px; }
+#timeline-popover .tl-pop-full { grid-column: 1 / -1; }
+#timeline-popover .tl-pop-close {
+  position: absolute; top: 10px; right: 12px;
+  background: none; border: none; color: rgba(255,255,255,0.35);
+  font-size: 15px; cursor: pointer; line-height: 1; padding: 0;
+}
+#timeline-popover .tl-pop-close:hover { color: rgba(255,255,255,0.8); }
+#timeline-popover .tl-toggle-row {
+  display: flex; align-items: center; gap: 8px;
+  grid-column: 1 / -1; margin-top: 4px;
+}
+#timeline-popover .tl-toggle-row input[type=checkbox] { width:auto; }
+#timeline-btn {
+  background: none; border: none; padding: 0 2px;
+  font-size: 11px; font-weight: 600; color: rgba(55,138,221,0.7);
+  cursor: pointer; letter-spacing: .03em; opacity: 0.55;
+  font-family: 'SF Mono', Menlo, monospace;
+  transition: opacity 0.15s;
+}
+#timeline-btn.active { opacity: 1; color: #378ADD; }
+
 /* ── SAVE BADGE ────────────────────────────────────────────── */
 .sbadge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
 .sbadge.ok  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
@@ -603,6 +691,29 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
   <!-- Top bar -->
   <div class="app-bar" style="justify-content:flex-end;">
     <span id="sbadge" class="sbadge ok">saved</span>
+    <!-- Cloud auth button + dropdown -->
+    <div style="position:relative;display:inline-block;margin-right:6px;">
+      <button id="auth-cloud-btn" onclick="_toggleAuthPanel()" title="Sign in to sync across devices"
+        style="background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:'SF Mono',Menlo,monospace;padding:2px 6px;color:#aaa;border-radius:4px;white-space:nowrap;">☁&thinsp;sign in</button>
+      <div id="auth-panel" style="display:none;position:absolute;top:28px;right:0;z-index:1000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.13);padding:16px;min-width:240px;font-family:system-ui,sans-serif;">
+        <div id="auth-out-section">
+          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">☁ Sync across devices</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">Sign in once — scenarios persist everywhere.</div>
+          <input id="auth-email-inp" type="email" placeholder="you@email.com"
+            style="width:100%;box-sizing:border-box;font-size:12px;padding:6px 9px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:8px;outline:none;"
+            onkeydown="if(event.key==='Enter')_sendMagicLink()">
+          <button id="auth-send-btn" onclick="_sendMagicLink()"
+            style="width:100%;font-size:12px;font-weight:600;padding:7px;background:#1a8c5f;color:#fff;border:none;border-radius:6px;cursor:pointer;">Send magic link</button>
+        </div>
+        <div id="auth-in-section" style="display:none;">
+          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;">☁ Signed in</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:10px;" id="auth-in-email"></div>
+          <button onclick="_signOut()"
+            style="font-size:11px;padding:5px 10px;background:none;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;color:#6b7280;">Sign out</button>
+        </div>
+        <div id="auth-msg" style="font-size:11px;color:#6b7280;margin-top:8px;min-height:16px;"></div>
+      </div>
+    </div>
     <span id="gastos-badge" title="Gastos actuals not loaded" onclick="gastosSync()" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;" title="Click to reload gastos actuals">gastos…</span>
     <label id="yr-toggle-wrap" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aaa;cursor:pointer;user-select:none;margin-right:4px;" title="Toggle age / year display">
       <span id="yr-lbl-age" style="font-weight:700;color:#666;">Age</span>
@@ -698,8 +809,11 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <button id="zoom-btn-10" onclick="setChartZoom(10)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">10y</button>
         <button id="zoom-btn-20" onclick="setChartZoom(20)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">20y</button>
         <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
+        <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
+        <button id="timeline-btn" onclick="toggleTimeline()" title="Show/hide event timeline">tl</button>
       </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
+      <div id="timeline-strip" style="display:none;"></div>
     </div>
     <!-- SPY preset selector -->
     <div class="spy-preset-bar">
@@ -752,6 +866,11 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
+    <div id="sync-ticker">
+      <span class="tick-icon" id="tick-icon">📡</span>
+      <span id="tick-msg">Syncing…</span>
+      <div class="tick-bar"><div class="tick-bar-fill" id="tick-bar-fill" style="height:0%"></div></div>
+    </div>
 
     <!-- 2-column control grid -->
     <div class="grid-2col">
@@ -1068,10 +1187,105 @@ const _currentYM  = new Date().toISOString().slice(0, 7); // "YYYY-MM" — month
 const SB_ID_KEY = 'futuro_sb_id';
 const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
 
+let _authUser = null; // set by onAuthStateChange when user signs in via magic link
+
 function getSbId() {
+  if (_authUser) return _authUser.id; // stable across devices when signed in
   let id = localStorage.getItem(SB_ID_KEY);
   if (!id) { id = crypto.randomUUID(); localStorage.setItem(SB_ID_KEY, id); }
   return id;
+}
+
+// Wire up auth state changes as soon as _sb is ready
+if (_sb) {
+  _sb.auth.getSession().then(({ data }) => {
+    _authUser = data.session?.user ?? null;
+    _updateAuthUI();
+  });
+  _sb.auth.onAuthStateChange(async (event, session) => {
+    const wasSignedIn = !!_authUser;
+    _authUser = session?.user ?? null;
+    _updateAuthUI();
+    if (event === 'SIGNED_IN' && !wasSignedIn) {
+      // First login this session: migrate anon data to auth row then reload
+      await _migrateAnonToAuth();
+      localStorage.removeItem(LS_KEY); // force Supabase reload
+      loadScenarios();
+    }
+    if (event === 'SIGNED_OUT') {
+      localStorage.removeItem(LS_KEY);
+      loadScenarios();
+    }
+  });
+}
+
+async function _migrateAnonToAuth() {
+  if (!_authUser || !_sb) return;
+  const anonId = localStorage.getItem(SB_ID_KEY);
+  if (!anonId || anonId === _authUser.id) return;
+  try {
+    // Check if auth row already has data — don't clobber it
+    const { data: authRow } = await _sb.from('futuro_state').select('data').eq('id', _authUser.id).single();
+    if (authRow?.data?.scenarios?.length > 0) return;
+    // Copy anon row into auth row
+    const { data: anonRow } = await _sb.from('futuro_state').select('data').eq('id', anonId).single();
+    if (anonRow?.data) {
+      await _sb.from('futuro_state').upsert({ id: _authUser.id, data: anonRow.data, updated_at: new Date().toISOString() });
+    }
+  } catch(e) { console.warn('Migration error', e); }
+}
+
+async function _sendMagicLink() {
+  const email = document.getElementById('auth-email-inp')?.value?.trim();
+  if (!email || !_sb) return;
+  const btn = document.getElementById('auth-send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const { error } = await _sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  if (btn) { btn.disabled = false; btn.textContent = 'Send link'; }
+  if (error) {
+    document.getElementById('auth-msg').textContent = 'Error: ' + error.message;
+  } else {
+    document.getElementById('auth-msg').textContent = '✓ Link sent! Check your email.';
+    document.getElementById('auth-email-inp').value = '';
+  }
+}
+
+async function _signOut() {
+  if (!_sb) return;
+  await _sb.auth.signOut();
+}
+
+function _updateAuthUI() {
+  const btn = document.getElementById('auth-cloud-btn');
+  const panel = document.getElementById('auth-panel');
+  if (!btn) return;
+  if (_authUser) {
+    const name = _authUser.email?.split('@')[0] || 'user';
+    btn.innerHTML = `☁&thinsp;${name}`;
+    btn.style.color = '#15803d';
+    btn.title = `Signed in as ${_authUser.email} — click to manage`;
+    if (panel) {
+      document.getElementById('auth-out-section').style.display = 'none';
+      document.getElementById('auth-in-section').style.display = '';
+      document.getElementById('auth-in-email').textContent = _authUser.email;
+    }
+  } else {
+    btn.innerHTML = '☁&thinsp;sign in';
+    btn.style.color = '#aaa';
+    btn.title = 'Sign in to sync across devices';
+    if (panel) {
+      document.getElementById('auth-out-section').style.display = '';
+      document.getElementById('auth-in-section').style.display = 'none';
+    }
+  }
+}
+
+function _toggleAuthPanel() {
+  const panel = document.getElementById('auth-panel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) document.getElementById('auth-msg').textContent = '';
 }
 
 async function sbSave(payload) {
@@ -1087,9 +1301,9 @@ async function sbSave(payload) {
 async function sbLoad() {
   if (!_sb) return null;
   try {
-    const { data, error } = await _sb.from('futuro_state').select('data').eq('id', getSbId()).single();
+    const { data, error } = await _sb.from('futuro_state').select('data, updated_at').eq('id', getSbId()).single();
     if (error || !data) return null;
-    return data.data;
+    return { ...data.data, _sbUpdatedAt: data.updated_at };
   } catch(e) { return null; }
 }
 
@@ -1283,6 +1497,7 @@ function _startDanceLoop() {
 let _chartDrag = null; // { idx, age, type:'spy'|'exp' }
 let _saleDots  = []; // [{ xp, yp, age, name, value }] — populated by msPlugin for hover tooltip
 let _totalDots = []; // [{ xp, yp, age, liq, total }] — every year on the Total curve
+let _minLiqDot = null; // { xp, yp, age, liq } — the red min-liquidity dot
 let _onelineTimer = null;
 let _aiSections = [];
 let _onelineCallLog = []; // timestamps of recent one-liner calls
@@ -1315,7 +1530,7 @@ function initSubChartsInteraction() {
       meta.data.forEach((pt, i) => { const d = Math.hypot(pt.x-mx, pt.y-my); if (d < bestDist) { bestDist = d; best = i; } });
       if (best !== -1) {
         e.preventDefault();
-        _chartDrag = { idx: best, age: ch.data.labels[best], type, canvas,
+        _chartDrag = { idx: best, age: ch._subAges ? ch._subAges[best] : ch.data.labels[best], type, canvas,
           startClientY: e.clientY,
           startVal: ch.data.datasets[dsIdx].data[best] };
       }
@@ -1696,7 +1911,7 @@ function ensureFields() {
 // ══════════════════════════════════════════════════════════════
 function lsSave() {
   try {
-    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId });
+    const payload = JSON.stringify({ scenarios: SCENARIOS, activeId: activeScenarioId, savedAt: new Date().toISOString() });
     localStorage.setItem(LS_KEY, payload);
     sbSave(payload); // fire-and-forget cloud sync
   } catch(e) { console.error('localStorage save failed', e); }
@@ -1737,6 +1952,11 @@ function _applyScenarios(saved) {
     ...(sc.data.expensePhases || []), ...(sc.data.monthlyBreakdown || []),
   ]).map(x => x.id || 0).filter(Number.isFinite);
   if (_allIds.length) nextId = Math.max(nextId, ..._allIds);
+  // Restore IBKR-pulled value: apply if the active scenario still shows the default (never customised)
+  const _ibkrLiq = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+  if (_ibkrLiq > 0 && S.liquidBase === 1500000) {
+    S.liquidBase = _ibkrLiq;
+  }
   saveActive();
   syncInputs();
   renderScenarioBar();
@@ -1749,16 +1969,23 @@ function _applyScenarios(saved) {
 
 async function loadScenarios() {
   badge('loading…', 'no');
-  const saved = lsLoad();
-  if (saved && saved.scenarios && saved.scenarios.length > 0) {
-    _applyScenarios(saved);
-    return;
-  }
-  // No localStorage — try Supabase
-  const sbData = await sbLoad();
-  if (sbData && sbData.scenarios && sbData.scenarios.length > 0) {
-    _applyScenarios(sbData);
-    lsSave(); // seed localStorage from cloud
+  // Always fetch both sources in parallel — pick the newest
+  const [lsData, sbData] = await Promise.all([
+    Promise.resolve(lsLoad()),
+    sbLoad(),
+  ]);
+  const lsTime = lsData?.savedAt ? new Date(lsData.savedAt).getTime() : 0;
+  const sbTime = sbData?._sbUpdatedAt ? new Date(sbData._sbUpdatedAt).getTime() : 0;
+
+  // Prefer Supabase only when it's STRICTLY newer — localStorage wins on tie
+  // (LS is always written before sbSave completes, so equal timestamps = same data)
+  const best = (sbData?.scenarios?.length > 0 && sbTime > lsTime) ? sbData
+             : (lsData?.scenarios?.length > 0) ? lsData
+             : (sbData?.scenarios?.length > 0) ? sbData
+             : null;
+
+  if (best) {
+    _applyScenarios(best); // _applyScenarios already calls saveActive() → lsSave() → sbSave()
     return;
   }
   // Fall back to bundled scenarios.json seed
@@ -1780,7 +2007,7 @@ let _saveTimer;
 function markDirty() {
   badge('unsaved', 'no');
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveActive, 1500);
+  _saveTimer = setTimeout(saveActive, 600); // debounce: short enough to survive reloads
 }
 
 function saveActive() {
@@ -1980,6 +2207,8 @@ function getYield(age) {
 function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
   const inf = S.inflationRate / 100;
+  const _curMo = new Date().getMonth() + 1;          // hoist: used in both loops
+  const _partFrac = (12 - _curMo) / 12;              // fraction of year sa already in partial loop
   let liq = S.liquidBase;
   let _simMinLiq = Infinity, _simMinAge = sa;
 
@@ -2008,9 +2237,9 @@ function runSim(monthlyOverride) {
 
   // ── Partial-year loop for starting year: simulate current month → Dec ──
   {
-    const _curMo = new Date().getMonth() + 1;
     const _saYld = getYield(sa);
     const _saMYld = Math.pow(1 + _saYld, 1/12) - 1; // getYield already returns decimal — no /100
+    let _saNetBurn = 0;
     for (let mo = _curMo; mo <= 12; mo++) {
       liq *= (1 + _saMYld);
       const _f = Math.pow(1 + inf, (mo - _curMo) / 12);
@@ -2049,22 +2278,34 @@ function runSim(monthlyOverride) {
         }
       });
       liq += inc - _baseExp - _ooAmt - _itemizedExp;
+      _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
       out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
     }
+    // Annualise partial-year burn so pill shows a full-year equivalent
+    const _saMonths = 13 - _curMo;
+    out[0].annualNetBurn = Math.round(_saNetBurn * 12 / Math.max(_saMonths, 1));
   }
 
   for (let age = sa + 1; age <= ea; age++) {
     const yld = getYield(age);
     const mYld = Math.pow(1 + yld, 1/12) - 1;
-    const crash = S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0;
+    const crash = (S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0)
+      || (S.crises || []).some(c => c.enabled !== false && c.age === age && (c.drop || 0) > 0);
+
+    // ── Apply crisis drops (portfolio corrections) at start of year ──
+    (S.crises || []).filter(c => c.enabled !== false && c.age === age).forEach(c => {
+      liq *= (1 - (c.drop || 0) / 100);
+    });
 
     let lastInflM = 0;
     let yearMinLiq = liq;
+    let yearBurn = 0;
 
     for (let mo = 1; mo <= 12; mo++) {
-      // Inflation factor for this month
-      const f = Math.pow(1 + inf, (age - sa - 1) + mo / 12);
+      // Inflation factor for this month (anchored to _curMo so partial-year and
+      // main loop share a continuous timeline — no reset at year boundary)
+      const f = Math.pow(1 + inf, _partFrac + (age - sa - 1) + mo / 12);
 
       // Activate properties acquired this year
       if (mo === 1) {
@@ -2170,6 +2411,7 @@ function runSim(monthlyOverride) {
       });
 
       liq += inc - exp;
+      yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; }
       out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq) });
@@ -2181,7 +2423,8 @@ function runSim(monthlyOverride) {
       minLiq: Math.round(yearMinLiq),
       iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
       crash,
-      monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0))
+      monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0)),
+      annualNetBurn: Math.round(yearBurn)
     });
   }
   out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
@@ -2349,7 +2592,39 @@ const msPlugin = {
       _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
     });
 
-    if (_chartZoom === 1) return; // monthly view: age-based decorations not applicable
+    if (_chartZoom === 1) {
+      // Monthly view: label the liquid curve (total is off-scale in 1y mode)
+      // Use actual rendered pixel positions from Chart.js meta
+      const meta0 = ch.getDatasetMeta(0); // Liquid dataset
+      ctx.save();
+      ctx.textAlign = 'center';
+      let lSeq = 0;
+      labels.forEach((lbl, idx) => {
+        const lv = liqData[idx];
+        const pt = meta0.data[idx];
+        if (!pt) return;
+        const xp = pt.x, yp = pt.y;
+        const label = fmtM(lv);
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        const pad = 5, h = 18;
+        const phase = lSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
+        ctx.fill();
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030'; // blue for liquid
+        ctx.fillText(label, 0, h - 4);
+        ctx.restore();
+      });
+      ctx.restore();
+      return;
+    }
 
     const sa = S.startAge || 57, ea = S.endAge || 87, span = ea - sa;
     const step = span <= 20 ? 5 : span <= 40 ? 10 : 15;
@@ -2454,6 +2729,7 @@ const msPlugin = {
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(xp, minYp, 6, 0, Math.PI*2);
         ctx.fill(); ctx.stroke();
+        _minLiqDot = { xp, yp: minYp, age: minAge2, liq: minLiq2 };
       }
     });
 
@@ -2463,32 +2739,65 @@ const msPlugin = {
       ctx.beginPath(); ctx.arc(xp, yp, 3, 0, Math.PI*2); ctx.fill();
     });
 
-    // Labels on Total line at ages ending in 0 — dancing rotation
-    ctx.font = '700 24px SF Mono, Menlo, monospace';
+    // Labels on Total line — every decade normally, every year in ≤10y zoom
     ctx.textAlign = 'center';
     let labelSeq = 0;
+    const denseLabels = _chartZoom <= 10;
+    const labelEvery = denseLabels ? 1 : 10;
     labels.forEach((age, idx) => {
-      if (age % 10 !== 0) return;
-      const tv = totalData[idx];
+      if (age % labelEvery !== 0) return;
+      const tv = totalData0[idx];
+      const lv = liqData[idx];
       const xp = x.getPixelForValue(idx), yp = y.getPixelForValue(tv);
       const label = fmtM(tv);
-      const textW = ctx.measureText(label).width;
-      const pad = 5, h = 26;
-      // Pivot at pill centre; each label gets a unique phase so they dance independently
-      const phase = labelSeq++ * 1.3;
-      const angle = Math.sin(_danceT * 0.0016 + phase) * 0.14; // ±8°
-      ctx.save();
-      ctx.translate(xp, yp - h / 2 - 4);
-      ctx.rotate(angle);
-      // Background pill
-      ctx.fillStyle = 'rgba(255,255,255,0)';
-      ctx.beginPath();
-      ctx.roundRect(-textW / 2 - pad, -h / 2, textW + pad * 2, h, 4);
-      ctx.fill();
-      // Text
-      ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
-      ctx.fillText(label, 0, h / 2 - 8);
-      ctx.restore();
+      if (denseLabels) {
+        // Compact single-line label for dense (per-year) mode
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        const pad = 5, h = 18;
+        const phase = labelSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.08;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.roundRect(-textW / 2 - pad, 0, textW + pad * 2, h, 4);
+        ctx.fill();
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+        ctx.fillText(label, 0, h - 4);
+        ctx.restore();
+      } else {
+        // Full two-line pill for decade labels
+        ctx.font = '700 22px SF Mono, Menlo, monospace';
+        const textW = ctx.measureText(label).width;
+        ctx.font = '500 10px SF Mono, Menlo, monospace';
+        const subLabel = `tot · liq ${fmtM(lv)}`;
+        const subW = ctx.measureText(subLabel).width;
+        const maxW = Math.max(textW, subW);
+        const pad = 6, mainH = 22, subH = 13, h = mainH + subH + 2;
+        // Pivot label so bottom of pill aligns with Total curve point
+        const phase = labelSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0016 + phase) * 0.12;
+        ctx.save();
+        ctx.translate(xp, yp - h - 4);
+        ctx.rotate(angle);
+        // Background pill
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.beginPath();
+        ctx.roundRect(-maxW / 2 - pad, 0, maxW + pad * 2, h, 5);
+        ctx.fill();
+        // Main value
+        ctx.font = '700 22px SF Mono, Menlo, monospace';
+        ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+        ctx.fillText(label, 0, mainH - 3);
+        // Sub label: "tot · liq $Xm"
+        ctx.font = '500 10px SF Mono, Menlo, monospace';
+        ctx.fillStyle = 'rgba(80,80,80,0.7)';
+        ctx.fillText(subLabel, 0, h - 3);
+        ctx.restore();
+      }
     });
 
     ctx.restore();
@@ -2651,7 +2960,9 @@ function go() {
   if (pillAges[pillAges.length - 1] !== ea) pillAges.push(ea);
 
   const at = age => data.find(d => d.age === age) || data[data.length - 1];
-  const init = S.liquidBase + S.properties.filter(p => p.enabled !== false && (p.acquireAge || sa) <= sa).reduce((s, p) => s + p.value, 0);
+  // Use data[0] for "Current" so the pill and the chart's first data point
+  // always show the same numbers (both post–pre-deduction, pre–partial-year).
+  const d0 = data[0];
 
   const minLiq = data.simMinLiq ?? data[data.length - 1].liq;
   const minAge = data.simMinAge ?? sa;
@@ -2666,16 +2977,35 @@ function go() {
 
   // Pills
   const pills = [];
+  const swrColor = r => r <= 0 ? '#5DC49A' : r < 3 ? '#1A8C5F' : r < 5 ? '#c07030' : '#C03030';
   pillAges.forEach((age, i) => {
-    const d     = i === 0 ? null : at(age);
-    const total = i === 0 ? init       : d.liq + d.iliq;
-    const liq   = i === 0 ? S.liquidBase : d.liq;
+    const d     = i === 0 ? d0   : at(age);
+    const total = d.liq + d.iliq;
+    const liq   = d.liq;
+    const burn  = d?.annualNetBurn ?? null;
     const totalCol = i === 0 ? '#1a1a1a' : total >= 0 ? '#1A8C5F' : '#C03030';
     const liqCol   = i === 0 ? '#888'    : liq   >= 0 ? '#5DC49A' : '#E07070';
+    // SWR rows — only show when burn is meaningful and denominator is positive
+    let swrHtml = '';
+    if (burn !== null) {
+      const swrL = liq   > 0 ? (burn / liq   * 100) : null;
+      const swrT = total > 0 ? (burn / total * 100) : null;
+      const fmtR = r => r === null ? '—' : (r <= 0 ? '▲surplus' : r.toFixed(1) + '%');
+      swrHtml = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px;">
+        <div style="font-size:10px;color:#aaa;font-family:'SF Mono',Menlo,monospace;font-weight:500;">
+          <span style="color:${swrL !== null ? swrColor(swrL) : '#aaa'};">${fmtR(swrL)}</span>
+          <span style="color:#ccc;"> liq · </span>
+          <span style="color:${swrT !== null ? swrColor(swrT) : '#aaa'};">${fmtR(swrT)}</span>
+          <span style="color:#ccc;"> tot</span>
+        </div>
+        <div style="font-size:9px;color:#bbb;">withdrawal rate</div>
+      </div>`;
+    }
     pills.push(`<div class="pill">
       <div class="pill-label">${i === 0 ? 'Current' : _yearMode ? String(ageToYear(age)) : 'Age ' + age}</div>
       <div class="pill-val" style="color:${totalCol}">${fmt(total)}</div>
       <div style="font-size:12px;font-weight:700;font-family:'SF Mono',Menlo,monospace;color:${liqCol};margin-top:2px;">${fmt(liq)} <span style="font-weight:400;font-size:10px;">liq</span></div>
+      ${swrHtml}
     </div>`);
   });
   const minBg  = '#FEF9C3';
@@ -2684,25 +3014,41 @@ function go() {
   document.getElementById('metrics').style.gridTemplateColumns = `repeat(${pills.length}, minmax(0,1fr))`;
   document.getElementById('metrics').innerHTML = pills.join('');
 
-  // SPY avg across full span
-  const spyValues = data.map(d => S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate);
-  const spyAvg = spyValues.reduce((a, b) => a + b, 0) / spyValues.length;
+  // ── Sub-chart data: zoom-filtered to match main chart period ──
+  const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let labels, yieldData, expData, subAges;
+  if (_chartZoom === 1) {
+    const mo12 = (data.monthly || []).slice(0, 12);
+    labels    = mo12.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
+    subAges   = mo12.map(m => m.age);
+    yieldData = mo12.map(m => {
+      const base = S.yieldCurve && S.yieldCurve[m.age] !== undefined ? S.yieldCurve[m.age] : S.yieldRate;
+      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
+    });
+    expData   = mo12.map(m => m.baseExp);
+  } else {
+    const maxAge     = (S.startAge || 57) + _chartZoom;
+    const filtered   = data.filter(d => d.age <= maxAge);
+    labels    = filtered.map(d => d.age);
+    subAges   = labels;
+    yieldData = filtered.map(d => {
+      const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
+      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
+    });
+    expData   = filtered.map(d => d.monthlyExp);
+  }
+
+  // SPY avg across visible period
+  const spyAvg = yieldData.reduce((a, b) => a + b, 0) / (yieldData.length || 1);
   const spyEl = document.getElementById('spy-avg');
   if (spyEl) spyEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
   const spyAvgEl = document.getElementById('spy-avg-label');
   if (spyAvgEl) spyAvgEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
 
-  const labels    = data.map(d => d.age);
-  const yieldData = data.map(d => {
-    const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
-    return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
-  });
-  const expData   = data.map(d => d.monthlyExp);
-  const expAvg = expData.reduce((a,b)=>a+b,0) / expData.length;
+  const expAvg = expData.reduce((a,b)=>a+b,0) / (expData.length || 1);
   const expAvgEl = document.getElementById('exp-avg-label');
   if (expAvgEl) expAvgEl.textContent = `avg ${fmtM(expAvg)}/mo`;
-  const expMax    = Math.ceil(Math.max(...expData) * 1.5 / 1000) * 1000;
-
+  const expMax    = Math.ceil(Math.max(...expData, 1) * 1.5 / 1000) * 1000;
 
   // SPY dot colors: green positive, red negative, amber near zero
   const spyColors = yieldData.map(v =>
@@ -2760,7 +3106,7 @@ function go() {
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { display: false },
-          y: { max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
+          y: { min: 0, max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
         }
       }
     });
@@ -2771,8 +3117,15 @@ function go() {
       const rect = e.currentTarget.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       const saleHit = _saleDots.find(d => Math.hypot(d.xp - mx, d.yp - my) < 14);
+      const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14 ? _minLiqDot : null;
       if (saleHit) {
         tip.innerHTML = `${saleHit.name} &nbsp;·&nbsp; sell age ${saleHit.age} &nbsp;·&nbsp; ≈${fmtM(saleHit.value)}`;
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+        tip.style.display = 'block';
+      } else if (minLiqHit) {
+        const liqCol = minLiqHit.liq >= 0 ? '#5DC49A' : '#f87171';
+        tip.innerHTML = `Min liquidity &nbsp;·&nbsp; age ${minLiqHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">${fmtM(minLiqHit.liq)}</span>`;
         tip.style.left = (e.clientX + 14) + 'px';
         tip.style.top  = (e.clientY - 10) + 'px';
         tip.style.display = 'block';
@@ -2830,6 +3183,7 @@ function go() {
     chart.data.datasets[3].data = view.real;
     chart.data.datasets.splice(4);
     view.props.forEach(d => chart.data.datasets.push(d));
+    chart.options.scales.y.min = 0;
     chart.options.scales.y.max = view.yMax;
     chart.update('none');
   }
@@ -2885,13 +3239,16 @@ function go() {
   };
 
   // ── SPY sub-chart ──
+  // Dynamic Y scale: fit to data with padding, clamped to CURVE_YMIN/MAX
+  const _spyMin = Math.max(CURVE_YMIN, Math.floor(Math.min(...yieldData) - 3));
+  const _spyMax = Math.min(CURVE_YMAX, Math.ceil(Math.max(...yieldData) + 3));
   const spySubOpts = {
     responsive: true, maintainAspectRatio: false,
     layout: { padding: { top: 2, bottom: 2 } },
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
     scales: {
       x: { display: false },
-      y: { min: CURVE_YMIN, max: CURVE_YMAX,
+      y: { min: _spyMin, max: _spyMax,
            ticks:{ font:{size:9}, color:'rgba(160,100,0,0.8)', callback: v => v+'%' },
            grid:{ color:'rgba(128,128,128,0.06)' } }
     }
@@ -2906,14 +3263,23 @@ function go() {
       ]},
       options: spySubOpts
     });
+    chart2._subAges = subAges;
     initSubChartsInteraction();
     initExpMultWheel();
     initSpyNudgeWheel();
+    // Defer draw — Chart.js's update/render go through an Animator that may not fire
+    // if the page isn't yet composited. chart.draw() is the reliable synchronous fallback.
+    setTimeout(() => { chart2?.draw(); chart3?.draw(); }, 0);
   } else {
     chart2.data.labels = labels;
     chart2.data.datasets[0].data = yieldData;
     chart2.data.datasets[0].pointBackgroundColor = spyColors;
+    chart2.options.scales.y.min = _spyMin;
+    chart2.options.scales.y.max = _spyMax;
+    chart2._subAges = subAges;
+    // update() processes new data into Chart.js internal state; draw() guarantees paint
     chart2.update('none');
+    chart2.draw();
   }
 
   // ── Expense sub-chart ──
@@ -2938,11 +3304,14 @@ function go() {
       ]},
       options: expSubOpts
     });
+    chart3._subAges = subAges;
   } else {
     chart3.data.labels = labels;
     chart3.data.datasets[0].data = expData;
     chart3.options.scales.y.max = expMax;
+    chart3._subAges = subAges;
     chart3.update('none');
+    chart3.draw();
   }
 
   // Debounced AI one-liners — rate limited: max 4/min, max 10/5min (then pause 5min)
@@ -2961,6 +3330,7 @@ function go() {
 
   window._lastRCData = data;
   renderRC(data);
+  if (_showTimeline) requestAnimationFrame(renderTimeline); // after chart paints
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2971,6 +3341,12 @@ function go() {
 document.addEventListener('click', e => {
   if (openId !== null && !e.target.closest('.expand-card') && !e.target.closest('.item-row')) {
     openId = null; renderAll();
+  }
+  // Close auth panel when clicking outside
+  const authPanel = document.getElementById('auth-panel');
+  if (authPanel && authPanel.style.display !== 'none' &&
+      !e.target.closest('#auth-panel') && !e.target.closest('#auth-cloud-btn')) {
+    authPanel.style.display = 'none';
   }
 });
 
@@ -4193,8 +4569,12 @@ async function ibkrSync({ manual = false } = {}) {
     if (typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
     S.liquidBase = data.liquid;
     document.getElementById('liquidBase').value = fmtInput(data.liquid);
+    // Sticky cache — persists across scenario resets / reloads
+    localStorage.setItem('futuro-ibkr-liquid', data.liquid);
+    localStorage.setItem('futuro-ibkr-liquid-ts', new Date().toISOString());
     go();
-    lsSave();
+    saveActive(); // flush S into SCENARIOS *before* persisting — not lsSave() which would save stale SCENARIOS
+    showTicker('☁', `IBKR · ${fmtM(data.liquid)} liquid`);
     if (manual) {
       btn.textContent = '✓ IBKR';
       btn.style.color = '#15803d';
@@ -4223,13 +4603,355 @@ async function gastosSync() {
     const badge = document.getElementById('gastos-badge');
     if (badge) { badge.textContent = n + ' mo'; badge.title = 'Gastos actuals loaded: ' + n + ' months'; }
     go();
+    showTicker('📊', `Gastos · ${n} months loaded`);
   } catch(e) {
     console.warn('Gastos sync skipped:', e.message || e);
   }
 }
 
+function showTicker(icon, msg, durationMs = 4000) {
+  const el   = document.getElementById('sync-ticker');
+  const ico  = document.getElementById('tick-icon');
+  const txt  = document.getElementById('tick-msg');
+  const fill = document.getElementById('tick-bar-fill');
+  if (!el) return;
+  // Reset
+  el.classList.remove('show');
+  fill.style.transition = 'none';
+  fill.style.height = '0%';
+  ico.textContent = icon;
+  txt.textContent = msg;
+  // Force reflow so the transition fires fresh
+  void el.offsetWidth;
+  el.classList.add('show');
+  // Animate the progress bar over durationMs
+  requestAnimationFrame(() => {
+    fill.style.transition = `height ${durationMs}ms linear`;
+    fill.style.height = '100%';
+  });
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => {
+    el.classList.remove('show');
+    fill.style.transition = 'none';
+    fill.style.height = '0%';
+  }, durationMs);
+}
+
 function toggleIbkrAuto(on) {
   localStorage.setItem('futuro-ibkr-auto', on ? '1' : '0');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TIMELINE STRIP
+// ══════════════════════════════════════════════════════════════
+
+let _showTimeline = false; // set properly in Boot
+
+function toggleTimeline() {
+  _showTimeline = !_showTimeline;
+  localStorage.setItem('futuro-timeline', _showTimeline ? '1' : '0');
+  const strip = document.getElementById('timeline-strip');
+  const btn   = document.getElementById('timeline-btn');
+  strip.style.display = _showTimeline ? 'block' : 'none';
+  if (btn) btn.classList.toggle('active', _showTimeline);
+  if (_showTimeline) renderTimeline();
+}
+
+// Age → x pixel, relative to timeline-inner left edge
+function _tlAgeToX(age, ca) {
+  if (!chart) return null;
+  const lbs = chart.data.labels;
+  // In year mode labels are ages (numbers); in monthly (1y) mode they're strings
+  let idx = -1;
+  if (_chartZoom === 1) {
+    // For 1y mode: find the month that corresponds to the event age
+    // We just return null for most events (only startAge matters)
+    idx = 0; // pin to left edge for out-of-range ages
+    if (age > (S.startAge || 57)) return null; // event starts after 1y window
+  } else {
+    idx = lbs.indexOf(age);
+    if (idx < 0) {
+      // Clamp: find nearest label
+      if (age < lbs[0]) idx = 0;
+      else idx = lbs.length - 1;
+    }
+  }
+  return chart.scales.x.getPixelForValue(idx) - ca.left;
+}
+
+function renderTimeline() {
+  if (!chart || !_showTimeline) return;
+  const strip = document.getElementById('timeline-strip');
+  const ca = chart.chartArea;
+  if (!ca) return;
+
+  const ROW_H = 18, ROW_GAP = 4, PAD_TOP = 6, PAD_BOT = 6;
+  const ROWS = [
+    { key: 'income',   label: 'INC',  color: '#2a6e47' },
+    { key: 'expense',  label: 'EXP',  color: '#6e2a2a' },
+    { key: 'property', label: 'PROP', color: '#2a416e' },
+    { key: 'crisis',   label: '⚡',   color: '#6e5e1a' },
+  ];
+  const totalH = PAD_TOP + ROWS.length * (ROW_H + ROW_GAP) - ROW_GAP + PAD_BOT;
+  strip.style.height = totalH + 'px';
+
+  // Rebuild inner
+  strip.innerHTML = '';
+  const inner = document.createElement('div');
+  inner.id = 'timeline-inner';
+  inner.style.cssText = `position:relative; height:${totalH}px; margin-left:${ca.left}px; width:${ca.right - ca.left}px;`;
+  strip.appendChild(inner);
+
+  // Row labels in the left margin
+  ROWS.forEach((row, ri) => {
+    const lbl = document.createElement('div');
+    lbl.className = 'tl-row-label';
+    lbl.textContent = row.label;
+    lbl.style.cssText = `position:absolute; left:${-ca.left + 4}px; top:${PAD_TOP + ri * (ROW_H + ROW_GAP)}px;`;
+    inner.appendChild(lbl);
+  });
+
+  const sa = S.startAge || 57;
+  const ea = _chartZoom === 1 ? sa : sa + _chartZoom;
+  const lw = ca.right - ca.left; // lane width in px
+
+  function xFor(age) {
+    if (_chartZoom === 1) {
+      // In 1y monthly mode, map age to pixel by proportion (startAge = left)
+      if (age > sa) return lw; // beyond current year → clamp right
+      return 0;
+    }
+    const lbs = chart.data.labels;
+    let idx = lbs.indexOf(age);
+    if (idx < 0) idx = age < lbs[0] ? 0 : lbs.length - 1;
+    return chart.scales.x.getPixelForValue(idx) - ca.left;
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function addChip(ev, type, rowIdx, x0, x1, color) {
+    const enabled = ev.enabled !== false;
+    const isBar = x1 !== null && x1 - x0 > 2;
+    const barW = isBar ? clamp(x1 - x0, 4, lw - x0) : null;
+    const chipW = isBar ? barW : 6;
+    const rowY = PAD_TOP + rowIdx * (ROW_H + ROW_GAP);
+
+    const el = document.createElement('div');
+    el.className = 'tl-chip';
+    el.style.cssText = [
+      `left:${clamp(x0, 0, lw - 4)}px`,
+      `top:${rowY}px`,
+      `width:${chipW}px`,
+      `background:${color}`,
+      `opacity:${enabled ? 1 : 0.38}`,
+      isBar ? '' : 'border-radius:50%',
+    ].filter(Boolean).join(';');
+
+    if (isBar) {
+      // Name label clamped to visible left edge
+      el.title = ev.name || type;
+      const nameX = clamp(0, -clamp(x0, 0, lw - 4), barW - 4);
+      el.textContent = barW > 28 ? (ev.name || '').slice(0, Math.floor(barW / 7)) : '';
+    } else {
+      el.title = ev.name || type;
+    }
+
+    el.addEventListener('click', e => { e.stopPropagation(); openTimelinePopover(ev, type, el); });
+    inner.appendChild(el);
+  }
+
+  // ── Incomes ──
+  (S.incomes || []).forEach(inc => {
+    const oo = inc.type === 'oneoff';
+    const a0 = oo ? (inc.atAge || sa) : (inc.from || sa);
+    const a1 = oo ? null : (inc.to || ea);
+    if (a0 > ea) return; // fully out of view
+    const x0 = xFor(a0);
+    const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
+    addChip(inc, 'income', 0, x0, x1, '#2a6e47');
+  });
+
+  // ── Expenses ──
+  (S.expenses || []).forEach(exp => {
+    const oo = exp.type === 'oneoff' || exp.type === 'installments';
+    const a0 = oo ? (exp.atAge || sa) : (exp.from || sa);
+    const a1 = oo ? null : (exp.to || ea);
+    if (a0 > ea) return;
+    const x0 = xFor(a0);
+    const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
+    addChip(exp, 'expense', 1, x0, x1, '#6e2a2a');
+  });
+
+  // ── Properties ──
+  (S.properties || []).forEach(prop => {
+    if (prop.enabled === false) return;
+    const a0 = prop.acquireAge || sa;
+    const a1 = prop.hold ? ea : (prop.saleAge || ea);
+    if (a0 > ea) return;
+    const x0 = xFor(a0);
+    const x1 = Math.min(xFor(a1), lw);
+    addChip(prop, 'property', 2, x0, x1, '#2a416e');
+  });
+
+  // ── Crises ──
+  (S.crises || []).forEach(crisis => {
+    const a0 = crisis.age || sa;
+    if (a0 > ea || a0 < sa) return;
+    const x0 = xFor(a0);
+    addChip(crisis, 'crisis', 3, x0, null, '#6e5e1a');
+  });
+}
+
+// ── Popover ──
+let _tlPopOutside = null;
+
+function openTimelinePopover(ev, type, anchorEl) {
+  const pop = document.getElementById('timeline-popover');
+  document.getElementById('tl-pop-content').innerHTML = buildPopoverForm(ev, type);
+  pop.style.display = 'block';
+
+  // Position near chip, flip if near viewport edge
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = 300, ph = 240;
+  let left = rect.left;
+  let top  = rect.top - ph - 8;
+  if (top < 8) top = rect.bottom + 8;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  pop.style.left = left + 'px';
+  pop.style.top  = top  + 'px';
+
+  // Click-outside to close
+  if (_tlPopOutside) document.removeEventListener('mousedown', _tlPopOutside);
+  _tlPopOutside = e => { if (!pop.contains(e.target) && !anchorEl.contains(e.target)) closeTimelinePopover(); };
+  setTimeout(() => document.addEventListener('mousedown', _tlPopOutside), 0);
+
+  // Escape to close
+  pop._escHandler = e => { if (e.key === 'Escape') closeTimelinePopover(); };
+  document.addEventListener('keydown', pop._escHandler);
+}
+
+function closeTimelinePopover() {
+  const pop = document.getElementById('timeline-popover');
+  pop.style.display = 'none';
+  if (_tlPopOutside) { document.removeEventListener('mousedown', _tlPopOutside); _tlPopOutside = null; }
+  if (pop._escHandler) { document.removeEventListener('keydown', pop._escHandler); pop._escHandler = null; }
+}
+
+function _tlUpd(id, type, field, val) {
+  const arr = { income: S.incomes, expense: S.expenses, property: S.properties, crisis: S.crises }[type];
+  if (!arr) return;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+  const num = parseFloat(val);
+  item[field] = (!isNaN(num) && val.trim() !== '') ? num : val;
+  go();
+}
+
+function _tlToggle(id, type) {
+  const arr = { income: S.incomes, expense: S.expenses, property: S.properties, crisis: S.crises }[type];
+  if (!arr) return;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+  item.enabled = item.enabled === false ? true : false;
+  go();
+}
+
+function buildPopoverForm(ev, type) {
+  const id = ev.id;
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthOpts = MONTHS.map((m,i) => `<option value="${i+1}" ${(+ev[arguments[2]]||1)===i+1?'selected':''}>${m}</option>`).join('');
+  function mSel(field, val) {
+    return `<select onchange="_tlUpd(${id},'${type}','${field}',this.value)">${
+      MONTHS.map((m,i)=>`<option value="${i+1}" ${(val||1)==i+1?'selected':''}>${m}</option>`).join('')
+    }</select>`;
+  }
+  function numIn(field, val, placeholder) {
+    return `<input type="number" value="${val??''}" placeholder="${placeholder||''}" oninput="_tlUpd(${id},'${type}','${field}',this.value)">`;
+  }
+  function txtIn(field, val) {
+    return `<input type="text" value="${(val||'').replace(/"/g,'&quot;')}" oninput="_tlUpd(${id},'${type}','${field}',this.value)">`;
+  }
+  function chk(field, val, label) {
+    return `<label style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.55);font-size:11px;">
+      <input type="checkbox" ${val?'checked':''} onchange="_tlUpd(${id},'${type}','${field}',this.checked?true:false)"> ${label}</label>`;
+  }
+  const enabled = ev.enabled !== false;
+  const enChk = `<label style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.55);font-size:11px;">
+    <input type="checkbox" ${enabled?'checked':''} onchange="_tlToggle(${id},'${type}')"> Enabled</label>`;
+
+  const typeColors = { income:'#3a8f5e', expense:'#8f3a3a', property:'#3a5a8f', crisis:'#8f7a2a' };
+  const typeLabel  = { income:'INCOME', expense:'EXPENSE', property:'PROPERTY', crisis:'CRISIS' };
+  const hdr = `<div class="tl-pop-title" style="color:${typeColors[type]}">${typeLabel[type]}</div>`;
+
+  if (type === 'income') {
+    const oo = ev.type === 'oneoff';
+    const timing = oo
+      ? `<div><label>Age</label>${numIn('atAge', ev.atAge, 'age')}</div>
+         <div><label>Month</label>${mSel('atMonth', ev.atMonth||1)}</div>`
+      : `<div><label>From age</label>${numIn('from', ev.from, 'age')}</div>
+         <div><label>To age</label>${numIn('to', ev.to, 'age')}</div>
+         <div><label>From mo</label>${mSel('fromMonth', ev.fromMonth||1)}</div>
+         <div><label>To mo</label>${mSel('toMonth', ev.toMonth||12)}</div>`;
+    return `${hdr}<div class="tl-pop-grid">
+      <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
+      <div><label>Type</label><select onchange="_tlUpd(${id},'income','type',this.value)">
+        ${['monthly','annual','oneoff'].map(t=>`<option value="${t}" ${ev.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div><label>Amount</label>${numIn(oo?'amount':'monthly', oo?ev.amount:ev.monthly, '$')}</div>
+      ${timing}
+      <div class="tl-pop-full">${enChk}</div>
+    </div>`;
+  }
+
+  if (type === 'expense') {
+    const oo = ev.type === 'oneoff' || ev.type === 'installments';
+    const timing = oo
+      ? `<div><label>Age</label>${numIn('atAge', ev.atAge, 'age')}</div>
+         <div><label>Month</label>${mSel('atMonth', ev.atMonth||1)}</div>`
+      : `<div><label>From age</label>${numIn('from', ev.from, 'age')}</div>
+         <div><label>To age</label>${numIn('to', ev.to, 'age')}</div>
+         <div><label>From mo</label>${mSel('fromMonth', ev.fromMonth||1)}</div>
+         <div><label>To mo</label>${mSel('toMonth', ev.toMonth||12)}</div>`;
+    const installFields = ev.type === 'installments'
+      ? `<div><label># installments</label>${numIn('installN', ev.installN, 'n')}</div>
+         <div><label>Frequency</label><select onchange="_tlUpd(${id},'expense','installFreq',this.value)">
+           ${['monthly','quarterly','semester','annual'].map(f=>`<option value="${f}" ${ev.installFreq===f?'selected':''}>${f}</option>`).join('')}
+         </select></div>` : '';
+    return `${hdr}<div class="tl-pop-grid">
+      <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
+      <div><label>Type</label><select onchange="_tlUpd(${id},'expense','type',this.value)">
+        ${['monthly','annual','oneoff','installments'].map(t=>`<option value="${t}" ${ev.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div><label>Amount</label>${numIn('amount', ev.amount, '$')}</div>
+      ${timing}
+      ${installFields}
+      <div class="tl-pop-full">${enChk}</div>
+    </div>`;
+  }
+
+  if (type === 'property') {
+    return `${hdr}<div class="tl-pop-grid">
+      <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
+      <div><label>Value</label>${numIn('value', ev.value, '$')}</div>
+      <div><label>App rate %</label>${numIn('appRate', ev.appRate??'', 'default')}</div>
+      <div><label>Acquire age</label>${numIn('acquireAge', ev.acquireAge, 'age')}</div>
+      <div><label>Sale age</label>${numIn('saleAge', ev.saleAge, 'age')}</div>
+      <div><label>Rent /mo</label>${numIn('monthlyRent', ev.monthlyRent, '$')}</div>
+      <div><label>Rent from age</label>${numIn('rentFromAge', ev.rentFromAge, 'age')}</div>
+      <div class="tl-pop-full">${chk('hold', ev.hold, 'Hold forever (no sale)')}</div>
+      <div class="tl-pop-full">${enChk}</div>
+    </div>`;
+  }
+
+  if (type === 'crisis') {
+    return `${hdr}<div class="tl-pop-grid">
+      <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
+      <div><label>Age</label>${numIn('age', ev.age, 'age')}</div>
+      <div><label>Drop %</label>${numIn('drop', ev.drop, '%')}</div>
+      <div class="tl-pop-full">${enChk}</div>
+    </div>`;
+  }
+  return '';
 }
 
 // ── Boot ──
@@ -4239,6 +4961,13 @@ function toggleIbkrAuto(on) {
     document.body.dataset.theme = 'graphite';
     const btn = document.getElementById('theme-btn');
     if (btn) btn.style.color = '#e6edf3';
+  }
+  _showTimeline = localStorage.getItem('futuro-timeline') === '1';
+  if (_showTimeline) {
+    const strip = document.getElementById('timeline-strip');
+    const btn   = document.getElementById('timeline-btn');
+    if (strip) strip.style.display = 'block';
+    if (btn)   btn.classList.add('active');
   }
   const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
   const chk = document.getElementById('ibkr-auto-chk');
@@ -4263,7 +4992,28 @@ loadScenarios()
     gastosSync();
   })
   .catch(e => console.error('loadScenarios failed', e));
+
+// Save immediately to localStorage (sync) before page unloads so changes survive a reload.
+// Supabase (async) gets synced on the next load via _applyScenarios → saveActive.
+window.addEventListener('beforeunload', () => {
+  clearTimeout(_saveTimer);
+  try {
+    const payload = JSON.stringify({ scenarios: SCENARIOS.map(sc =>
+      sc.id === activeScenarioId ? { ...sc, data: deepCopy(S) } : sc
+    ), activeId: activeScenarioId, savedAt: new Date().toISOString() });
+    localStorage.setItem(LS_KEY, payload);
+  } catch(e) {}
+});
+
+// Also save when the tab loses visibility (user switches tabs before reloading)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveActive();
+});
 </script>
 
 
+<div id="timeline-popover">
+  <button class="tl-pop-close" onclick="closeTimelinePopover()">✕</button>
+  <div id="tl-pop-content"></div>
+</div>
 </body></html>
