@@ -5322,11 +5322,19 @@ function renderTimeline() {
   const _tlSec = document.getElementById('sec-body-timeline');
   if (_tlSec && _tlSec.style.display === 'none') return;
   const strip = document.getElementById('timeline-strip');
-  const ca = chart.chartArea;
-  if (!ca || !ca.left || ca.left === ca.right) {
-    // Chart area not painted yet — retry on next frame
-    requestAnimationFrame(renderTimeline);
-    return;
+
+  // Derive ca from the chart if it's rendered and visible; else fall back to strip width.
+  // This lets the timeline work even when the Net Worth section is collapsed.
+  const _rawCa = chart.chartArea;
+  const _caValid = _rawCa && (_rawCa.right - _rawCa.left) > 10;
+  let ca;
+  if (_caValid) {
+    ca = _rawCa;
+  } else {
+    // Chart not rendered (section collapsed). Measure from the strip container.
+    const containerW = (strip.parentElement || strip).offsetWidth || 600;
+    const LABEL_W = 72; // fixed left margin for row labels
+    ca = { left: LABEL_W, right: Math.max(200, containerW - 4), top: 0, bottom: 100 };
   }
 
   const ROW_H = 14, ROW_GAP = 2, SEC_GAP = 6, PAD_TOP = 4, PAD_BOT = 4;
@@ -5399,6 +5407,10 @@ function renderTimeline() {
       if (age > sa) return lw;
       return 0;
     }
+    // Linear fallback when chart scales aren't available (chart section collapsed)
+    if (!_caValid || !chart.scales || !chart.scales.x || !chart.data || !chart.data.labels) {
+      return Math.round(Math.max(0, Math.min(1, (age - sa) / Math.max(1, ea - sa))) * lw);
+    }
     const lbs = chart.data.labels;
     let idx = lbs.indexOf(age);
     if (idx < 0) idx = age < lbs[0] ? 0 : lbs.length - 1;
@@ -5408,7 +5420,7 @@ function renderTimeline() {
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
   // ── Vertical age/year lines ──────────────────────────────────
-  if (_chartZoom !== 1) {
+  if (_chartZoom !== 1 && _caValid && chart.data && chart.data.labels) {
     chart.data.labels.forEach(age => {
       const isMajor = (age - sa) % 10 === 0 && age !== sa;
       const isMinor = (age - sa) % 5 === 0 && (age - sa) % 10 !== 0;
