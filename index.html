@@ -200,6 +200,13 @@ input[type=range]::-moz-range-thumb {
   color: #697386; line-height: 16px; white-space: nowrap;
   pointer-events: none;
 }
+.tl-sec-hdr {
+  position: absolute; font-size: 9px; font-weight: 800;
+  font-family: 'SF Mono', Menlo, monospace; letter-spacing: .05em;
+  line-height: 16px; white-space: nowrap;
+  cursor: pointer; user-select: none;
+}
+.tl-sec-hdr:hover { opacity: 0.75; }
 body[data-theme="graphite"] #timeline-strip { background: #21262d; border-color: #30363d; }
 body[data-theme="graphite"] .tl-row-label { color: #6e7681; }
 body[data-theme="graphite"] .tl-age-line { background: rgba(255,255,255,0.08) !important; }
@@ -818,6 +825,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <button class="btn-rm" id="sc-del" onclick="deleteScenario()" title="Delete">×</button>
     </div>
 
+    <!-- NET WORTH collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('chart')">Net Worth<span id="sec-arr-chart" class="sec-chevron">▾</span></div>
+    <div id="sec-body-chart">
+
     <!-- Chart legend -->
     <div style="display:flex;gap:12px;font-size:10px;font-weight:600;margin-bottom:4px;align-items:center;flex-wrap:wrap;">
       <span style="display:flex;align-items:center;gap:4px;">
@@ -865,7 +876,6 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <button id="mc-btn" onclick="triggerMC()" title="Run Montecarlo: 500 random return sequences → success rate" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 2px;font-size:11px;font-weight:700;color:#378ADD;cursor:pointer;letter-spacing:.03em;">Montecarlo</button>
       </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
-      <div id="timeline-strip" style="display:none;"></div>
     </div>
     <!-- Project budget panel (populated by renderProjectBudgets()) -->
     <div style="display:flex;">
@@ -927,6 +937,15 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-radius:0 0 4px 4px;height:90px;padding:2px 4px 0;"><canvas id="expChart"></canvas></div>
       </div>
     </div>
+
+    </div><!-- /sec-body-chart -->
+
+    <!-- TIMELINE collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('timeline')">Timeline<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
+    <div id="sec-body-timeline">
+      <div id="timeline-strip" style="display:none;"></div>
+    </div><!-- /sec-body-timeline -->
+
     <!-- Metric pills -->
     <div style="display:flex;gap:5px;margin:10px 0 8px;align-items:stretch;">
       <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1;min-width:0;"></div>
@@ -5191,7 +5210,7 @@ function expTypeChanged(id, value) {
   go();
 }
 function initSections() {
-  ['outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
+  ['chart','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
     const body = document.getElementById('sec-body-' + key);
     const arr  = document.getElementById('sec-arr-' + key);
@@ -5245,7 +5264,8 @@ function toggleTimeline() {
   const btn   = document.getElementById('timeline-btn');
   strip.style.display = _showTimeline ? 'block' : 'none';
   if (btn) btn.classList.toggle('active', _showTimeline);
-  if (_showTimeline) renderTimeline();
+  // If turning timeline on, make sure the Timeline section is expanded
+  if (_showTimeline) { openSec('timeline'); renderTimeline(); }
   lsSave();
 }
 
@@ -5289,8 +5309,8 @@ function renderTimeline() {
   const addItem = (item, type, a0, a1, color, rentSplit) =>
     allRows.push({ isHeader: false, item, type, a0, a1, color, rentSplit });
 
-  // INC section — explicit incomes only
-  addSec('INC', '#16a34a');
+  // Income section — explicit incomes only
+  addSec('Income', '#16a34a');
   (S.incomes || []).forEach(inc => {
     const oo = inc.type === 'oneoff';
     const a0 = oo ? (inc.atAge || inc.from || sa) : (inc.from || sa);
@@ -5299,8 +5319,8 @@ function renderTimeline() {
   });
   if (!(S.incomes || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
 
-  // EXP section
-  addSec('EXP', '#ef4444');
+  // Expenses section
+  addSec('Expenses', '#ef4444');
   (S.expenses || []).forEach(exp => {
     const oo = exp.type === 'oneoff' || exp.type === 'installments';
     const a0 = oo ? (exp.atAge || exp.from || sa) : (exp.from || sa);
@@ -5309,8 +5329,8 @@ function renderTimeline() {
   });
   if (!(S.expenses || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
 
-  // PROP section — one row per property
-  addSec('PROP', '#2563eb');
+  // Properties section — one row per property
+  addSec('Properties', '#2563eb');
   (S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).forEach(prop => {
     const a0  = prop.acquireAge !== undefined ? prop.acquireAge : sa;
     const a1  = prop.hold ? ea : (prop.saleAge !== undefined ? prop.saleAge : ea);
@@ -5320,8 +5340,8 @@ function renderTimeline() {
   if (!(S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).length)
     allRows.push({ isHeader: false, empty: true, label: '—' });
 
-  // CRISIS section
-  addSec('⚡', '#f59e0b');
+  // Events section
+  addSec('Events', '#f59e0b');
   (S.crises || []).forEach(cr => {
     addItem(cr, 'crisis', cr.age || sa, null, '#f59e0b');
   });
