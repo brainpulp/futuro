@@ -3057,6 +3057,9 @@ const msPlugin = {
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
         ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeText(label, 0, h - 4);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030'; // blue for liquid
         ctx.fillText(label, 0, h - 4);
         ctx.restore();
@@ -3206,6 +3209,9 @@ const msPlugin = {
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
         ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeText(label, 0, h - 4);
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, h - 4);
         ctx.restore();
@@ -3224,13 +3230,18 @@ const msPlugin = {
         ctx.save();
         ctx.translate(xp, yp - h - 4);
         ctx.rotate(angle);
+        ctx.lineJoin = 'round';
         // Main value
         ctx.font = '700 22px SF Mono, Menlo, monospace';
+        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(8,10,18,0.75)';
+        ctx.strokeText(label, 0, mainH - 3);
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, mainH - 3);
         // Sub label: "tot · liq $Xm"
         ctx.font = '500 10px SF Mono, Menlo, monospace';
-        ctx.fillStyle = 'rgba(80,80,80,0.7)';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,10,18,0.65)';
+        ctx.strokeText(subLabel, 0, h - 3);
+        ctx.fillStyle = 'rgba(210,220,240,0.8)';
         ctx.fillText(subLabel, 0, h - 3);
         ctx.restore();
       }
@@ -3253,6 +3264,9 @@ const msPlugin = {
         const h = 18;
         ctx.translate(xp, lyp + 4);
         ctx.rotate(angle);
+        ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeText(label, 0, h - 4);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
         ctx.fillText(label, 0, h - 4);
       } else {
@@ -3260,6 +3274,9 @@ const msPlugin = {
         const h = 16;
         ctx.translate(xp, lyp + 4);
         ctx.rotate(angle);
+        ctx.lineJoin = 'round'; ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(8,10,18,0.75)';
+        ctx.strokeText(label, 0, h - 2);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
         ctx.fillText(label, 0, h - 2);
       }
