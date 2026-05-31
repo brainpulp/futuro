@@ -2391,6 +2391,17 @@ function getYield(age) {
 
 function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
+
+  // Precompute effective installTotal per expense:
+  // budget minus what's already been spent in Gastos → only project the remainder
+  const _effInstall = {};
+  S.expenses.forEach(e => {
+    if (e.type !== 'installments') return;
+    const raw = e.installTotal || 0;
+    const gc  = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
+    const spent = gc ? _projActual(gc) : 0;
+    _effInstall[e.id] = Math.max(0, raw - spent);
+  });
   const inf = S.inflationRate / 100;
   const _curMo = new Date().getMonth() + 1;          // hoist: used in both loops
   const _partFrac = (12 - _curMo) / 12;              // fraction of year sa already in partial loop
@@ -2402,7 +2413,7 @@ function runSim(monthlyOverride) {
     if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1) liq -= e.amount;
     if (e.type === 'installments' && (e.atAge||e.from||sa) === sa) {
       const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
-      liq -= Math.min(ppy, e.installN||1) * ((e.installTotal||0) / (e.installN||1));
+      liq -= Math.min(ppy, e.installN||1) * ((_effInstall[e.id]||0) / (e.installN||1));
     }
   });
 
@@ -2561,7 +2572,7 @@ function runSim(monthlyOverride) {
             const moInYear = ((age - start) * 12 + (mo - 1));
             const moPerInst = 12 / ppy;
             if (remain > 0 && moInYear % moPerInst === 0 && age >= start) {
-              exp += (e.installTotal||0) / (e.installN||1);
+              exp += (_effInstall[e.id]||0) / (e.installN||1);
             }
           }
         }
@@ -4208,26 +4219,19 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
   <label class="lbl">Description</label>
   <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
   <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
-  <div style="display:flex;gap:6px;align-items:center;">
-    <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}"
-      style="flex:1;" onclick="event.stopPropagation()"
-      oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
-    <span style="font-size:10px;color:rgba(255,255,255,0.4);white-space:nowrap;">since</span>
-    <input type="month" value="${e.gastosStartYM||_TODAY_YM}"
-      style="width:120px;font-size:11px;" onclick="event.stopPropagation()"
-      onchange="upE(${e.id},'gastosStartYM',this.value);renderProjectBudgets()">
-  </div>
+  <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}"
+    style="width:100%;" onclick="event.stopPropagation()"
+    oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
   ${(()=>{
     const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
     const pa = gc && _projectActuals[gc];
     if (!pa) return '';
-    const startYM = e.gastosStartYM || _TODAY_YM;
-    const budget  = _projBudget(e);
-    const actual  = _projActual(gc, startYM);
-    const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
-    const color   = _projColor(pct);
+    const budget = _projBudget(e);
+    const actual = _projActual(gc);
+    const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+    const color  = _projColor(pct);
     return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
-    <div class="proj-inline-label">${fmtM(actual)} spent since ${_fmtYM(startYM)}${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
+    <div class="proj-inline-label">${fmtM(actual)} spent · ${budget>0?fmtM(Math.max(0,budget-actual))+' remaining ('+pct+'%)':'no budget set'}</div>`;
   })()}
 </div>`:''}`;
 }
@@ -5124,12 +5128,10 @@ function _projColor(pct) {
 }
 
 // Sum actual spend for a Gastos category from startYM onwards (forward-looking)
-function _projActual(cat, startYM) {
+function _projActual(cat) {
   const pa = _projectActuals[cat];
   if (!pa || !pa.byMonth) return 0;
-  return Object.entries(pa.byMonth)
-    .filter(([ym]) => ym >= startYM)
-    .reduce((s, [, v]) => s + v, 0);
+  return Object.values(pa.byMonth).reduce((s, v) => s + v, 0);
 }
 
 // Format YYYY-MM as "May 2026"
@@ -5153,12 +5155,9 @@ function renderProjectBudgets() {
   // Group budgets by category key; track earliest startYM across linked items
   const byProj = {};
   allItems.forEach(item => {
-    const key     = item.gastosCategory.trim().toLowerCase();
-    const startYM = item.gastosStartYM || _TODAY_YM;
-    if (!byProj[key]) byProj[key] = { budget: 0, startYM };
-    byProj[key].budget  += _projBudget(item);
-    // Use earliest start date so we capture all forward-looking spend
-    if (startYM < byProj[key].startYM) byProj[key].startYM = startYM;
+    const key = item.gastosCategory.trim().toLowerCase();
+    if (!byProj[key]) byProj[key] = { budget: 0 };
+    byProj[key].budget += _projBudget(item);
   });
 
   const keys = Object.keys(byProj);
@@ -5172,17 +5171,16 @@ function renderProjectBudgets() {
   if (arrow) arrow.textContent = open ? '▾' : '▸';
 
   body.innerHTML = keys.sort().map(key => {
-    const { budget, startYM } = byProj[key];
-    const actual  = _projActual(key, startYM);
+    const { budget } = byProj[key];
+    const actual  = _projActual(key);
     const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
     const color   = _projColor(pct);
     const flag    = pct >= 90 ? ' 🚨' : pct >= 70 ? ' ⚠' : '';
-    const sinceLabel = `<span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:4px;">since ${_fmtYM(startYM)}</span>`;
     const label   = budget > 0
       ? `${fmtM(actual)} / ${fmtM(budget)}`
       : `${fmtM(actual)} spent`;
     return `<div class="proj-row">
-      <div class="proj-name">${key}${flag}${sinceLabel}</div>
+      <div class="proj-name">${key}${flag}</div>
       <div class="proj-amounts">${label}</div>
       <div class="proj-bar-wrap">
         <div class="proj-bar-fill" style="width:${pct}%;background:${color};"></div>
