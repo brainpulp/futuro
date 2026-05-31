@@ -600,17 +600,31 @@ select.spy-preset-sel {
 /* ── MAIN SECTION TITLES ────────────────────────────────── */
 .main-section-title {
   font-size: 24px; font-weight: 800; color: #1a1f36;
-  letter-spacing: -.03em; margin: 6px 0 4px; padding: 0;
+  letter-spacing: -.03em; margin: 6px 0 4px; padding: 2px 4px;
   display: flex; align-items: center; gap: 8px; line-height: 1.1;
-  border: none; background: none;
+  border: none; background: none; border-radius: 6px;
+  transition: background 0.12s;
 }
+.main-section-title[onclick]:hover { background: rgba(0,0,0,0.04); }
+body[data-theme="graphite"] .main-section-title { color: #e6edf3; }
+body[data-theme="graphite"] .main-section-title[onclick]:hover { background: rgba(255,255,255,0.06); }
 /* ── FREQUENCY GROUP HEADERS ────────────────────────────── */
 .freq-title {
   font-size: 16px; font-weight: 800; color: #1a1f36;
-  letter-spacing: -.02em; margin: 8px 0 3px;
+  letter-spacing: -.02em; margin: 8px 0 3px; padding: 2px 5px;
   display: flex; align-items: center; gap: 6px;
-  text-transform: none;
+  text-transform: none; border-radius: 5px; transition: background 0.12s;
 }
+.freq-title[onclick]:hover { background: rgba(0,0,0,0.04); }
+body[data-theme="graphite"] .freq-title { color: #c9d1d9; }
+body[data-theme="graphite"] .freq-title[onclick]:hover { background: rgba(255,255,255,0.06); }
+/* ── SECTION CHEVRON ────────────────────────────────────── */
+.sec-chevron {
+  font-size: 13px; opacity: 0.35; flex-shrink: 0;
+  transition: opacity 0.12s; user-select: none;
+}
+.main-section-title[onclick]:hover .sec-chevron,
+.freq-title[onclick]:hover .sec-chevron { opacity: 0.7; }
 /* ── EXPAND ARROW ───────────────────────────────────────── */
 .expand-arr {
   font-size: 9px; color: #c1cad4; flex-shrink: 0; width: 10px;
@@ -727,8 +741,7 @@ body[data-theme="graphite"] .sec-band.spy { background: #1a1000; color: #d97706;
 body[data-theme="graphite"] .spy-preset-bar { background: #161b22; border-color: #30363d; }
 body[data-theme="graphite"] select.spy-preset-sel { border-color: #30363d; }
 body[data-theme="graphite"] .secondary-sliders { border-color: #21262d; }
-body[data-theme="graphite"] .main-section-title { color: #e6edf3; }
-body[data-theme="graphite"] .freq-title { color: #e6edf3; }
+body[data-theme="graphite"] .freq-title { color: #c9d1d9; }
 body[data-theme="graphite"] .expand-arr { color: #6e7681; }
 body[data-theme="graphite"] .item-row:hover .expand-arr { color: #8b949e; }
 body[data-theme="graphite"] .monthly-base-ctrl { background: #1c1400; border-color: rgba(240,136,62,.2); }
@@ -827,7 +840,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         </span>
         <span style="display:flex;align-items:center;gap:4px;">
           <span style="width:12px;height:0;border-top:2px dashed rgba(140,80,200,0.7);display:inline-block;"></span>
-          Monthly exp · drag to edit · dbl-click to reset
+          Monthly expenses · drag to edit · dbl-click to reset
         </span>
       </span>
     </div>
@@ -929,13 +942,13 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <!-- ── COL 1: OUTGOING ────────────────────────────────────── -->
       <div>
         <div id="sec-band-outgoing" class="main-section-title" onclick="toggleSec('outgoing')" style="cursor:pointer;">
-          <span id="sec-arr-outgoing" style="font-size:10px;margin-right:4px;opacity:0.6;">▾</span>Outgoing
+          <span id="sec-arr-outgoing" class="sec-chevron">▾</span>Outgoing
           <button class="btn-add" onclick="event.stopPropagation();addE()" title="Add expense" style="width:26px;height:26px;font-size:20px;">+</button>
         </div>
         <div id="sec-body-outgoing">
 
         <!-- Monthly sub-section -->
-        <div class="freq-title" onclick="toggleSec('exp-monthly')" style="cursor:pointer;"><span id="sec-arr-exp-monthly" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>Monthly <span id="exp-monthly-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" onclick="toggleSec('exp-monthly')" style="cursor:pointer;"><span id="sec-arr-exp-monthly" class="sec-chevron">▾</span>Monthly <span id="exp-monthly-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-exp-monthly">
         <div class="monthly-base-ctrl">
           <span style="font-size:11px;font-weight:700;color:rgba(100,50,160,0.7);white-space:nowrap;flex-shrink:0;">Base /mo</span>
@@ -962,13 +975,13 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         </div><!-- /sec-body-exp-monthly -->
 
         <!-- One-off sub-section -->
-        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('exp-oneoff')"><span id="sec-arr-exp-oneoff" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>One-off <span id="exp-oneoff-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('exp-oneoff')"><span id="sec-arr-exp-oneoff" class="sec-chevron">▾</span>One-off <span id="exp-oneoff-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-exp-oneoff">
         <div id="exp-oneoff-list"></div>
         </div><!-- /sec-body-exp-oneoff -->
 
         <!-- Yearly sub-section -->
-        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('exp-yearly')"><span id="sec-arr-exp-yearly" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>Yearly <span id="exp-yearly-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('exp-yearly')"><span id="sec-arr-exp-yearly" class="sec-chevron">▾</span>Yearly <span id="exp-yearly-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-exp-yearly">
         <div style="margin-bottom:4px;">
           <div class="item-row ora" style="cursor:default;">
@@ -991,28 +1004,28 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <!-- ── COL 2: INCOMING + ASSETS ──────────────────────────── -->
       <div>
         <div id="sec-band-income" class="main-section-title" onclick="toggleSec('incoming')" style="cursor:pointer;">
-          <span id="sec-arr-incoming" style="font-size:10px;margin-right:4px;opacity:0.6;">▾</span>Incoming
+          <span id="sec-arr-incoming" class="sec-chevron">▾</span>Incoming
           <button class="btn-add" onclick="event.stopPropagation();addI()" title="Add income" style="width:26px;height:26px;font-size:20px;">+</button>
         </div>
         <div id="sec-body-incoming">
 
         <!-- Monthly sub-section -->
-        <div class="freq-title" onclick="toggleSec('inc-monthly')" style="cursor:pointer;"><span id="sec-arr-inc-monthly" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>Monthly <span id="inc-monthly-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" onclick="toggleSec('inc-monthly')" style="cursor:pointer;"><span id="sec-arr-inc-monthly" class="sec-chevron">▾</span>Monthly <span id="inc-monthly-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-inc-monthly"><div id="inc-monthly-list"></div></div>
 
         <!-- Yearly sub-section -->
-        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('inc-yearly')"><span id="sec-arr-inc-yearly" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>Yearly <span id="inc-yearly-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('inc-yearly')"><span id="sec-arr-inc-yearly" class="sec-chevron">▾</span>Yearly <span id="inc-yearly-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-inc-yearly"><div id="inc-yearly-list"></div></div>
 
         <!-- One-off sub-section -->
-        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('inc-oneoff')"><span id="sec-arr-inc-oneoff" style="font-size:9px;opacity:0.5;margin-right:3px;">▾</span>One-off <span id="inc-oneoff-total" style="opacity:0.5;"></span></div>
+        <div class="freq-title" style="margin-top:8px;cursor:pointer;" onclick="toggleSec('inc-oneoff')"><span id="sec-arr-inc-oneoff" class="sec-chevron">▾</span>One-off <span id="inc-oneoff-total" style="opacity:0.5;"></span></div>
         <div id="sec-body-inc-oneoff"><div id="inc-oneoff-list"></div></div>
 
         </div><!-- /sec-body-incoming -->
 
         <div class="sep"></div>
         <div id="sec-band-realestate" class="main-section-title" onclick="toggleSec('assets')" style="cursor:pointer;">
-          <span id="sec-arr-assets" style="font-size:10px;margin-right:4px;opacity:0.6;">▾</span>Assets <span id="assets-total" style="opacity:0.5;"></span>
+          <span id="sec-arr-assets" class="sec-chevron">▾</span>Assets <span id="assets-total" style="opacity:0.5;"></span>
           <button class="btn-add" onclick="event.stopPropagation();addP()" title="Add property" style="width:26px;height:26px;font-size:20px;">+</button>
         </div>
         <div id="sec-body-assets">
@@ -1023,10 +1036,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <div style="display:flex;gap:4px;padding:0 2px 2px;font-size:9px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
           <span style="flex:1;min-width:0;visibility:hidden;">name</span>
           <span style="width:88px;text-align:right;">value</span>
-          <span style="width:88px;text-align:right;">rent/mo</span>
-          <span style="width:44px;text-align:center;">own fr.</span>
-          <span style="width:44px;text-align:center;">rent fr.</span>
-          <span style="width:44px;text-align:center;">sell at</span>
+          <span style="width:88px;text-align:right;">rent/month</span>
+          <span style="width:44px;text-align:center;">owned</span>
+          <span style="width:44px;text-align:center;">rented</span>
+          <span style="width:44px;text-align:center;">sell</span>
           <span style="width:100px;"></span>
         </div>
         <div id="props-list"></div>
