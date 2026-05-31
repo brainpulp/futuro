@@ -4128,7 +4128,7 @@ function renderExpItem(e, i) {
     onblur="moneyBlur(this)"
     onchange="event.stopPropagation();upE(${e.id},'${amtField}',parseNum(this.value));go()"
     onclick="event.stopPropagation()">
-  <select class="iselect" onchange="event.stopPropagation();upE(${e.id},'type',this.value);(this.value==='installments'||this.value==='annual')?openSec('exp-yearly'):this.value==='oneoff'?openSec('exp-oneoff'):openSec('exp-monthly');renderExp();go();" onclick="event.stopPropagation()">
+  <select class="iselect" onchange="event.stopPropagation();expTypeChanged(${e.id},this.value);" onclick="event.stopPropagation()">
     <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
     <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
     <option value="oneoff"${e.type==='oneoff'?' selected':''}>One-off</option>
@@ -5158,13 +5158,23 @@ function toggleSec(key) {
   localStorage.setItem('futuro-sec-' + key, open ? '0' : '1');
 }
 function openSec(key) {
-  // Force-expand a section (e.g. when an item is moved there by type change)
+  // Force-expand a section
   const body = document.getElementById('sec-body-' + key);
   const arr  = document.getElementById('sec-arr-' + key);
-  if (!body || body.style.display !== 'none') return;
+  if (!body) return;
   body.style.display = '';
   if (arr) arr.textContent = '▾';
   localStorage.setItem('futuro-sec-' + key, '1');
+}
+function expTypeChanged(id, value) {
+  upE(id, 'type', value);
+  // Always open the outgoing parent + the correct sub-section so item never vanishes
+  openSec('outgoing');
+  if (value === 'installments' || value === 'annual') openSec('exp-yearly');
+  else if (value === 'oneoff') openSec('exp-oneoff');
+  else openSec('exp-monthly');
+  renderExp();
+  go();
 }
 function initSections() {
   ['outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
