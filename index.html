@@ -4913,14 +4913,60 @@ function renderTimeline() {
   const ca = chart.chartArea;
   if (!ca) return;
 
-  const ROW_H = 18, ROW_GAP = 4, PAD_TOP = 6, PAD_BOT = 6;
-  const ROWS = [
-    { key: 'income',   label: 'INC',  color: '#2a6e47' },
-    { key: 'expense',  label: 'EXP',  color: '#6e2a2a' },
-    { key: 'property', label: 'PROP', color: '#2a416e' },
-    { key: 'crisis',   label: '⚡',   color: '#6e5e1a' },
-  ];
-  const totalH = PAD_TOP + ROWS.length * (ROW_H + ROW_GAP) - ROW_GAP + PAD_BOT;
+  const ROW_H = 14, ROW_GAP = 2, SEC_GAP = 6, PAD_TOP = 4, PAD_BOT = 4;
+
+  // Build flat list of rows: { label, type, item, color, a0, a1, isHeader }
+  const sa = S.startAge || 57;
+  const ea  = S.endAge || 87;
+
+  const allRows = [];
+  const addSec = (label, color) =>
+    allRows.push({ isHeader: true, label, color });
+  const addItem = (item, type, a0, a1, color, rentSplit) =>
+    allRows.push({ isHeader: false, item, type, a0, a1, color, rentSplit });
+
+  // INC section — explicit incomes only
+  addSec('INC', '#16a34a');
+  (S.incomes || []).forEach(inc => {
+    const oo = inc.type === 'oneoff';
+    const a0 = oo ? (inc.atAge || inc.from || sa) : (inc.from || sa);
+    const a1 = oo ? null : (inc.to || ea);
+    addItem(inc, 'income', a0, a1, '#16a34a');
+  });
+  if (!(S.incomes || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
+
+  // EXP section
+  addSec('EXP', '#ef4444');
+  (S.expenses || []).forEach(exp => {
+    const oo = exp.type === 'oneoff' || exp.type === 'installments';
+    const a0 = oo ? (exp.atAge || exp.from || sa) : (exp.from || sa);
+    const a1 = oo ? null : (exp.to || ea);
+    addItem(exp, 'expense', a0, a1, '#ef4444');
+  });
+  if (!(S.expenses || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
+
+  // PROP section — one row per property
+  addSec('PROP', '#2563eb');
+  (S.properties || []).filter(p => p.enabled !== false).forEach(prop => {
+    const a0  = prop.acquireAge !== undefined ? prop.acquireAge : sa;
+    const a1  = prop.hold ? ea : (prop.saleAge !== undefined ? prop.saleAge : ea);
+    const ra  = prop.monthlyRent > 0 ? (prop.rentFromAge !== undefined ? prop.rentFromAge : a0) : null;
+    const color = prop.monthlyRent > 0 ? '#2563eb' : '#93c5fd';
+    addItem(prop, 'property', a0, a1, color, ra !== null && ra > a0 ? { splitAt: ra } : null);
+  });
+  if (!(S.properties || []).filter(p => p.enabled !== false).length)
+    allRows.push({ isHeader: false, empty: true, label: '—' });
+
+  // CRISIS section
+  addSec('⚡', '#f59e0b');
+  (S.crises || []).forEach(cr => {
+    addItem(cr, 'crisis', cr.age || sa, null, '#f59e0b');
+  });
+  if (!(S.crises || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
+
+  // Compute total height
+  let totalH = PAD_TOP + PAD_BOT;
+  allRows.forEach(r => { totalH += r.isHeader ? 12 + SEC_GAP : ROW_H + ROW_GAP; });
   strip.style.height = totalH + 'px';
 
   // Rebuild inner
@@ -4930,18 +4976,7 @@ function renderTimeline() {
   inner.style.cssText = `position:relative; height:${totalH}px; margin-left:${ca.left}px; width:${ca.right - ca.left}px;`;
   strip.appendChild(inner);
 
-  // Row labels in the left margin
-  ROWS.forEach((row, ri) => {
-    const lbl = document.createElement('div');
-    lbl.className = 'tl-row-label';
-    lbl.textContent = row.label;
-    lbl.style.cssText = `position:absolute; left:${-ca.left + 4}px; top:${PAD_TOP + ri * (ROW_H + ROW_GAP)}px;`;
-    inner.appendChild(lbl);
-  });
-
-  const sa = S.startAge || 57;
-  const ea = _chartZoom === 1 ? sa : (S.endAge || 87);
-  const viewEa = _chartZoom === 1 ? sa : Math.min(S.endAge || 87, sa + _chartZoom);
+  const viewEa = _chartZoom === 1 ? sa : Math.min(ea, sa + _chartZoom);
   const lw = ca.right - ca.left;
 
   function xFor(age) {
@@ -4959,8 +4994,7 @@ function renderTimeline() {
 
   // ── Vertical age/year lines ──────────────────────────────────
   if (_chartZoom !== 1) {
-    const lbs = chart.data.labels;
-    lbs.forEach(age => {
+    chart.data.labels.forEach(age => {
       const isMajor = (age - sa) % 10 === 0 && age !== sa;
       const isMinor = (age - sa) % 5 === 0 && (age - sa) % 10 !== 0;
       if (!isMajor && !isMinor) return;
@@ -4968,119 +5002,81 @@ function renderTimeline() {
       if (xp <= 0 || xp >= lw) return;
       const vline = document.createElement('div');
       vline.className = 'tl-age-line';
-      vline.style.cssText = `position:absolute;left:${xp}px;top:0;bottom:0;width:${isMajor?1.5:1}px;background:rgba(0,0,0,${isMajor?0.14:0.07});pointer-events:none;`;
+      vline.style.cssText = `position:absolute;left:${xp}px;top:0;bottom:0;width:${isMajor?1.5:1}px;background:rgba(0,0,0,${isMajor?0.13:0.06});pointer-events:none;`;
       inner.appendChild(vline);
-      const ageLbl = document.createElement('div');
-      ageLbl.className = 'tl-age-lbl';
-      ageLbl.textContent = _yearMode ? ageToYear(age) : age;
-      ageLbl.style.cssText = `position:absolute;left:${xp+2}px;bottom:2px;font-size:8px;font-family:'SF Mono',Menlo,monospace;color:rgba(0,0,0,0.28);pointer-events:none;white-space:nowrap;`;
-      inner.appendChild(ageLbl);
     });
   }
 
-  function addChip(ev, type, rowIdx, x0, x1, color, tooltip) {
-    const enabled = ev.enabled !== false;
-    const isBar = x1 !== null && x1 - x0 > 2;
-    const barW = isBar ? clamp(x1 - x0, 4, lw - x0) : null;
-    const chipW = isBar ? barW : 7;
-    const rowY = PAD_TOP + rowIdx * (ROW_H + ROW_GAP);
+  // ── Render all rows ──────────────────────────────────────────
+  let curY = PAD_TOP;
 
-    const el = document.createElement('div');
-    el.className = 'tl-chip';
-    el.title = tooltip || ev.name || type;
-    el.style.cssText = [
-      `left:${clamp(x0, 0, lw - 4)}px`,
-      `top:${rowY}px`,
-      `width:${chipW}px`,
-      `background:${color}`,
-      `opacity:${enabled ? 1 : 0.35}`,
-      isBar ? '' : 'border-radius:50%',
-    ].filter(Boolean).join(';');
-
-    if (isBar && barW > 22) {
-      el.textContent = (ev.name || '').slice(0, Math.max(1, Math.floor((barW - 8) / 7)));
+  allRows.forEach(row => {
+    if (row.isHeader) {
+      // Section header label in left margin
+      const lbl = document.createElement('div');
+      lbl.className = 'tl-row-label';
+      lbl.textContent = row.label;
+      lbl.style.cssText = `position:absolute;left:${-ca.left+4}px;top:${curY}px;font-size:9px;font-weight:800;color:${row.color};`;
+      inner.appendChild(lbl);
+      curY += 12 + SEC_GAP;
+      return;
     }
 
-    el.addEventListener('click', e => { e.stopPropagation(); openTimelinePopover(ev, type, el); });
-    inner.appendChild(el);
-  }
+    if (row.empty) {
+      curY += ROW_H + ROW_GAP;
+      return;
+    }
 
-  // ── Incomes (explicit income items) ──
-  (S.incomes || []).forEach(inc => {
-    const oo = inc.type === 'oneoff';
-    const a0 = oo ? (inc.atAge || inc.from || sa) : (inc.from || sa);
-    const a1 = oo ? null : (inc.to || ea);
-    if (a0 > viewEa) return;
-    const x0 = xFor(a0);
-    const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
-    const ttip = `${inc.name||'Income'}: $${(inc.monthly||inc.amount||0).toLocaleString()}${oo?'':`/mo · age ${a0}–${a1}`}`;
-    addChip(inc, 'income', 0, x0, x1, '#16a34a', ttip);
-  });
+    const { item, type, a0, a1, color, rentSplit } = row;
+    if (a0 > viewEa) { curY += ROW_H + ROW_GAP; return; }
 
-  // ── Rental income from properties (shown in INC row) ──
-  (S.properties || []).forEach(prop => {
-    if (prop.enabled === false || !(prop.monthlyRent > 0)) return;
-    const a0 = prop.rentFromAge || prop.acquireAge || sa;
-    const a1 = prop.hold ? ea : (prop.saleAge || ea);
-    if (a0 > viewEa) return;
-    const x0 = xFor(a0);
-    const x1 = Math.min(xFor(a1), lw);
-    if (x1 - x0 < 2) return;
-    const ttip = `${prop.name} rent: $${prop.monthlyRent.toLocaleString()}/mo · age ${a0}–${prop.hold?'∞':a1}`;
-    addChip(prop, 'income', 0, x0, x1, '#86efac', ttip); // lighter green — rental income
-  });
+    const enabled = item.enabled !== false;
+    const xA0 = xFor(a0);
+    const xA1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
+    const isBar = xA1 !== null && xA1 - xA0 > 2;
+    const rowY = curY;
+    curY += ROW_H + ROW_GAP;
 
-  // ── Expenses ──
-  (S.expenses || []).forEach(exp => {
-    const oo = exp.type === 'oneoff' || exp.type === 'installments';
-    const a0 = oo ? (exp.atAge || exp.from || sa) : (exp.from || sa);
-    const a1 = oo ? null : (exp.to || ea);
-    if (a0 > viewEa) return;
-    const x0 = xFor(a0);
-    const x1 = a1 !== null ? Math.min(xFor(a1), lw) : null;
-    const ttip = `${exp.name||'Expense'}: $${(exp.amount||0).toLocaleString()}${oo?' (one-off)':'/mo'}`;
-    addChip(exp, 'expense', 1, x0, x1, '#ef4444', ttip);
-  });
+    // Row label in left margin
+    const nameLbl = document.createElement('div');
+    nameLbl.style.cssText = `position:absolute;left:${-ca.left+4}px;top:${rowY+1}px;font-size:8px;font-weight:600;color:#8792a2;white-space:nowrap;overflow:hidden;max-width:${ca.left-8}px;pointer-events:none;`;
+    nameLbl.textContent = item.name || '';
+    inner.appendChild(nameLbl);
 
-  // ── Properties ──────────────────────────────────────────────
-  // Show two distinct segments when rentFromAge > acquireAge:
-  //   [acquireAge → rentFromAge) = owned, not renting (muted)
-  //   [rentFromAge → saleAge]    = owned + renting (saturated)
-  // If no rent or rent starts at acquire, single bar.
-  (S.properties || []).forEach(prop => {
-    if (prop.enabled === false) return;
-    const a0   = prop.acquireAge !== undefined ? prop.acquireAge : sa;
-    const a1   = prop.hold ? ea : (prop.saleAge !== undefined ? prop.saleAge : ea);
-    const rent = prop.monthlyRent > 0;
-    const ra   = rent ? (prop.rentFromAge !== undefined ? prop.rentFromAge : a0) : null;
-    if (a0 > viewEa) return;
+    function drawBar(x0, x1, col, tip) {
+      const isB = x1 !== null && x1 - x0 > 2;
+      const w   = isB ? clamp(x1 - x0, 4, lw - x0) : ROW_H * 0.6;
+      const el  = document.createElement('div');
+      el.className = 'tl-chip';
+      el.title = tip;
+      el.style.cssText = [
+        `left:${clamp(x0, 0, lw-4)}px`,
+        `top:${rowY + 1}px`,
+        `width:${w}px`,
+        `height:${ROW_H - 2}px`,
+        `background:${col}`,
+        `opacity:${enabled ? 1 : 0.35}`,
+        isB ? `border-radius:3px` : `border-radius:50%`,
+      ].join(';');
+      if (isB && w > 24) el.textContent = (item.name || '').slice(0, Math.max(1, Math.floor((w-8)/7)));
+      el.addEventListener('click', e => { e.stopPropagation(); openTimelinePopover(item, type, el); });
+      inner.appendChild(el);
+    }
 
-    const ttipBase = `${prop.name}: $${(prop.value||0).toLocaleString()} · ${prop.hold?'hold forever':`sell age ${a1}`}`;
+    // Build tooltip
+    let tip = item.name || type;
+    if (type === 'income')   tip = `${item.name}: $${(item.monthly||item.amount||0).toLocaleString()}${a1?`/mo · age ${a0}–${a1}`:''}`;
+    if (type === 'expense')  tip = `${item.name}: $${(item.amount||0).toLocaleString()}${isBar?`/mo · age ${a0}–${a1}`:' (one-off)'}`;
+    if (type === 'property') tip = `${item.name}: $${(item.value||0).toLocaleString()} · ${item.hold?'hold':('sell '+a1)}${item.monthlyRent>0?` · $${item.monthlyRent.toLocaleString()}/mo rent`:''}`;
+    if (type === 'crisis')   tip = `${item.name||'Crisis'}: −${item.drop||0}% at age ${a0}`;
 
-    if (rent && ra > a0) {
-      // Pre-rent segment: lighter blue
-      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(ra), lw), '#93c5fd',
-        ttipBase + ` (no rent until age ${ra})`);
-      // Renting segment: saturated blue
-      addChip(prop, 'property', 2, xFor(ra), Math.min(xFor(a1), lw), '#2563eb',
-        ttipBase + ` + $${prop.monthlyRent.toLocaleString()}/mo rent from age ${ra}`);
-    } else if (rent) {
-      // Renting from acquire — saturated blue
-      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(a1), lw), '#2563eb',
-        ttipBase + ` + $${prop.monthlyRent.toLocaleString()}/mo rent`);
+    if (isBar && rentSplit) {
+      // Two segments: pre-rent (light) + renting (saturated)
+      drawBar(xA0, Math.min(xFor(rentSplit.splitAt), lw), '#93c5fd', tip + ` (no rent before age ${rentSplit.splitAt})`);
+      drawBar(xFor(rentSplit.splitAt), xA1, color, tip);
     } else {
-      // No rent — muted blue
-      addChip(prop, 'property', 2, xFor(a0), Math.min(xFor(a1), lw), '#60a5fa', ttipBase);
+      drawBar(xA0, xA1, color, tip);
     }
-  });
-
-  // ── Crises ──
-  (S.crises || []).forEach(crisis => {
-    const a0 = crisis.age || sa;
-    if (a0 > viewEa || a0 < sa) return;
-    const x0 = xFor(a0);
-    const ttip = `${crisis.name||'Crisis'}: −${crisis.drop||0}% at age ${a0}`;
-    addChip(crisis, 'crisis', 3, x0, null, '#f59e0b', ttip);
   });
 }
 
