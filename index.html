@@ -1531,8 +1531,9 @@ let _onelineCallLog = []; // timestamps of recent one-liner calls
 let _onelinePauseUntil = 0;
 let _yearMode = false;
 let _gastosActuals = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
-let _mcResult  = null;  // last Monte Carlo result; null = not run, .stale = outdated
-let _mcRunning = false;
+let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
+let _mcRunning  = false;
+let _mcAutoTimer = null; // debounce handle for auto-rerun
 
 // ── Expense propagation: drag sets new baseline, all future ages re-inflated from dragged value ──
 function applyExpenseCeiling(fromAge, val) {
@@ -3681,6 +3682,12 @@ function go() {
   window._lastRCData = data;
   renderRC(data);
   if (_showTimeline) requestAnimationFrame(renderTimeline); // after chart paints
+
+  // Auto-rerun Montecarlo (debounced) whenever params change and MC was previously run
+  if (_mcResult !== null && !_mcRunning) {
+    clearTimeout(_mcAutoTimer);
+    _mcAutoTimer = setTimeout(() => { if (_mcResult !== null) triggerMC(); }, 1200);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════

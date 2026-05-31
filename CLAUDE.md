@@ -1,5 +1,9 @@
 # Futuro — Handoff
 
+## Code review
+**ALWAYS run the `check-futuro` skill before committing.** It is at `.claude/skills/check-futuro/SKILL.md`.
+Invoke it by reading that file and following every check listed. Fix all 🔴 CRITICAL findings before pushing.
+
 ## What it is
 Single-file HTML/JS retirement net-worth projector. No build step.
 Deployed to GitHub Pages: https://brainpulp.github.io/futuro/
