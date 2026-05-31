@@ -826,8 +826,8 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     </div>
 
     <!-- NET WORTH collapsible section -->
-    <div class="main-section-title" onclick="toggleSec('chart')">Net Worth<span id="sec-arr-chart" class="sec-chevron">▾</span></div>
-    <div id="sec-body-chart">
+    <div class="main-section-title" onclick="toggleSec('chart-nw')">Net Worth<span id="sec-arr-chart-nw" class="sec-chevron">▾</span></div>
+    <div id="sec-body-chart-nw">
 
     <!-- Chart legend -->
     <div style="display:flex;gap:12px;font-size:10px;font-weight:600;margin-bottom:4px;align-items:center;flex-wrap:wrap;">
@@ -891,6 +891,13 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <div id="projects-panel-body"></div>
     </div>
     </div><!-- /projects flex wrapper -->
+
+    </div><!-- /sec-body-chart-nw -->
+
+    <!-- MARKET collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('chart-market')">Market<span id="sec-arr-chart-market" class="sec-chevron">▾</span></div>
+    <div id="sec-body-chart-market">
+
     <!-- SPY preset selector -->
     <div class="spy-preset-bar">
       <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Market Scenario</span>
@@ -916,6 +923,13 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-bottom:none;border-radius:0;height:90px;padding:2px 4px 0;"><canvas id="spyChart"></canvas></div>
       </div>
     </div>
+
+    </div><!-- /sec-body-chart-market -->
+
+    <!-- MONTHLY EXPENSES CHART collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('chart-exp')">Monthly Expenses<span id="sec-arr-chart-exp" class="sec-chevron">▾</span></div>
+    <div id="sec-body-chart-exp">
+
     <!-- Expense sub-chart -->
     <div style="position:relative;padding-top:18px;margin-bottom:10px;">
       <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(100,50,160,0.5);pointer-events:none;">Monthly Expenses &nbsp;<span id="exp-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
@@ -938,7 +952,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
     </div>
 
-    </div><!-- /sec-body-chart -->
+    </div><!-- /sec-body-chart-exp -->
 
     <!-- TIMELINE collapsible section -->
     <div class="main-section-title" onclick="toggleSec('timeline')">Timeline<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
@@ -1024,6 +1038,13 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         </div>
         <div id="exp-yearly-list"></div>
         </div><!-- /sec-body-exp-yearly -->
+
+        <!-- Installments sub-section -->
+        <div class="freq-title" onclick="toggleSec('exp-installments')">Installments <span id="exp-installments-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-exp-installments" class="sec-chevron">▾</span></div>
+        <div id="sec-body-exp-installments">
+        <div id="exp-installments-list"></div>
+        </div><!-- /sec-body-exp-installments -->
+
         </div><!-- /sec-body-outgoing -->
 
       </div>
@@ -4221,23 +4242,26 @@ function renderExp() {
   const installs = S.expenses.filter(e => e.type === 'installments');
 
   let idx = 0;
-  const monthlyEl = document.getElementById('exp-monthly-list');
-  const yearlyEl  = document.getElementById('exp-yearly-list');
-  const oneoffEl  = document.getElementById('exp-oneoff-list');
+  const monthlyEl  = document.getElementById('exp-monthly-list');
+  const yearlyEl   = document.getElementById('exp-yearly-list');
+  const oneoffEl   = document.getElementById('exp-oneoff-list');
+  const installsEl = document.getElementById('exp-installments-list');
 
   const emptyRow = `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
-  if (monthlyEl) monthlyEl.innerHTML = monthly.map(e => renderExpItem(e, ++idx)).join('');
-  const yearlyHtml = annual.map(e => renderExpItem(e, ++idx)).join('') + installs.map(e => renderExpItem(e, ++idx)).join('');
-  if (yearlyEl)  yearlyEl.innerHTML  = yearlyHtml || emptyRow;
-  if (oneoffEl)  oneoffEl.innerHTML  = oneoff.length ? oneoff.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
+  if (monthlyEl)  monthlyEl.innerHTML  = monthly.map(e => renderExpItem(e, ++idx)).join('');
+  if (yearlyEl)   yearlyEl.innerHTML   = annual.length ? annual.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
+  if (oneoffEl)   oneoffEl.innerHTML   = oneoff.length ? oneoff.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
+  if (installsEl) installsEl.innerHTML = installs.length ? installs.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
 
   const sumEnabled = (arr, fn) => arr.filter(e => e.enabled !== false).reduce((s, e) => s + (fn(e) || 0), 0);
   const mSum = sumEnabled(monthly, e => e.amount);
-  const ySum = sumEnabled(annual, e => e.amount) + sumEnabled(installs, e => e.installTotal || e.amount);
+  const ySum = sumEnabled(annual, e => e.amount);
   const oSum = sumEnabled(oneoff, e => e.amount);
-  const el_mt = document.getElementById('exp-monthly-total'); if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
-  const el_yt = document.getElementById('exp-yearly-total');  if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
-  const el_ot = document.getElementById('exp-oneoff-total');  if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
+  const iSum = sumEnabled(installs, e => e.installTotal || e.amount);
+  const el_mt = document.getElementById('exp-monthly-total');      if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
+  const el_yt = document.getElementById('exp-yearly-total');       if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
+  const el_ot = document.getElementById('exp-oneoff-total');       if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
+  const el_it = document.getElementById('exp-installments-total'); if (el_it) el_it.textContent  = iSum > 0 ? fmt(iSum) : '';
 
   updateMonthlyBaseSlider();
 }
@@ -5203,14 +5227,15 @@ function expTypeChanged(id, value) {
   upE(id, 'type', value);
   // Always open the outgoing parent + the correct sub-section so item never vanishes
   openSec('outgoing');
-  if (value === 'installments' || value === 'annual') openSec('exp-yearly');
+  if (value === 'annual') openSec('exp-yearly');
+  else if (value === 'installments') openSec('exp-installments');
   else if (value === 'oneoff') openSec('exp-oneoff');
   else openSec('exp-monthly');
   renderExp();
   go();
 }
 function initSections() {
-  ['chart','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
+  ['chart-nw','chart-market','chart-exp','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
     const body = document.getElementById('sec-body-' + key);
     const arr  = document.getElementById('sec-arr-' + key);
