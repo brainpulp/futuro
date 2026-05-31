@@ -256,6 +256,59 @@ body[data-theme="graphite"] .tl-age-lbl  { color: rgba(255,255,255,0.25) !import
 }
 #timeline-btn.active { opacity: 1; color: #378ADD; }
 
+/* ── PROJECT BUDGET PANEL ──────────────────────────────────── */
+#projects-panel {
+  margin: 6px 0 10px; border-radius: 8px;
+  background: rgba(10,12,18,0.55);
+  border: 1px solid rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+#projects-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px 6px; cursor: pointer; user-select: none;
+  font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(255,255,255,0.35);
+}
+#projects-panel-header:hover { color: rgba(255,255,255,0.55); }
+#projects-panel-body { padding: 0 0 6px; }
+.proj-row {
+  display: grid;
+  grid-template-columns: minmax(80px,1fr) 90px auto 38px;
+  align-items: center; gap: 8px;
+  padding: 5px 12px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.proj-row:first-child { border-top: none; }
+.proj-name {
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.75);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proj-amounts {
+  font-size: 10px; font-family: 'SF Mono', Menlo, monospace;
+  color: rgba(255,255,255,0.4); white-space: nowrap; text-align: right;
+}
+.proj-bar-wrap {
+  height: 5px; background: rgba(255,255,255,0.08);
+  border-radius: 3px; overflow: hidden; min-width: 60px;
+}
+.proj-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.proj-pct {
+  font-size: 10px; font-family: 'SF Mono', Menlo, monospace;
+  font-weight: 700; text-align: right; white-space: nowrap;
+}
+/* Inline budget indicator inside expand cards */
+.proj-inline-bar {
+  height: 4px; background: rgba(0,0,0,0.08);
+  border-radius: 2px; overflow: hidden; margin: 5px 0 2px;
+}
+.proj-inline-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.proj-inline-label {
+  font-size: 10px; font-family: 'SF Mono', Menlo, monospace;
+  color: rgba(0,0,0,0.45); margin-bottom: 6px;
+}
+body[data-theme="graphite"] .proj-inline-bar { background: rgba(255,255,255,0.08); }
+body[data-theme="graphite"] .proj-inline-label { color: rgba(255,255,255,0.4); }
+
 /* ── SAVE BADGE ────────────────────────────────────────────── */
 .sbadge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
 .sbadge.ok  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
@@ -820,6 +873,18 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
       <div id="timeline-strip" style="display:none;"></div>
+    </div>
+    <!-- Project budget panel (populated by renderProjectBudgets()) -->
+    <div id="projects-panel" style="display:none;">
+      <div id="projects-panel-header" onclick="toggleProjectsPanel()">
+        <span id="projects-panel-title">🏗 Projects</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
+            style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
+          <span id="projects-panel-arrow" style="font-size:10px;">▾</span>
+        </span>
+      </div>
+      <div id="projects-panel-body"></div>
     </div>
     <!-- SPY preset selector -->
     <div class="spy-preset-bar">
@@ -1530,7 +1595,8 @@ let _aiSections = [];
 let _onelineCallLog = []; // timestamps of recent one-liner calls
 let _onelinePauseUntil = 0;
 let _yearMode = false;
-let _gastosActuals = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
+let _gastosActuals  = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
+let _projectActuals = {}; // { "delta": { total: 45000, byMonth: {...} }, ... } — per-project totals
 let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
 let _mcRunning  = false;
 let _mcAutoTimer = null; // debounce handle for auto-rerun
@@ -4107,6 +4173,21 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 </div>` : ''}
   <label class="lbl">Description</label>
   <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
+  <label class="lbl" style="margin-top:6px;">Gastos project <span style="font-size:9px;font-weight:400;color:#aaa;">(links to project budget tracker)</span></label>
+  <input type="text" placeholder="e.g. delta" value="${e.gastosProject||''}"
+    onclick="event.stopPropagation()"
+    oninput="upE(${e.id},'gastosProject',this.value.trim());renderProjectBudgets()">
+  ${(()=>{
+    const gp = e.gastosProject && e.gastosProject.trim();
+    const pa = gp && _projectActuals[gp];
+    if (!pa) return '';
+    const budget = _projBudget(e);
+    const actual = pa.total || 0;
+    const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+    const color  = _projColor(pct);
+    return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="proj-inline-label">${fmtM(actual)} spent${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
+  })()}
 </div>`:''}`;
 }
 
@@ -4180,6 +4261,21 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
   <div style="margin-top:6px;">
     <label class="lbl">Description</label>
     <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
+    <label class="lbl" style="margin-top:6px;">Gastos project <span style="font-size:9px;font-weight:400;color:#aaa;">(links to project budget tracker)</span></label>
+    <input type="text" placeholder="e.g. delta" value="${p.gastosProject||''}"
+      onclick="event.stopPropagation()"
+      oninput="upP(${p.id},'gastosProject',this.value.trim());renderProjectBudgets()">
+    ${(()=>{
+      const gp = p.gastosProject && p.gastosProject.trim();
+      const pa = gp && _projectActuals[gp];
+      if (!pa) return '';
+      const budget = p.value || 0;
+      const actual = pa.total || 0;
+      const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+      const color  = _projColor(pct);
+      return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
+      <div class="proj-inline-label">${fmtM(actual)} spent${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
+    })()}
   </div>
 </div>` : ''}`;
   }).join('');
@@ -4192,7 +4288,7 @@ function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
 function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
-function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); }
+function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); }
 
 function syncSettingsPanel() {
   const keyEl = document.getElementById('claude-key-input');
@@ -4967,6 +5063,99 @@ async function gastosSync() {
   }
 }
 
+async function projectActualsSync() {
+  try {
+    const res = await fetch(`${GASTOS_URL}/functions/v1/project-actuals`,
+      { headers: { 'Authorization': `Bearer ${GASTOS_ANON}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
+    _projectActuals = data;
+    renderProjectBudgets();
+    const n = Object.keys(data).length;
+    if (n > 0) showTicker('🏗', `Projects · ${n} loaded`);
+  } catch(e) {
+    console.warn('Project actuals skipped:', e.message || e);
+  }
+}
+
+function _projBudget(item) {
+  // Returns the budget amount for an expense or property item
+  if (item.installTotal) return item.installTotal;
+  if (item.amount)       return item.amount;
+  if (item.value)        return item.value; // property
+  return 0;
+}
+
+function _projColor(pct) {
+  if (pct >= 90) return '#7a2a2a'; // red
+  if (pct >= 70) return '#7a6d1a'; // amber
+  return '#2a6e47'; // green
+}
+
+function renderProjectBudgets() {
+  const panel = document.getElementById('projects-panel');
+  const body  = document.getElementById('projects-panel-body');
+  if (!panel || !body) return;
+
+  // Collect all linked items (expenses + properties that have gastosProject set)
+  const allItems = [
+    ...(S.expenses || []).map(e => ({ ...e, _kind: 'exp' })),
+    ...(S.properties || []).map(p => ({ ...p, _kind: 'prop' })),
+  ].filter(item => item.gastosProject && item.gastosProject.trim());
+
+  // Group budgets by project key (multiple items can share a project)
+  const byProj = {};
+  allItems.forEach(item => {
+    const key = item.gastosProject.trim();
+    if (!byProj[key]) byProj[key] = { budget: 0, name: key };
+    byProj[key].budget += _projBudget(item);
+  });
+
+  // Also show any Gastos projects that have actuals even if not yet linked
+  Object.keys(_projectActuals).forEach(key => {
+    if (!byProj[key]) byProj[key] = { budget: 0, name: key };
+  });
+
+  const keys = Object.keys(byProj);
+  if (keys.length === 0) { panel.style.display = 'none'; return; }
+
+  panel.style.display = 'block';
+
+  const open = localStorage.getItem('futuro-projects-open') !== '0';
+  body.style.display = open ? 'block' : 'none';
+  const arrow = document.getElementById('projects-panel-arrow');
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
+
+  body.innerHTML = keys.sort().map(key => {
+    const budget  = byProj[key].budget;
+    const actual  = (_projectActuals[key] || {}).total || 0;
+    const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+    const color   = _projColor(pct);
+    const flag    = pct >= 90 ? ' 🚨' : pct >= 70 ? ' ⚠' : '';
+    const label   = budget > 0
+      ? `${fmtM(actual)} / ${fmtM(budget)}`
+      : `${fmtM(actual)} spent`;
+    return `<div class="proj-row">
+      <div class="proj-name">${key}${flag}</div>
+      <div class="proj-amounts">${label}</div>
+      <div class="proj-bar-wrap">
+        <div class="proj-bar-fill" style="width:${pct}%;background:${color};"></div>
+      </div>
+      <div class="proj-pct" style="color:${color};">${budget > 0 ? pct + '%' : '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleProjectsPanel() {
+  const body  = document.getElementById('projects-panel-body');
+  const arrow = document.getElementById('projects-panel-arrow');
+  if (!body) return;
+  const nowOpen = body.style.display !== 'none';
+  body.style.display = nowOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = nowOpen ? '▸' : '▾';
+  localStorage.setItem('futuro-projects-open', nowOpen ? '0' : '1');
+}
+
 function showTicker(icon, msg, durationMs = 4000) {
   const el   = document.getElementById('sync-ticker');
   const ico  = document.getElementById('tick-icon');
@@ -5412,6 +5601,7 @@ loadScenarios()
     const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
     if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
     gastosSync();
+    projectActualsSync();
   })
   .catch(e => console.error('loadScenarios failed', e));
 
