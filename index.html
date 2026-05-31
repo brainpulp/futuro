@@ -829,6 +829,12 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <div class="main-section-title" onclick="toggleSec('chart-nw')">Net Worth<span id="sec-arr-chart-nw" class="sec-chevron">▾</span></div>
     <div id="sec-body-chart-nw">
 
+    <!-- Metric pills -->
+    <div style="display:flex;gap:5px;margin:6px 0 8px;align-items:stretch;">
+      <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1;min-width:0;"></div>
+      <div id="mc-pill" class="pill" style="display:none;min-width:110px;flex-shrink:0;cursor:pointer;" onclick="triggerMC()" title="Click to re-run Monte Carlo"></div>
+    </div>
+
     <!-- Chart legend -->
     <div style="display:flex;gap:12px;font-size:10px;font-weight:600;margin-bottom:4px;align-items:center;flex-wrap:wrap;">
       <span style="display:flex;align-items:center;gap:4px;">
@@ -956,12 +962,6 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
       </div><!-- /projects flex wrapper -->
     </div><!-- /sec-body-timeline -->
-
-    <!-- Metric pills -->
-    <div style="display:flex;gap:5px;margin:10px 0 8px;align-items:stretch;">
-      <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1;min-width:0;"></div>
-      <div id="mc-pill" class="pill" style="display:none;min-width:110px;flex-shrink:0;cursor:pointer;" onclick="triggerMC()" title="Click to re-run Monte Carlo"></div>
-    </div>
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
