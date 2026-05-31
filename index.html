@@ -779,7 +779,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <span style="width:12px;height:3px;background:#378ADD;border-radius:1px;display:inline-block;"></span>Liquid
       </span>
       <span style="display:flex;align-items:center;gap:4px;">
-        <span style="width:12px;height:3px;background:#EF9F27;border-radius:1px;display:inline-block;"></span>Illiquid
+        <span style="width:12px;height:3px;background:#EF9F27;border-radius:1px;display:inline-block;"></span>Real estate
       </span>
       <span style="display:flex;align-items:center;gap:4px;">
         <span style="width:14px;height:0;border-top:2px dashed #1D9E75;display:inline-block;"></span>Total
@@ -2885,12 +2885,30 @@ const liquidBgPlugin = {
   }
 };
 
+function _drawHouse(ctx, cx, cy, size, color) {
+  const hw = size * 0.55, hh = size * 0.42, rh = size * 0.38;
+  ctx.save();
+  ctx.fillStyle = color;
+  // Roof (triangle)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - hh - rh);
+  ctx.lineTo(cx - hw - 1, cy - hh + 1);
+  ctx.lineTo(cx + hw + 1, cy - hh + 1);
+  ctx.closePath();
+  ctx.fill();
+  // Body (rect)
+  ctx.beginPath();
+  ctx.rect(cx - hw, cy - hh, hw * 2, hh + size * 0.1);
+  ctx.fill();
+  ctx.restore();
+}
+
 const msPlugin = {
   id: 'ms',
   afterDraw(ch) {
     const { ctx, scales, data, chartArea } = ch;
     const { x, y } = scales;
-    const liqData = data.datasets[0].data, labels = data.labels;
+    const liqData = data.datasets[0].data, iliqData = data.datasets[1].data, labels = data.labels;
 
     // Always populate _totalDots for hover tooltip (all zoom modes)
     const totalData0 = data.datasets[2].data;
@@ -2993,6 +3011,12 @@ const msPlugin = {
       ctx.beginPath(); ctx.arc(xp, yp, 4, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(xp, yp, 2, 0, Math.PI*2); ctx.fill();
+
+      // House icon on Real Estate curve
+      if (iliqData && iliqData[idx] > 0) {
+        const iyp = y.getPixelForValue(iliqData[idx]);
+        _drawHouse(ctx, xp, iyp - 8, 14, 'rgba(239,159,39,0.85)');
+      }
     });
 
     // Special markers on liquid curve
@@ -3093,6 +3117,36 @@ const msPlugin = {
         ctx.fillText(subLabel, 0, h - 3);
         ctx.restore();
       }
+    });
+
+    // ── Liquid curve dancing labels ──────────────────────────────
+    ctx.textAlign = 'center';
+    let liqLabelSeq = 0;
+    labels.forEach((age, idx) => {
+      if (age % labelEvery !== 0) return;
+      const lv = liqData[idx];
+      const xp = x.getPixelForValue(idx);
+      const lyp = y.getPixelForValue(lv);
+      const label = fmtM(lv);
+      const phase = liqLabelSeq++ * 1.3 + 0.65; // offset phase so liq/total don't sync
+      const angle = Math.sin(_danceT * 0.0024 + phase) * (denseLabels ? 0.08 : 0.12);
+      ctx.save();
+      if (denseLabels) {
+        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        const h = 18;
+        ctx.translate(xp, lyp + 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
+        ctx.fillText(label, 0, h - 4);
+      } else {
+        ctx.font = '700 16px SF Mono, Menlo, monospace';
+        const h = 16;
+        ctx.translate(xp, lyp + 4);
+        ctx.rotate(angle);
+        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
+        ctx.fillText(label, 0, h - 2);
+      }
+      ctx.restore();
     });
 
     ctx.restore();
@@ -3390,7 +3444,7 @@ function go() {
         labels: view.labels,
         datasets: [
           { label:'Liquid',   data: view.liq,   _simMinLiq: data.simMinLiq, _simMinAge: data.simMinAge, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:_chartZoom===1?3:0, fill:true,  tension:0.3 },
-          { label:'Illiquid', data: view.iliq,  borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:_chartZoom===1?3:0, fill:true,  tension:0.3 },
+          { label:'Real Estate', data: view.iliq,  borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:_chartZoom===1?3:0, fill:true,  tension:0.3 },
           { label:'Total',    data: view.total, borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
           { label:'Real',     data: view.real,  borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0.3 },
           ...view.props
