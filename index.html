@@ -871,27 +871,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <button id="zoom-btn-20" onclick="setChartZoom(20)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">20y</button>
         <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
         <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
-        <button id="timeline-btn" onclick="toggleTimeline()" title="Show/hide event timeline">Timeline</button>
-        <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
         <button id="mc-btn" onclick="triggerMC()" title="Run Montecarlo: 500 random return sequences → success rate" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 2px;font-size:11px;font-weight:700;color:#378ADD;cursor:pointer;letter-spacing:.03em;">Montecarlo</button>
       </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
     </div>
-    <!-- Project budget panel (populated by renderProjectBudgets()) -->
-    <div style="display:flex;">
-    <div id="projects-panel" style="display:none;max-width:520px;flex:0 0 auto;">
-      <div id="projects-panel-header" onclick="toggleProjectsPanel()">
-        <span id="projects-panel-title">📊 Project Budget Status</span>
-        <span style="display:flex;align-items:center;gap:8px;">
-          <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
-            style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
-          <span id="projects-panel-arrow" style="font-size:10px;">▾</span>
-        </span>
-      </div>
-      <div id="projects-panel-body"></div>
-    </div>
-    </div><!-- /projects flex wrapper -->
-
     </div><!-- /sec-body-chart-nw -->
 
     <!-- MARKET collapsible section -->
@@ -954,10 +937,24 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 
     </div><!-- /sec-body-chart-exp -->
 
-    <!-- TIMELINE collapsible section -->
-    <div class="main-section-title" onclick="toggleSec('timeline')">Timeline<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
+    <!-- TIMELINE & BUDGETS collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('timeline')">Timeline &amp; Budgets<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
     <div id="sec-body-timeline">
-      <div id="timeline-strip" style="display:none;"></div>
+      <div id="timeline-strip"></div>
+      <!-- Project budget panel (populated by renderProjectBudgets()) -->
+      <div style="display:flex;margin-top:6px;">
+      <div id="projects-panel" style="display:none;max-width:520px;flex:0 0 auto;">
+        <div id="projects-panel-header" onclick="toggleProjectsPanel()">
+          <span id="projects-panel-title">📊 Project Budget Status</span>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
+              style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
+            <span id="projects-panel-arrow" style="font-size:10px;">▾</span>
+          </span>
+        </div>
+        <div id="projects-panel-body"></div>
+      </div>
+      </div><!-- /projects flex wrapper -->
     </div><!-- /sec-body-timeline -->
 
     <!-- Metric pills -->
@@ -3784,7 +3781,7 @@ function go() {
 
   window._lastRCData = data;
   renderRC(data);
-  if (_showTimeline) requestAnimationFrame(renderTimeline); // after chart paints
+  requestAnimationFrame(renderTimeline); // after chart paints; renderTimeline bails if section hidden
 
   // Auto-rerun Montecarlo (debounced) whenever params change and MC was previously run
   if (_mcResult !== null && !_mcRunning) {
@@ -5213,6 +5210,7 @@ function toggleSec(key) {
   body.style.display = open ? 'none' : '';
   if (arr) arr.textContent = open ? '▸' : '▾';
   localStorage.setItem('futuro-sec-' + key, open ? '0' : '1');
+  if (key === 'timeline' && !open) requestAnimationFrame(renderTimeline);
 }
 function openSec(key) {
   // Force-expand a section
@@ -5280,18 +5278,13 @@ function toggleIbkrAuto(on) {
 //  TIMELINE STRIP
 // ══════════════════════════════════════════════════════════════
 
-let _showTimeline = false; // set properly in Boot
+let _showTimeline = true; // kept for lsSave compat; section visibility is the real control
 
 function toggleTimeline() {
-  _showTimeline = !_showTimeline;
-  localStorage.setItem('futuro-timeline', _showTimeline ? '1' : '0');
-  const strip = document.getElementById('timeline-strip');
-  const btn   = document.getElementById('timeline-btn');
-  strip.style.display = _showTimeline ? 'block' : 'none';
-  if (btn) btn.classList.toggle('active', _showTimeline);
-  // If turning timeline on, make sure the Timeline section is expanded
-  if (_showTimeline) { openSec('timeline'); renderTimeline(); }
-  lsSave();
+  toggleSec('timeline');
+  // If section just opened, render the strip
+  const body = document.getElementById('sec-body-timeline');
+  if (body && body.style.display !== 'none') renderTimeline();
 }
 
 // Age → x pixel, relative to timeline-inner left edge
@@ -5317,7 +5310,9 @@ function _tlAgeToX(age, ca) {
 }
 
 function renderTimeline() {
-  if (!chart || !_showTimeline) return;
+  if (!chart) return;
+  const _tlSec = document.getElementById('sec-body-timeline');
+  if (_tlSec && _tlSec.style.display === 'none') return;
   const strip = document.getElementById('timeline-strip');
   const ca = chart.chartArea;
   if (!ca) return;
@@ -5662,13 +5657,7 @@ function buildPopoverForm(ev, type) {
     const btn = document.getElementById('theme-btn');
     if (btn) btn.style.color = '#e6edf3';
   }
-  _showTimeline = localStorage.getItem('futuro-timeline') === '1';
-  if (_showTimeline) {
-    const strip = document.getElementById('timeline-strip');
-    const btn   = document.getElementById('timeline-btn');
-    if (strip) strip.style.display = 'block';
-    if (btn)   btn.classList.add('active');
-  }
+  // Timeline visibility is now controlled by the section collapse state (initSections handles it)
   const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
   const chk = document.getElementById('ibkr-auto-chk');
   if (chk) chk.checked = autoOn;
