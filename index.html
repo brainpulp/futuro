@@ -5197,14 +5197,22 @@ function closeTimelinePopover() {
   if (pop._escHandler) { document.removeEventListener('keydown', pop._escHandler); pop._escHandler = null; }
 }
 
+const _TL_AGE_FIELDS = new Set(['atAge','from','to','acquireAge','saleAge','rentFromAge','age']);
+
 function _tlUpd(id, type, field, val) {
   const arr = { income: S.incomes, expense: S.expenses, property: S.properties, crisis: S.crises }[type];
   if (!arr) return;
   const item = arr.find(x => x.id === id);
   if (!item) return;
-  const num = parseFloat(val);
-  item[field] = (!isNaN(num) && val.trim() !== '') ? num : val;
-  go();
+  let num = parseFloat(val);
+  if (!isNaN(num) && val.toString().trim() !== '') {
+    // Convert year→age for age fields when in year mode
+    if (_yearMode && _TL_AGE_FIELDS.has(field)) num = readA(num);
+    item[field] = num;
+  } else {
+    item[field] = val;
+  }
+  markDirty(); go(); renderTimeline();
 }
 
 function _tlToggle(id, type) {
@@ -5219,7 +5227,8 @@ function _tlToggle(id, type) {
 function buildPopoverForm(ev, type) {
   const id = ev.id;
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const monthOpts = MONTHS.map((m,i) => `<option value="${i+1}" ${(+ev[arguments[2]]||1)===i+1?'selected':''}>${m}</option>`).join('');
+  const ageLbl = _yearMode ? 'Year' : 'Age';
+
   function mSel(field, val) {
     return `<select onchange="_tlUpd(${id},'${type}','${field}',this.value)">${
       MONTHS.map((m,i)=>`<option value="${i+1}" ${(val||1)==i+1?'selected':''}>${m}</option>`).join('')
@@ -5227,6 +5236,11 @@ function buildPopoverForm(ev, type) {
   }
   function numIn(field, val, placeholder) {
     return `<input type="number" value="${val??''}" placeholder="${placeholder||''}" oninput="_tlUpd(${id},'${type}','${field}',this.value)">`;
+  }
+  // Age input — shows dispA(val), writes back via readA in _tlUpd
+  function ageIn(field, val, placeholder) {
+    const disp = (val !== undefined && val !== null && val !== '') ? dispA(+val) : '';
+    return `<input type="number" value="${disp}" placeholder="${placeholder||ageLbl}" oninput="_tlUpd(${id},'${type}','${field}',this.value)">`;
   }
   function txtIn(field, val) {
     return `<input type="text" value="${(val||'').replace(/"/g,'&quot;')}" oninput="_tlUpd(${id},'${type}','${field}',this.value)">`;
@@ -5246,10 +5260,10 @@ function buildPopoverForm(ev, type) {
   if (type === 'income') {
     const oo = ev.type === 'oneoff';
     const timing = oo
-      ? `<div><label>Age</label>${numIn('atAge', ev.atAge, 'age')}</div>
+      ? `<div><label>${ageLbl}</label>${ageIn('atAge', ev.atAge)}</div>
          <div><label>Month</label>${mSel('atMonth', ev.atMonth||1)}</div>`
-      : `<div><label>From age</label>${numIn('from', ev.from, 'age')}</div>
-         <div><label>To age</label>${numIn('to', ev.to, 'age')}</div>
+      : `<div><label>From ${ageLbl}</label>${ageIn('from', ev.from)}</div>
+         <div><label>To ${ageLbl}</label>${ageIn('to', ev.to)}</div>
          <div><label>From mo</label>${mSel('fromMonth', ev.fromMonth||1)}</div>
          <div><label>To mo</label>${mSel('toMonth', ev.toMonth||12)}</div>`;
     return `${hdr}<div class="tl-pop-grid">
@@ -5266,10 +5280,10 @@ function buildPopoverForm(ev, type) {
   if (type === 'expense') {
     const oo = ev.type === 'oneoff' || ev.type === 'installments';
     const timing = oo
-      ? `<div><label>Age</label>${numIn('atAge', ev.atAge, 'age')}</div>
+      ? `<div><label>${ageLbl}</label>${ageIn('atAge', ev.atAge)}</div>
          <div><label>Month</label>${mSel('atMonth', ev.atMonth||1)}</div>`
-      : `<div><label>From age</label>${numIn('from', ev.from, 'age')}</div>
-         <div><label>To age</label>${numIn('to', ev.to, 'age')}</div>
+      : `<div><label>From ${ageLbl}</label>${ageIn('from', ev.from)}</div>
+         <div><label>To ${ageLbl}</label>${ageIn('to', ev.to)}</div>
          <div><label>From mo</label>${mSel('fromMonth', ev.fromMonth||1)}</div>
          <div><label>To mo</label>${mSel('toMonth', ev.toMonth||12)}</div>`;
     const installFields = ev.type === 'installments'
@@ -5294,10 +5308,10 @@ function buildPopoverForm(ev, type) {
       <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
       <div><label>Value</label>${numIn('value', ev.value, '$')}</div>
       <div><label>App rate %</label>${numIn('appRate', ev.appRate??'', 'default')}</div>
-      <div><label>Acquire age</label>${numIn('acquireAge', ev.acquireAge, 'age')}</div>
-      <div><label>Sale age</label>${numIn('saleAge', ev.saleAge, 'age')}</div>
+      <div><label>Acquire ${ageLbl}</label>${ageIn('acquireAge', ev.acquireAge)}</div>
+      <div><label>Sale ${ageLbl}</label>${ageIn('saleAge', ev.saleAge)}</div>
       <div><label>Rent /mo</label>${numIn('monthlyRent', ev.monthlyRent, '$')}</div>
-      <div><label>Rent from age</label>${numIn('rentFromAge', ev.rentFromAge, 'age')}</div>
+      <div><label>Rent from ${ageLbl}</label>${ageIn('rentFromAge', ev.rentFromAge)}</div>
       <div class="tl-pop-full">${chk('hold', ev.hold, 'Hold forever (no sale)')}</div>
       <div class="tl-pop-full">${enChk}</div>
     </div>`;
@@ -5306,7 +5320,7 @@ function buildPopoverForm(ev, type) {
   if (type === 'crisis') {
     return `${hdr}<div class="tl-pop-grid">
       <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
-      <div><label>Age</label>${numIn('age', ev.age, 'age')}</div>
+      <div><label>${ageLbl}</label>${ageIn('age', ev.age)}</div>
       <div><label>Drop %</label>${numIn('drop', ev.drop, '%')}</div>
       <div class="tl-pop-full">${enChk}</div>
     </div>`;
