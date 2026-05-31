@@ -811,6 +811,8 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <button id="zoom-btn-30" onclick="setChartZoom(30)" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 1px;font-size:11px;font-weight:500;color:#378ADD;cursor:pointer;letter-spacing:.03em;opacity:0.45;">30y</button>
         <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
         <button id="timeline-btn" onclick="toggleTimeline()" title="Show/hide event timeline">tl</button>
+        <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
+        <button id="mc-btn" onclick="triggerMC()" title="Run Monte Carlo: 500 random return sequences → success rate" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 2px;font-size:11px;font-weight:700;color:#378ADD;cursor:pointer;letter-spacing:.03em;">MC</button>
       </div>
       <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
       <div id="timeline-strip" style="display:none;"></div>
@@ -862,7 +864,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
     </div>
     <!-- Metric pills -->
-    <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:10px 0 8px;"></div>
+    <div style="display:flex;gap:5px;margin:10px 0 8px;align-items:stretch;">
+      <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1;min-width:0;"></div>
+      <div id="mc-pill" class="pill" style="display:none;min-width:110px;flex-shrink:0;cursor:pointer;" onclick="triggerMC()" title="Click to re-run Monte Carlo"></div>
+    </div>
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
@@ -1504,6 +1509,8 @@ let _onelineCallLog = []; // timestamps of recent one-liner calls
 let _onelinePauseUntil = 0;
 let _yearMode = false;
 let _gastosActuals = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
+let _mcResult  = null;  // last Monte Carlo result; null = not run, .stale = outdated
+let _mcRunning = false;
 
 // ── Expense propagation: drag sets new baseline, all future ages re-inflated from dragged value ──
 function applyExpenseCeiling(fromAge, val) {
@@ -2008,6 +2015,7 @@ function markDirty() {
   badge('unsaved', 'no');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(saveActive, 600); // debounce: short enough to survive reloads
+  if (_mcResult) { _mcResult.stale = true; _renderMCPill(); }
 }
 
 function saveActive() {
@@ -2443,6 +2451,204 @@ function calcMaxMonthly(target) {
   }
   S.expenseCurve = savedCurve;
   return Math.round((lo + hi) / 2 / 100) * 100;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MONTE CARLO
+// ══════════════════════════════════════════════════════════════
+
+// Distribution parameters for each preset — (mean%, std%) used to sample
+// independent return sequences for MC runs.
+function _mcParams() {
+  const id = S.spyPreset;
+  const h  = _HIST_STD;
+  const map = {
+    historical:    [_HIST_MEAN, h * 1.00],
+    vanguard:      [6.7,        h * 0.70],
+    goldman:       [4.5,        h * 0.40],
+    jpmorgan:      [8.4,        h * 0.85],
+    blackrock:     [8.9,        h * 0.90],
+    siegel:        [11.0,       h * 1.00],
+    bogle:         [6.4,        h * 0.78],
+    bridgewater:   [1.4,        h * 0.65],
+    crash_recover: [7.5,        h * 1.10],
+    stagflation:   [7.0,        h * 0.95],
+    bull:          [14.5,       h * 1.15],
+    bear:          [3.4,        h * 0.60],
+  };
+  const p = id && map[id];
+  if (p) return { mean: p[0], std: p[1] };
+  // Custom / manual: use configured rate + full historical vol
+  return { mean: (S.yieldRate || 6) + (S.spyNudge || 0), std: h };
+}
+
+function runMonteCarlo(n) {
+  n = n || 500;
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const { mean, std } = _mcParams();
+
+  // Seeded with current time → fresh sample set each call
+  const rng = _seededRNG((Date.now() ^ 0x9e3779b9) >>> 0);
+
+  // Save/restore scenario state — we temporarily swap yield curves
+  const savedCurve  = S.yieldCurve ? { ...S.yieldCurve } : null;
+  const savedPreset = S.spyPreset;
+  const savedNudge  = S.spyNudge;
+  S.spyPreset = null;      // force use of yieldCurve directly
+  S.spyNudge  = 0;         // nudge already baked into mean
+
+  const allLiqs = [];      // allLiqs[run][ageIdx] = liq value
+  let successes = 0;
+
+  try {
+    for (let r = 0; r < n; r++) {
+      // Random yield curve for this run — independent draw from the preset distribution
+      const curve = {};
+      for (let age = sa; age <= ea; age++) {
+        curve[age] = Math.max(-50, Math.min(60, mean + _randn(rng) * std));
+      }
+      S.yieldCurve = curve;
+      const result = runSim();
+      allLiqs.push(result.map(d => d.liq));
+      if (result.simMinLiq >= 0) successes++;
+    }
+  } finally {
+    // Always restore — even if runSim threw
+    S.yieldCurve = savedCurve;
+    S.spyPreset  = savedPreset;
+    S.spyNudge   = savedNudge;
+  }
+
+  // Percentile bands at each age step
+  const nAges = allLiqs[0].length;
+  const p10 = [], p25 = [], p50 = [], p75 = [], p90 = [];
+  for (let i = 0; i < nAges; i++) {
+    const col = allLiqs.map(r => r[i]).sort((a, b) => a - b);
+    const at  = pct => col[Math.max(0, Math.min(n - 1, Math.round((pct / 100) * (n - 1))))];
+    p10.push(at(10)); p25.push(at(25)); p50.push(at(50));
+    p75.push(at(75)); p90.push(at(90));
+  }
+
+  return {
+    successRate: Math.round(successes / n * 100),
+    n, mean, std,
+    ages: Array.from({ length: nAges }, (_, i) => sa + i),
+    p10, p25, p50, p75, p90,
+    stale: false,
+  };
+}
+
+// Chart plugin — draws MC percentile bands behind the main liquid line
+const mcBandPlugin = {
+  id: 'mcBands',
+  beforeDatasetsDraw(ch) {
+    if (!_mcResult || _chartZoom === 1) return;
+    const { ctx, scales: { x, y }, chartArea } = ch;
+    const labels = ch.data.labels;
+    if (!labels || !labels.length) return;
+
+    // Build age→chartIndex map
+    const ageIdx = {};
+    labels.forEach((lbl, i) => { ageIdx[lbl] = i; });
+
+    const px = age => {
+      const i = ageIdx[age];
+      return i !== undefined ? x.getPixelForValue(i) : null;
+    };
+    const py = val => Math.max(chartArea.top - 4,
+                       Math.min(chartArea.bottom, y.getPixelForValue(val)));
+
+    const dark = document.body.dataset.theme === 'graphite';
+    const c1   = dark ? 'rgba(55,138,221,0.09)' : 'rgba(55,138,221,0.08)'; // p10–p90
+    const c2   = dark ? 'rgba(55,138,221,0.16)' : 'rgba(55,138,221,0.14)'; // p25–p75
+    const cMed = dark ? 'rgba(55,138,221,0.55)' : 'rgba(55,138,221,0.45)'; // p50
+
+    // Draw filled band between two value arrays
+    function band(upper, lower, color) {
+      ctx.save();
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < _mcResult.ages.length; i++) {
+        const xp = px(_mcResult.ages[i]);
+        if (xp === null) continue;
+        if (!started) { ctx.moveTo(xp, py(upper[i])); started = true; }
+        else ctx.lineTo(xp, py(upper[i]));
+      }
+      for (let i = _mcResult.ages.length - 1; i >= 0; i--) {
+        const xp = px(_mcResult.ages[i]);
+        if (xp === null) continue;
+        ctx.lineTo(xp, py(lower[i]));
+      }
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    band(_mcResult.p90, _mcResult.p10, c1);
+    band(_mcResult.p75, _mcResult.p25, c2);
+
+    // p50 median dashed line
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = cMed;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < _mcResult.ages.length; i++) {
+      const xp = px(_mcResult.ages[i]);
+      if (xp === null) continue;
+      const yp = py(_mcResult.p50[i]);
+      if (!started) { ctx.moveTo(xp, yp); started = true; }
+      else ctx.lineTo(xp, yp);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+};
+
+function triggerMC() {
+  if (_mcRunning) return;
+  _mcRunning = true;
+  const btn = document.getElementById('mc-btn');
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  // Defer one tick so the UI updates before the synchronous crunch
+  setTimeout(() => {
+    try {
+      _mcResult = runMonteCarlo(500);
+    } catch(e) {
+      console.warn('MC failed:', e);
+      _mcResult = null;
+    }
+    _mcRunning = false;
+    if (btn) {
+      const rate = _mcResult?.successRate;
+      btn.textContent = rate !== undefined ? rate + '%' : 'MC';
+      btn.style.color = rate >= 90 ? '#15803d' : rate >= 70 ? '#92400e' : '#9f1239';
+      btn.disabled = false;
+    }
+    // Redraw chart bands + metrics pill
+    if (chart) chart.update('none');
+    _renderMCPill();
+  }, 0);
+}
+
+function _renderMCPill() {
+  const el = document.getElementById('mc-pill');
+  if (!el) return;
+  if (!_mcResult) { el.style.display = 'none'; return; }
+  const r = _mcResult.successRate;
+  const bg  = r >= 90 ? '#f0fdf4' : r >= 70 ? '#fefce8' : '#fff1f2';
+  const col = r >= 90 ? '#15803d' : r >= 70 ? '#854d0e' : '#9f1239';
+  const brd = r >= 90 ? '#bbf7d0' : r >= 70 ? '#fde68a' : '#fecdd3';
+  const staleNote = _mcResult.stale ? ' <span style="font-size:9px;opacity:.6;">(stale)</span>' : '';
+  el.style.display = '';
+  el.innerHTML = `<div class="pill-label">MC success · ${_mcResult.n} runs</div>
+    <div class="pill-val" style="color:${col};font-size:20px;">${r}%</div>
+    <div style="font-size:10px;color:${col};margin-top:2px;">never go broke${staleNote}</div>`;
+  el.style.background = bg;
+  el.style.border = `1px solid ${brd}`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3065,7 +3271,7 @@ function go() {
   if (!chart) {
     chart = new Chart(document.getElementById('nwChart'), {
       type: 'line',
-      plugins: [liquidBgPlugin, msPlugin, {
+      plugins: [mcBandPlugin, liquidBgPlugin, msPlugin, {
         id: 'ageAxisTop',
         afterDraw(ch) {
           const { ctx, scales: { x }, data, chartArea } = ch;
