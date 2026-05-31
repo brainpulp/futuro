@@ -1596,7 +1596,7 @@ let _onelineCallLog = []; // timestamps of recent one-liner calls
 let _onelinePauseUntil = 0;
 let _yearMode = false;
 let _gastosActuals  = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
-let _projectActuals = {}; // { "delta": { total: 45000, byMonth: {...} }, ... } — per-project totals
+let _projectActuals = {}; // { "delta": { byMonth: { "2026-01": 12000 } }, ... } — per-Gastos-cat actuals
 let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
 let _mcRunning  = false;
 let _mcAutoTimer = null; // debounce handle for auto-rerun
@@ -4173,20 +4173,27 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 </div>` : ''}
   <label class="lbl">Description</label>
   <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
-  <label class="lbl" style="margin-top:6px;">Gastos project <span style="font-size:9px;font-weight:400;color:#aaa;">(links to project budget tracker)</span></label>
-  <input type="text" placeholder="e.g. delta" value="${e.gastosProject||''}"
-    onclick="event.stopPropagation()"
-    oninput="upE(${e.id},'gastosProject',this.value.trim());renderProjectBudgets()">
+  <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}"
+      style="flex:1;" onclick="event.stopPropagation()"
+      oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
+    <span style="font-size:10px;color:rgba(255,255,255,0.4);white-space:nowrap;">since</span>
+    <input type="month" value="${e.gastosStartYM||_TODAY_YM}"
+      style="width:120px;font-size:11px;" onclick="event.stopPropagation()"
+      onchange="upE(${e.id},'gastosStartYM',this.value);renderProjectBudgets()">
+  </div>
   ${(()=>{
-    const gp = e.gastosProject && e.gastosProject.trim();
-    const pa = gp && _projectActuals[gp];
+    const gc = e.gastosCategory && e.gastosCategory.trim();
+    const pa = gc && _projectActuals[gc];
     if (!pa) return '';
-    const budget = _projBudget(e);
-    const actual = pa.total || 0;
-    const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
-    const color  = _projColor(pct);
+    const startYM = e.gastosStartYM || _TODAY_YM;
+    const budget  = _projBudget(e);
+    const actual  = _projActual(gc, startYM);
+    const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+    const color   = _projColor(pct);
     return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
-    <div class="proj-inline-label">${fmtM(actual)} spent${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
+    <div class="proj-inline-label">${fmtM(actual)} spent since ${_fmtYM(startYM)}${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
   })()}
 </div>`:''}`;
 }
@@ -4261,20 +4268,27 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
   <div style="margin-top:6px;">
     <label class="lbl">Description</label>
     <textarea class="desc" rows="2" placeholder="What is this property? Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
-    <label class="lbl" style="margin-top:6px;">Gastos project <span style="font-size:9px;font-weight:400;color:#aaa;">(links to project budget tracker)</span></label>
-    <input type="text" placeholder="e.g. delta" value="${p.gastosProject||''}"
-      onclick="event.stopPropagation()"
-      oninput="upP(${p.id},'gastosProject',this.value.trim());renderProjectBudgets()">
+    <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" placeholder="e.g. delta" value="${p.gastosCategory||''}"
+        style="flex:1;" onclick="event.stopPropagation()"
+        oninput="upP(${p.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
+      <span style="font-size:10px;color:rgba(255,255,255,0.4);white-space:nowrap;">since</span>
+      <input type="month" value="${p.gastosStartYM||_TODAY_YM}"
+        style="width:120px;font-size:11px;" onclick="event.stopPropagation()"
+        onchange="upP(${p.id},'gastosStartYM',this.value);renderProjectBudgets()">
+    </div>
     ${(()=>{
-      const gp = p.gastosProject && p.gastosProject.trim();
-      const pa = gp && _projectActuals[gp];
+      const gc = p.gastosCategory && p.gastosCategory.trim();
+      const pa = gc && _projectActuals[gc];
       if (!pa) return '';
-      const budget = p.value || 0;
-      const actual = pa.total || 0;
-      const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
-      const color  = _projColor(pct);
+      const startYM = p.gastosStartYM || _TODAY_YM;
+      const budget  = p.value || 0;
+      const actual  = _projActual(gc, startYM);
+      const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+      const color   = _projColor(pct);
       return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
-      <div class="proj-inline-label">${fmtM(actual)} spent${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
+      <div class="proj-inline-label">${fmtM(actual)} spent since ${_fmtYM(startYM)}${budget>0?' · '+fmtM(budget-actual)+' remaining ('+pct+'%)':''}</div>`;
     })()}
   </div>
 </div>` : ''}`;
@@ -5092,28 +5106,45 @@ function _projColor(pct) {
   return '#2a6e47'; // green
 }
 
+// Sum actual spend for a Gastos category from startYM onwards (forward-looking)
+function _projActual(cat, startYM) {
+  const pa = _projectActuals[cat];
+  if (!pa || !pa.byMonth) return 0;
+  return Object.entries(pa.byMonth)
+    .filter(([ym]) => ym >= startYM)
+    .reduce((s, [, v]) => s + v, 0);
+}
+
+// Format YYYY-MM as "May 2026"
+function _fmtYM(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return (months[+m - 1] || m) + ' ' + y;
+}
+
+const _TODAY_YM = new Date().toISOString().slice(0, 7); // "2026-05"
+
 function renderProjectBudgets() {
   const panel = document.getElementById('projects-panel');
   const body  = document.getElementById('projects-panel-body');
   if (!panel || !body) return;
 
-  // Collect all linked items (expenses + properties that have gastosProject set)
+  // Collect all linked items (expenses + properties that have gastosCategory set)
   const allItems = [
     ...(S.expenses || []).map(e => ({ ...e, _kind: 'exp' })),
     ...(S.properties || []).map(p => ({ ...p, _kind: 'prop' })),
-  ].filter(item => item.gastosProject && item.gastosProject.trim());
+  ].filter(item => item.gastosCategory && item.gastosCategory.trim());
 
-  // Group budgets by project key (multiple items can share a project)
+  // Group budgets by category key; track earliest startYM across linked items
   const byProj = {};
   allItems.forEach(item => {
-    const key = item.gastosProject.trim();
-    if (!byProj[key]) byProj[key] = { budget: 0, name: key };
-    byProj[key].budget += _projBudget(item);
-  });
-
-  // Also show any Gastos projects that have actuals even if not yet linked
-  Object.keys(_projectActuals).forEach(key => {
-    if (!byProj[key]) byProj[key] = { budget: 0, name: key };
+    const key     = item.gastosCategory.trim();
+    const startYM = item.gastosStartYM || _TODAY_YM;
+    if (!byProj[key]) byProj[key] = { budget: 0, startYM };
+    byProj[key].budget  += _projBudget(item);
+    // Use earliest start date so we capture all forward-looking spend
+    if (startYM < byProj[key].startYM) byProj[key].startYM = startYM;
   });
 
   const keys = Object.keys(byProj);
@@ -5127,16 +5158,17 @@ function renderProjectBudgets() {
   if (arrow) arrow.textContent = open ? '▾' : '▸';
 
   body.innerHTML = keys.sort().map(key => {
-    const budget  = byProj[key].budget;
-    const actual  = (_projectActuals[key] || {}).total || 0;
+    const { budget, startYM } = byProj[key];
+    const actual  = _projActual(key, startYM);
     const pct     = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
     const color   = _projColor(pct);
     const flag    = pct >= 90 ? ' 🚨' : pct >= 70 ? ' ⚠' : '';
+    const sinceLabel = `<span style="font-size:9px;color:rgba(255,255,255,0.35);margin-left:4px;">since ${_fmtYM(startYM)}</span>`;
     const label   = budget > 0
       ? `${fmtM(actual)} / ${fmtM(budget)}`
       : `${fmtM(actual)} spent`;
     return `<div class="proj-row">
-      <div class="proj-name">${key}${flag}</div>
+      <div class="proj-name">${key}${flag}${sinceLabel}</div>
       <div class="proj-amounts">${label}</div>
       <div class="proj-bar-wrap">
         <div class="proj-bar-fill" style="width:${pct}%;background:${color};"></div>
