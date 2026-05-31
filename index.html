@@ -3376,7 +3376,8 @@ function go() {
   clearTimeout(_maxTimer);
   _maxTimer = setTimeout(() => {
     _lastMaxMonthly = calcMaxMonthly(1_000_000);
-    document.getElementById('max-val').textContent = fmt(_lastMaxMonthly) + '/mo';
+    const _mv = document.getElementById('max-val');
+    if (_mv) _mv.textContent = fmt(_lastMaxMonthly) + '/mo';
     updateMonthlyBaseSlider();
   }, 600);
 
