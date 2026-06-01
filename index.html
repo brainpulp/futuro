@@ -3093,52 +3093,64 @@ const msPlugin = {
       ctx.restore();
     }
 
-    // ── Decade bands: tiled watermark + divider lines ──
+    // ── Decade bands: scattered watermark + divider lines ──
     {
-      const firstD = Math.floor(sa / 10) * 10;
-      const lastD  = Math.floor(ea / 10) * 10;
-      const TILE_FS = 22, TILE_H = 38;
+      // Tiny deterministic pseudo-random (no flickering across redraws)
+      const rng = seed => { let s = seed ^ 0xdeadbeef; s = Math.imul(s ^ s >>> 16, 0x45d9f3b); s = Math.imul(s ^ s >>> 16, 0x45d9f3b); return ((s ^ s >>> 16) >>> 0) / 0xffffffff; };
 
+      // Build divider positions using the same method the old code used (known to work)
+      const dividers = [];
+      for (let dec = Math.ceil((sa + 1) / 10) * 10; dec <= ea; dec += 10) {
+        const dIdx = labels.indexOf(dec);
+        if (dIdx === -1) continue;
+        dividers.push({ decade: dec, xp: x.getPixelForValue(dIdx) });
+      }
+
+      // Build bands: [firstDecade → first divider], then each [divider → next divider / right edge]
+      const bands = [];
+      const firstDecadeLabel = Math.floor(sa / 10) * 10;
+      if (dividers.length > 0) bands.push({ decade: firstDecadeLabel, x0: chartArea.left, x1: dividers[0].xp });
+      dividers.forEach((div, i) => {
+        const x1 = i + 1 < dividers.length ? dividers[i + 1].xp : chartArea.right;
+        bands.push({ decade: div.decade, x0: div.xp, x1 });
+      });
+
+      const bandH = chartArea.bottom - chartArea.top;
       ctx.save();
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
 
-      for (let d = firstD; d <= lastD; d += 10) {
-        const x0Idx = labels.indexOf(d);
-        const x1Idx = labels.indexOf(d + 10);
-        const bx0 = d <= sa ? chartArea.left : (x0Idx !== -1 ? x.getPixelForValue(x0Idx) : null);
-        const bx1 = (d + 10) > ea ? chartArea.right : (x1Idx !== -1 ? x.getPixelForValue(x1Idx) : null);
-        if (bx0 === null || bx1 === null) continue;
-        const bw = bx1 - bx0;
-        if (bw < 8) continue;
+      bands.forEach(({ decade, x0, x1 }) => {
+        const bw = x1 - x0;
+        if (bw < 8) return;
 
-        // Divider line at band start
-        if (d > sa && x0Idx !== -1) {
+        // Divider line at band left edge (skip chartArea.left — that's the chart border)
+        if (x0 > chartArea.left) {
           ctx.save();
           ctx.strokeStyle = _decadeLine;
           ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(bx0, chartArea.top); ctx.lineTo(bx0, chartArea.bottom); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x0, chartArea.top); ctx.lineTo(x0, chartArea.bottom); ctx.stroke();
           ctx.restore();
         }
 
-        // Tiled decade label filling the band
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(bx0, chartArea.top, bw, chartArea.bottom - chartArea.top);
-        ctx.clip();
-        ctx.font = `800 ${TILE_FS}px "SF Mono", Menlo, monospace`;
-        ctx.fillStyle = _decadeText;
-        const dlabel = d + 's';
-        const cols = Math.max(1, Math.round(bw / 62));
-        const colW = bw / cols;
-        for (let row = 0; chartArea.top + row * TILE_H <= chartArea.bottom + TILE_H; row++) {
-          const ty = chartArea.top + TILE_H * 0.5 + row * TILE_H;
-          for (let col = 0; col < cols; col++) {
-            ctx.fillText(dlabel, bx0 + colW * (col + 0.5), ty);
-          }
+        // Scattered decade labels — density proportional to band area
+        const N = Math.max(6, Math.round((bw * bandH) / 3800));
+        for (let i = 0; i < N; i++) {
+          const seed = decade * 97 + i * 1009;
+          const tx   = x0 + rng(seed)       * bw;
+          const ty   = chartArea.top + rng(seed * 3) * bandH;
+          const sz   = 14 + Math.floor(rng(seed * 7) * 20); // 14–34 px
+          const ang  = (rng(seed * 13) - 0.5) * 0.55;       // ±~16°
+          ctx.save();
+          ctx.translate(tx, ty);
+          ctx.rotate(ang);
+          ctx.font = `800 ${sz}px "SF Mono", Menlo, monospace`;
+          ctx.fillStyle = _decadeText;
+          ctx.fillText(decade + 's', 0, 0);
+          ctx.restore();
         }
-        ctx.restore();
-      }
+      });
+
       ctx.restore();
     }
 
