@@ -3093,23 +3093,51 @@ const msPlugin = {
       ctx.restore();
     }
 
-    // ── Decade dividers: thick solid lines + big dim numbers ──
-    for (let decade = Math.ceil((sa + 1) / 10) * 10; decade <= ea; decade += 10) {
-      const dIdx = labels.indexOf(decade);
-      if (dIdx === -1) continue;
-      const dxp = x.getPixelForValue(dIdx);
+    // ── Decade bands: tiled watermark + divider lines ──
+    {
+      const firstD = Math.floor(sa / 10) * 10;
+      const lastD  = Math.floor(ea / 10) * 10;
+      const TILE_FS = 22, TILE_H = 38;
+
       ctx.save();
-      ctx.strokeStyle = _decadeLine;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(dxp, chartArea.top); ctx.lineTo(dxp, chartArea.bottom); ctx.stroke();
-      const midAge = decade + 5;
-      const midIdx = labels.indexOf(midAge);
-      if (midIdx !== -1) {
-        const mxp = x.getPixelForValue(midIdx);
-        ctx.font = '800 110px "SF Mono", Menlo, monospace';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+
+      for (let d = firstD; d <= lastD; d += 10) {
+        const x0Idx = labels.indexOf(d);
+        const x1Idx = labels.indexOf(d + 10);
+        const bx0 = d <= sa ? chartArea.left : (x0Idx !== -1 ? x.getPixelForValue(x0Idx) : null);
+        const bx1 = (d + 10) > ea ? chartArea.right : (x1Idx !== -1 ? x.getPixelForValue(x1Idx) : null);
+        if (bx0 === null || bx1 === null) continue;
+        const bw = bx1 - bx0;
+        if (bw < 8) continue;
+
+        // Divider line at band start
+        if (d > sa && x0Idx !== -1) {
+          ctx.save();
+          ctx.strokeStyle = _decadeLine;
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(bx0, chartArea.top); ctx.lineTo(bx0, chartArea.bottom); ctx.stroke();
+          ctx.restore();
+        }
+
+        // Tiled decade label filling the band
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bx0, chartArea.top, bw, chartArea.bottom - chartArea.top);
+        ctx.clip();
+        ctx.font = `800 ${TILE_FS}px "SF Mono", Menlo, monospace`;
         ctx.fillStyle = _decadeText;
-        ctx.textAlign = 'center';
-        ctx.fillText(decade + 's', mxp, (chartArea.top + chartArea.bottom) / 2 + 38);
+        const dlabel = d + 's';
+        const cols = Math.max(1, Math.round(bw / 62));
+        const colW = bw / cols;
+        for (let row = 0; chartArea.top + row * TILE_H <= chartArea.bottom + TILE_H; row++) {
+          const ty = chartArea.top + TILE_H * 0.5 + row * TILE_H;
+          for (let col = 0; col < cols; col++) {
+            ctx.fillText(dlabel, bx0 + colW * (col + 0.5), ty);
+          }
+        }
+        ctx.restore();
       }
       ctx.restore();
     }
