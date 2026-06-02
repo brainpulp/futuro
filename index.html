@@ -315,6 +315,22 @@ body[data-theme="graphite"] .tl-age-lbl  { color: rgba(255,255,255,0.25) !import
 }
 body[data-theme="graphite"] .proj-inline-bar { background: rgba(255,255,255,0.08); }
 body[data-theme="graphite"] .proj-inline-label { color: rgba(255,255,255,0.4); }
+/* Remaining display in closed row (when Gastos linked) */
+.iamt-rem {
+  min-width: 72px; max-width: 100px; text-align: right;
+  flex-shrink: 0; line-height: 1.15;
+}
+.iamt-rem-val {
+  font-size: 13px; font-weight: 700; font-family: 'SF Mono', Menlo, monospace;
+  display: flex; align-items: baseline; gap: 3px; justify-content: flex-end;
+}
+.iamt-rem-tag {
+  font-size: 8px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .04em; opacity: 0.7;
+}
+.iamt-rem-sub {
+  font-size: 9px; color: rgba(255,255,255,0.28); text-align: right;
+}
 /* Budget summary 3-cell row */
 .budget-summary {
   display: grid; grid-template-columns: 1fr 1fr 1fr;
@@ -4313,44 +4329,42 @@ function renderExpItem(e, i) {
   } else {
     ageFields = `<span style="font-size:10px;color:#697386;white-space:nowrap;flex-shrink:0;">${ageMonthToLabel(e.from||S.startAge, e.fromMonth||1)} – ${ageMonthToLabel(e.to||S.endAge, e.toMonth||12)}</span>`;
   }
-  // _budgetActive: true only when e.budget is *explicitly* set by the user.
-  // For installments, installTotal is always present but doesn't count as "budget active"
-  // unless the user has set e.budget explicitly.
-  const _budgetRaw = (e.budget || 0);
-  const _budgetActive = _budgetRaw > 0;
-  // Compute display value for the row amount field
-  let amtVal, amtField, amtTitle, amtReadonly;
-  if (inst) {
-    // Installments: row always shows/edits installTotal. Budget is separate (expand card only).
-    amtVal = e.budget || e.installTotal || e.amount || 0;
-    amtField = 'installTotal'; amtTitle = 'Total amount'; amtReadonly = false;
-  } else if (_budgetActive) {
-    // Effective per-period derived from remaining; read-only display
-    const _sa = S.startAge||57, _ea = S.endAge||87, _curMo = new Date().getMonth()+1;
-    const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
-    const spent = gc ? _projActual(gc) : 0;
-    const rem = Math.max(0, _budgetRaw - spent);
-    if (e.type === 'monthly') {
-      const mRem = Math.max(1, (_ea-_sa)*12+(e.toMonth||12)-_curMo+1);
-      amtVal = rem / mRem;
-    } else if (e.type === 'annual') {
-      amtVal = rem / Math.max(1, _ea-_sa);
-    } else { amtVal = rem; }
-    amtField = 'amount'; amtTitle = 'Auto (from budget)'; amtReadonly = true;
+  // Row amount area: if Gastos is linked show remaining/spent display; otherwise editable input.
+  const _gc  = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
+  const _pa  = _gc && _projectActuals[_gc];
+  const _spent = _gc ? _projActual(_gc) : 0;
+  const _hasBudget = (e.budget || 0) > 0;
+  const _hasGastos = !!_pa;
+  let rowAmtHtml;
+  if (_hasGastos || _hasBudget) {
+    const _remaining = _hasBudget ? Math.max(0, e.budget - _spent) : null;
+    const _pct = (_hasBudget && e.budget > 0) ? Math.min(100, Math.round(_spent / e.budget * 100)) : 0;
+    const _rc  = _hasBudget ? _projColor(_pct) : 'rgba(255,255,255,0.35)';
+    if (_hasBudget) {
+      const _over = _spent > e.budget;
+      rowAmtHtml = `<div class="iamt-rem" onclick="event.stopPropagation()" title="Remaining of ${fmtM(e.budget)} budget">
+        <div class="iamt-rem-val" style="color:${_rc}">${fmtM(_remaining)}<span class="iamt-rem-tag">${_over?'⚠':'left'}</span></div>
+        <div class="iamt-rem-sub">of ${fmtM(e.budget)}</div>
+      </div>`;
+    } else {
+      rowAmtHtml = `<div class="iamt-rem" onclick="event.stopPropagation()" title="Spent in Gastos — set a budget cap in the expand card to track remaining">
+        <div class="iamt-rem-val" style="color:rgba(255,255,255,0.45)">${fmtM(_spent)}<span class="iamt-rem-tag">spent</span></div>
+        <div class="iamt-rem-sub">no cap set</div>
+      </div>`;
+    }
   } else {
-    amtVal = e.amount || 0;
-    amtField = 'amount'; amtTitle = 'Amount'; amtReadonly = false;
+    const _amtField = inst ? 'installTotal' : 'amount';
+    const _amtVal   = inst ? (e.installTotal || e.amount || 0) : (e.amount || 0);
+    rowAmtHtml = `<input type="text" class="iamt" value="${fmtInput(_amtVal)}" title="${inst?'Total':'Amount'}"
+      onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)"
+      onchange="event.stopPropagation();upE(${e.id},'${_amtField}',parseNum(this.value));go()"
+      onclick="event.stopPropagation()">`;
   }
   return `<div class="item-row${e.enabled===false?' disabled-row':''}" onclick="toggle(${e.id});renderExp()">
   <span class="expand-arr">${openId===e.id?'▼':'▶'}</span>
   <span class="item-num">${i}</span>
   <input class="iname" type="text" value="${e.name}" onclick="event.stopPropagation()" onchange="upE(${e.id},'name',this.value)">
-  <input type="text" class="iamt${amtReadonly?' iamt-auto':''}" value="${fmtInput(amtVal)}" title="${amtTitle}"
-    onfocus="moneyFocus(this);event.stopPropagation();"
-    onblur="moneyBlur(this)"
-    ${amtReadonly?'readonly style="opacity:0.55;cursor:default;"':''}
-    onchange="event.stopPropagation();upE(${e.id},'${amtField}',parseNum(this.value));go()"
-    onclick="event.stopPropagation()">
+  ${rowAmtHtml}
   <select class="iselect" onchange="event.stopPropagation();expTypeChanged(${e.id},this.value);" onclick="event.stopPropagation()">
     <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
     <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
