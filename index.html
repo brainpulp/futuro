@@ -3095,6 +3095,12 @@ const msPlugin = {
     const { x, y } = scales;
     const liqData = data.datasets[0].data, iliqData = data.datasets[1].data, labels = data.labels;
 
+    // Theme-aware label halo: dark bg needs dark stroke, light bg needs light stroke
+    const _dark = document.body.dataset.theme === 'graphite';
+    const _halo = _dark ? 'rgba(8,10,18,0.72)' : 'rgba(230,230,235,0.88)';
+    const _haloHvy = _dark ? 'rgba(8,10,18,0.75)' : 'rgba(230,230,235,0.92)';
+    const _haloSub = _dark ? 'rgba(8,10,18,0.65)' : 'rgba(230,230,235,0.80)';
+
     // Always populate _totalDots for hover tooltip (all zoom modes)
     const totalData0 = data.datasets[2].data;
     _totalDots = [];
@@ -3127,7 +3133,7 @@ const msPlugin = {
         ctx.rotate(angle);
         ctx.font = '600 12px SF Mono, Menlo, monospace';
         ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
-        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeStyle = _halo;
         ctx.strokeText(label, 0, 14);
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, 14);
@@ -3149,7 +3155,7 @@ const msPlugin = {
         ctx.rotate(angle);
         ctx.font = '600 12px SF Mono, Menlo, monospace';
         ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
-        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeStyle = _halo;
         ctx.strokeText(label, 0, 14);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
         ctx.fillText(label, 0, 14);
@@ -3184,7 +3190,6 @@ const msPlugin = {
 
     ctx.save();
 
-    const _dark = document.body.dataset.theme === 'graphite';
     const _gridLine  = _dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
     const _decadeLine = _dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.13)';
     const _decadeText = _dark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.10)';
@@ -3358,7 +3363,7 @@ const msPlugin = {
         ctx.rotate(angle);
         ctx.font = '600 13px SF Mono, Menlo, monospace';
         ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
-        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeStyle = _halo;
         ctx.strokeText(label, 0, h - 4);
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, h - 4);
@@ -3381,13 +3386,13 @@ const msPlugin = {
         ctx.lineJoin = 'round';
         // Main value
         ctx.font = '700 22px SF Mono, Menlo, monospace';
-        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(8,10,18,0.75)';
+        ctx.lineWidth = 5; ctx.strokeStyle = _haloHvy;
         ctx.strokeText(label, 0, mainH - 3);
         ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
         ctx.fillText(label, 0, mainH - 3);
         // Sub label: "tot · liq $Xm"
         ctx.font = '500 10px SF Mono, Menlo, monospace';
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,10,18,0.65)';
+        ctx.lineWidth = 3; ctx.strokeStyle = _haloSub;
         ctx.strokeText(subLabel, 0, h - 3);
         ctx.fillStyle = 'rgba(210,220,240,0.8)';
         ctx.fillText(subLabel, 0, h - 3);
@@ -3413,7 +3418,7 @@ const msPlugin = {
         ctx.translate(xp, lyp + 4);
         ctx.rotate(angle);
         ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
-        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeStyle = _halo;
         ctx.strokeText(label, 0, h - 4);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
         ctx.fillText(label, 0, h - 4);
@@ -3423,7 +3428,7 @@ const msPlugin = {
         ctx.translate(xp, lyp + 4);
         ctx.rotate(angle);
         ctx.lineJoin = 'round'; ctx.lineWidth = 4;
-        ctx.strokeStyle = 'rgba(8,10,18,0.75)';
+        ctx.strokeStyle = _haloHvy;
         ctx.strokeText(label, 0, h - 2);
         ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
         ctx.fillText(label, 0, h - 2);
