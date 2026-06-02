@@ -1327,6 +1327,22 @@ const LS_KEY = 'futuro_scenarios';
 // ══════════════════════════════════════════════════════════════
 //  SUPABASE PERSISTENCE
 // ══════════════════════════════════════════════════════════════
+// ── Browser polyfills ────────────────────────────────────────
+// roundRect: available in Chrome 99+/Edge 99+/FF 112+ — polyfill for older builds
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y); this.arcTo(x + w, y, x + w, y + r, r);
+    this.lineTo(x + w, y + h - r); this.arcTo(x + w, y + h, x + w - r, y + h, r);
+    this.lineTo(x + r, y + h); this.arcTo(x, y + h, x, y + h - r, r);
+    this.lineTo(x, y + r); this.arcTo(x, y, x + r, y, r);
+    this.closePath();
+    return this;
+  };
+}
+
 const SB_URL = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
 const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYXRkbnJ4ZnJsdGNtcXZzbXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MjYzMjcsImV4cCI6MjA5MzUwMjMyN30.4HUYkjuCk3doWShF-h0CzHS-9pC4ST5uz9yd2HHbayc';
 const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
@@ -1672,6 +1688,7 @@ let _yearMode = false;
 let _gastosActuals  = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
 let _projectActuals = {}; // { "delta": { byMonth: { "2026-01": 12000 } }, ... } — per-Gastos-cat actuals
 let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
+let _pillsExpanded = localStorage.getItem('futuro-pills-expanded') === '1';
 let _mcRunning  = false;
 let _mcAutoTimer = null; // debounce handle for auto-rerun
 
@@ -2482,11 +2499,13 @@ function runSim(monthlyOverride) {
   let liq = S.liquidBase;
   let _simMinLiq = Infinity, _simMinAge = sa, _simMinMo = _curMo;
 
-  // Deduct age-sa one-offs immediately (month 1 only)
-  S.expenses.filter(e => e.enabled !== false).forEach(e => {
-    if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1)
-      liq -= e.amount;
-  });
+  // ── Do NOT deduct past one-offs upfront ──────────────────────
+  // liquidBase is the CURRENT portfolio value (e.g. IBKR-synced).
+  // One-offs at age=sa with atMonth < _curMo have already happened
+  // and are already reflected in liquidBase — deducting them again
+  // would double-count them.
+  // One-offs at atMonth >= _curMo are handled correctly in the
+  // partial-year loop below (months _curMo..12).
 
   let props = S.properties.filter(p => p.enabled !== false)
     .map(p => ({ ...p, cv: (p.acquireAge || sa) <= sa ? p.value : 0, sold: false }));
@@ -3754,14 +3773,37 @@ function go() {
       ${swrHtml}
     </div>`);
   });
-  const minBg  = '#FEF9C3';
-  const minCol = minLiq < 0 ? '#92400E' : '#854D0E';
+  // Min liq pill — theme-aware, with month info from remote
+  const _dark = document.body.dataset.theme === 'graphite';
+  const minBg  = _dark ? '#1a1400' : '#FEF9C3';
+  const minBrd = _dark ? '1px solid #7d6608' : '1px solid #fde68a';
+  const minLblC = _dark ? '#e3b341' : '#92400E';
+  const minValC = minLiq < 0 ? (_dark ? '#f87171' : '#C03030') : (_dark ? '#fbbf24' : '#854D0E');
   const _minLabel = _yearMode
-    ? _MONTHS[minMo - 1] + ' ' + ageToYear(minAge)
-    : 'age ' + minAge + ' · ' + _MONTHS[minMo - 1];
-  pills.push(`<div class="pill" style="background:${minBg}"><div class="pill-label" style="color:#92400E">Lowest liquidity · ${_minLabel}</div><div class="pill-val" style="color:${minCol}">${fmt(minLiq)}</div></div>`);
-  document.getElementById('metrics').style.gridTemplateColumns = `repeat(${pills.length}, minmax(0,1fr))`;
-  document.getElementById('metrics').innerHTML = pills.join('');
+    ? (_MONTHS[minMo - 1] || '') + ' ' + ageToYear(minAge)
+    : 'age ' + minAge + (_MONTHS[minMo - 1] ? ' · ' + _MONTHS[minMo - 1] : '');
+  const minPill = `<div class="pill" style="background:${minBg};border:${minBrd};">
+    <div class="pill-label" style="color:${minLblC}">Lowest liq · ${_minLabel}</div>
+    <div class="pill-val" style="color:${minValC}">${fmt(minLiq)}</div>
+  </div>`;
+
+  // Pills: first 2 milestones always visible; rest behind ▶ toggle
+  const ALWAYS_SHOW = 2;
+  const visiblePills = pills.slice(0, ALWAYS_SHOW);
+  const hiddenPills  = pills.slice(ALWAYS_SHOW);
+  const hasHidden = hiddenPills.length > 0;
+
+  const toggleBtn = hasHidden ? `<div class="pill" style="cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:28px;flex:0 0 28px;opacity:0.5;"
+    onclick="_pillsExpanded=!_pillsExpanded;localStorage.setItem('futuro-pills-expanded',_pillsExpanded?'1':'0');go();"
+    title="${_pillsExpanded ? 'Hide far future' : 'Show far future'}">
+    <span style="font-size:14px;">${_pillsExpanded ? '◀' : '▶'}</span>
+  </div>` : '';
+
+  const shownPills = _pillsExpanded ? [...visiblePills, ...hiddenPills, minPill] : [...visiblePills, minPill];
+  const allPills = hasHidden ? [...shownPills.slice(0, -1), toggleBtn, shownPills[shownPills.length-1]] : shownPills;
+
+  document.getElementById('metrics').style.gridTemplateColumns = `repeat(${allPills.length}, minmax(0,1fr))`;
+  document.getElementById('metrics').innerHTML = allPills.join('');
 
   // ── Sub-chart data: zoom-filtered to match main chart period ──
   const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

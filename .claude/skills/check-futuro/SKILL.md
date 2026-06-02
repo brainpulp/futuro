@@ -8,6 +8,15 @@ Also invoke whenever the user says "check", "verify", "does this work", or "any 
 
 ## What to check
 
+### 0. CRITICAL: No past-expense double-counting in `runSim`
+- **The upfront one-off deduction block MUST NOT exist.** There must be NO code that deducts
+  `atAge === sa && atMonth < _curMo` expenses before the partial-year loop.
+- `liquidBase` represents the CURRENT portfolio value (IBKR-synced or manually entered).
+  Past expenses (atMonth < _curMo in the starting year) are already reflected in it.
+- Deducting them again produces `current pill = liquidBase - past_expenses` (wrong).
+- **Verify:** the comment "Do NOT deduct past one-offs upfront" exists near the start of `runSim`.
+- **Verify:** `out[0].liq === Math.round(S.liquidBase)` — no phantom deductions before loop.
+
 ### 1. Simulation math (`runSim`, `runMonteCarlo`, `getYield`, `getMonthly`)
 - `getYield(age)` returns a DECIMAL (already divided by 100). Never divide by 100 again downstream.
 - Monthly yield: `Math.pow(1 + yld, 1/12) - 1` where `yld` is the decimal from `getYield`. Verify no extra `/100`.
