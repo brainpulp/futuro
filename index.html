@@ -3102,35 +3102,75 @@ const msPlugin = {
       _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
     });
 
-    if (_chartZoom === 1) {
-      // Monthly view: label the liquid curve (total is off-scale in 1y mode)
-      // Use actual rendered pixel positions from Chart.js meta
-      const meta0 = ch.getDatasetMeta(0); // Liquid dataset
+    if (_chartZoom === 1 || _chartZoom === 5) {
+      // Monthly view: label both curves using rendered pixel positions
+      const meta0 = ch.getDatasetMeta(0); // Liquid
+      const meta2 = ch.getDatasetMeta(2); // Total
+      // In 1y show every month; in 5y show every 6 months (10 labels)
+      const every = _chartZoom === 1 ? 1 : 6;
       ctx.save();
       ctx.textAlign = 'center';
+
+      // Total curve labels
+      let tSeq = 0;
+      labels.forEach((lbl, idx) => {
+        if (idx % every !== 0) return;
+        const tv = totalData0[idx];
+        const pt = meta2.data[idx];
+        if (!pt) return;
+        const label = fmtM(tv);
+        const phase = tSeq++ * 1.3;
+        const angle = Math.sin(_danceT * 0.0024 + phase) * 0.08;
+        ctx.save();
+        ctx.translate(pt.x, pt.y - 22);
+        ctx.rotate(angle);
+        ctx.font = '600 12px SF Mono, Menlo, monospace';
+        ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(8,10,18,0.72)';
+        ctx.strokeText(label, 0, 14);
+        ctx.fillStyle = tv >= 0 ? '#1A8C5F' : '#C03030';
+        ctx.fillText(label, 0, 14);
+        ctx.restore();
+      });
+
+      // Liquid curve labels
       let lSeq = 0;
       labels.forEach((lbl, idx) => {
+        if (idx % every !== 0) return;
         const lv = liqData[idx];
         const pt = meta0.data[idx];
         if (!pt) return;
-        const xp = pt.x, yp = pt.y;
         const label = fmtM(lv);
-        ctx.font = '600 13px SF Mono, Menlo, monospace';
-        const textW = ctx.measureText(label).width;
-        const pad = 5, h = 18;
-        const phase = lSeq++ * 1.3;
+        const phase = lSeq++ * 1.3 + 0.65;
         const angle = Math.sin(_danceT * 0.0024 + phase) * 0.08;
         ctx.save();
-        ctx.translate(xp, yp - h - 4);
+        ctx.translate(pt.x, pt.y + 4);
         ctx.rotate(angle);
-        ctx.font = '600 13px SF Mono, Menlo, monospace';
+        ctx.font = '600 12px SF Mono, Menlo, monospace';
         ctx.lineJoin = 'round'; ctx.lineWidth = 3.5;
         ctx.strokeStyle = 'rgba(8,10,18,0.72)';
-        ctx.strokeText(label, 0, h - 4);
-        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030'; // blue for liquid
-        ctx.fillText(label, 0, h - 4);
+        ctx.strokeText(label, 0, 14);
+        ctx.fillStyle = lv >= 0 ? '#378ADD' : '#C03030';
+        ctx.fillText(label, 0, 14);
         ctx.restore();
       });
+
+      // Min-liq red dot
+      const _ds0m = data.datasets[0];
+      const minLiqM = _ds0m._simMinLiq ?? Math.min(...liqData);
+      if (isFinite(minLiqM)) {
+        const minIdxM = liqData.indexOf(minLiqM);
+        const ptM = meta0.data[minIdxM];
+        if (ptM) {
+          const minYp = y.getPixelForValue(minLiqM);
+          ctx.fillStyle = '#C03030';
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(ptM.x, minYp, 6, 0, Math.PI*2);
+          ctx.fill(); ctx.stroke();
+          _minLiqDot = { xp: ptM.x, yp: minYp, age: _ds0m._simMinAge, liq: minLiqM };
+        }
+      }
+
       ctx.restore();
       return;
     }
