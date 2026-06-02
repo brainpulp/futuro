@@ -2572,7 +2572,7 @@ function runSim(monthlyOverride) {
       liq += inc - _baseExp - _ooAmt - _itemizedExp;
       _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; _simMinMo = mo; }
-      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
+      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
     // Annualise partial-year burn so pill shows a full-year equivalent
     const _saMonths = 13 - _curMo;
@@ -2698,7 +2698,7 @@ function runSim(monthlyOverride) {
       yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
-      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq) });
+      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
 
     out.push({
@@ -3522,6 +3522,19 @@ function _buildChartView(data) {
     const yMax   = Math.max(Math.max(...liq, 0) * 1.18, 100_000);
     return { labels, liq, iliq, total: liq.map((l,i) => l + iliq[i]), real: [], props: [], monthly: true, yMax };
   }
+  // 5y zoom: use month-by-month data so the curve reflects actual monthly burn
+  if (_chartZoom === 5) {
+    const maxAge  = sa + 5;
+    const mo60    = (data.monthly || []).filter(m => m.age < maxAge || (m.age === maxAge && m.mo === 1));
+    const MON5    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const labels  = mo60.map(m => MON5[m.mo-1] + " '" + String(m.year).slice(2));
+    const liq     = mo60.map(m => m.liq);
+    const iliq    = mo60.map(m => m.iliq || 0);
+    const total   = liq.map((l,i) => l + iliq[i]);
+    const real    = total.map((t,i) => Math.round(t / Math.pow(1+(S.inflationRate||2.5)/100, i/12)));
+    const yMax    = Math.max(Math.max(...total, 0) * 1.1, 500_000);
+    return { labels, liq, iliq, total, real, props: [], monthly: true, yMax };
+  }
   const maxAge   = sa + _chartZoom;
   const filtered = data.filter(d => d.age <= maxAge);
   const labels   = filtered.map(d => d.age);
@@ -3635,15 +3648,16 @@ function go() {
   // ── Sub-chart data: zoom-filtered to match main chart period ──
   const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let labels, yieldData, expData, subAges;
-  if (_chartZoom === 1) {
-    const mo12 = (data.monthly || []).slice(0, 12);
-    labels    = mo12.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
-    subAges   = mo12.map(m => m.age);
-    yieldData = mo12.map(m => {
+  if (_chartZoom === 1 || _chartZoom === 5) {
+    const nMo = _chartZoom === 5 ? 60 : 12;
+    const moN = (data.monthly || []).slice(0, nMo);
+    labels    = moN.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
+    subAges   = moN.map(m => m.age);
+    yieldData = moN.map(m => {
       const base = S.yieldCurve && S.yieldCurve[m.age] !== undefined ? S.yieldCurve[m.age] : S.yieldRate;
       return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
     });
-    expData   = mo12.map(m => m.baseExp);
+    expData   = moN.map(m => m.baseExp);
   } else {
     const maxAge     = (S.startAge || 57) + _chartZoom;
     const filtered   = data.filter(d => d.age <= maxAge);
@@ -3700,6 +3714,31 @@ function go() {
               const xp = x.getPixelForValue(idx);
               ctx.beginPath(); ctx.moveTo(xp, chartArea.top); ctx.lineTo(xp, chartArea.bottom); ctx.stroke();
               if (idx % 3 === 0) ctx.fillText(lbl, xp, chartArea.top + 13);
+            });
+          } else if (_chartZoom === 5) {
+            // Monthly data — draw subtle month lines, stronger year lines, label quarters
+            const isDark = document.body.dataset.theme === 'graphite';
+            lbs.forEach((lbl, idx) => {
+              const xp = x.getPixelForValue(idx);
+              const isJan = lbl.startsWith('Jan');
+              // gridline
+              ctx.strokeStyle = isJan
+                ? (isDark ? 'rgba(200,210,220,0.22)' : 'rgba(80,80,100,0.18)')
+                : (isDark ? 'rgba(200,210,220,0.07)' : 'rgba(80,80,100,0.06)');
+              ctx.lineWidth = isJan ? 1.5 : 0.75;
+              ctx.setLineDash(isJan ? [] : [2, 3]);
+              ctx.beginPath(); ctx.moveTo(xp, chartArea.top); ctx.lineTo(xp, chartArea.bottom); ctx.stroke();
+              ctx.setLineDash([]);
+              // label: year at Jan, abbreviated month at Apr/Jul/Oct
+              if (isJan) {
+                ctx.font = '700 9px "SF Mono", Menlo, monospace';
+                ctx.fillStyle = isDark ? 'rgba(200,210,220,0.65)' : 'rgba(80,80,100,0.6)';
+                ctx.fillText(lbl.slice(4), xp, chartArea.top - 7); // e.g. "'26"
+              } else if (lbl.startsWith('Apr') || lbl.startsWith('Jul') || lbl.startsWith('Oct')) {
+                ctx.font = '600 8px "SF Mono", Menlo, monospace';
+                ctx.fillStyle = isDark ? 'rgba(200,210,220,0.35)' : 'rgba(80,80,100,0.3)';
+                ctx.fillText(lbl.slice(0,3), xp, chartArea.top - 7);
+              }
             });
           } else {
             const step = _chartZoom <= 10 ? 1 : _chartZoom <= 20 ? 2 : 5;
@@ -3794,9 +3833,10 @@ function go() {
     chart.data.datasets[0].data = view.liq;
     chart.data.datasets[0]._simMinLiq = data.simMinLiq;
     chart.data.datasets[0]._simMinAge = data.simMinAge;
-    chart.data.datasets[0].pointRadius = _chartZoom === 1 ? 3 : 0;
+    chart.data.datasets[0]._simMinMo  = data.simMinMo;
+    chart.data.datasets[0].pointRadius = (_chartZoom === 1 || _chartZoom === 5) ? 0 : 0;
     chart.data.datasets[1].data = view.iliq;
-    chart.data.datasets[1].pointRadius = _chartZoom === 1 ? 3 : 0;
+    chart.data.datasets[1].pointRadius = (_chartZoom === 1 || _chartZoom === 5) ? 0 : 0;
     chart.data.datasets[2].data = view.total;
     chart.data.datasets[3].data = view.real;
     chart.data.datasets.splice(4);
@@ -5537,9 +5577,16 @@ function _tlAgeToX(age, ca) {
   let idx = -1;
   if (_chartZoom === 1) {
     // For 1y mode: find the month that corresponds to the event age
-    // We just return null for most events (only startAge matters)
-    idx = 0; // pin to left edge for out-of-range ages
-    if (age > (S.startAge || 57)) return null; // event starts after 1y window
+    idx = 0;
+    if (age > (S.startAge || 57)) return null;
+  } else if (_chartZoom === 5) {
+    // For 5y monthly mode: labels are strings like "Jan '26". Find Jan of the target year.
+    const targetYear = "'" + String(ageToYear(age)).slice(2);
+    idx = lbs.findIndex(l => l.startsWith('Jan') && l.includes(targetYear));
+    if (idx < 0) {
+      if (age < (S.startAge || 57)) idx = 0;
+      else idx = lbs.length - 1;
+    }
   } else {
     idx = lbs.indexOf(age);
     if (idx < 0) {
@@ -5596,9 +5643,23 @@ function renderTimeline() {
   // Expenses section
   addSec('Expenses', '#ef4444');
   (S.expenses || []).forEach(exp => {
-    const oo = exp.type === 'oneoff' || exp.type === 'installments';
-    const a0 = oo ? (exp.atAge || exp.from || sa) : (exp.from || sa);
-    const a1 = oo ? null : (exp.to || ea);
+    let a0, a1;
+    if (exp.type === 'installments') {
+      // Bar from start to last payment
+      const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[exp.installFreq||'monthly'];
+      const installN  = exp.installN || 1;
+      const startAge  = exp.atAge || sa;
+      const startMo   = (exp.atMonth || 1) - 1; // 0-based
+      const totalMos  = Math.round((installN - 1) / ppy * 12) + startMo;
+      a0 = startAge;
+      a1 = startAge + (totalMos / 12);
+    } else if (exp.type === 'oneoff') {
+      a0 = exp.atAge || exp.from || sa;
+      a1 = null;
+    } else {
+      a0 = exp.from || sa;
+      a1 = exp.to || ea;
+    }
     addItem(exp, 'expense', a0, a1, '#ef4444');
   });
   if (!(S.expenses || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
