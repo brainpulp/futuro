@@ -2498,7 +2498,7 @@ function runSim(monthlyOverride) {
   const inf = S.inflationRate / 100;
   const _partFrac = (12 - _curMo) / 12;              // fraction of year sa already in partial loop
   let liq = S.liquidBase;
-  let _simMinLiq = Infinity, _simMinAge = sa;
+  let _simMinLiq = Infinity, _simMinAge = sa, _simMinMo = _curMo;
 
   // Deduct age-sa one-offs immediately (month 1 only)
   S.expenses.filter(e => e.enabled !== false).forEach(e => {
@@ -2570,7 +2570,7 @@ function runSim(monthlyOverride) {
       });
       liq += inc - _baseExp - _ooAmt - _itemizedExp;
       _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
-      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; }
+      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; _simMinMo = mo; }
       out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq) });
     }
     // Annualise partial-year burn so pill shows a full-year equivalent
@@ -2696,7 +2696,7 @@ function runSim(monthlyOverride) {
       liq += inc - exp;
       yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
-      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; }
+      if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
       out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq) });
     }
 
@@ -2712,6 +2712,7 @@ function runSim(monthlyOverride) {
   }
   out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
   out.simMinAge = _simMinAge;
+  out.simMinMo  = _simMinMo;
   return out;
 }
 
@@ -3577,6 +3578,7 @@ function go() {
 
   const minLiq = data.simMinLiq ?? data[data.length - 1].liq;
   const minAge = data.simMinAge ?? sa;
+  const minMo  = data.simMinMo  ?? 1;
 
   // Max monthly — debounced: expensive (44×runSim), update 600ms after last go()
   clearTimeout(_maxTimer);
@@ -3622,7 +3624,10 @@ function go() {
   });
   const minBg  = '#FEF9C3';
   const minCol = minLiq < 0 ? '#92400E' : '#854D0E';
-  pills.push(`<div class="pill" style="background:${minBg}"><div class="pill-label" style="color:#92400E">Lowest liquidity · ${_yearMode ? ageToYear(minAge) : 'age ' + minAge}</div><div class="pill-val" style="color:${minCol}">${fmt(minLiq)}</div></div>`);
+  const _minLabel = _yearMode
+    ? _MONTHS[minMo - 1] + ' ' + ageToYear(minAge)
+    : 'age ' + minAge + ' · ' + _MONTHS[minMo - 1];
+  pills.push(`<div class="pill" style="background:${minBg}"><div class="pill-label" style="color:#92400E">Lowest liquidity · ${_minLabel}</div><div class="pill-val" style="color:${minCol}">${fmt(minLiq)}</div></div>`);
   document.getElementById('metrics').style.gridTemplateColumns = `repeat(${pills.length}, minmax(0,1fr))`;
   document.getElementById('metrics').innerHTML = pills.join('');
 
