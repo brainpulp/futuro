@@ -2392,29 +2392,53 @@ function getYield(age) {
 function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
 
-  // Precompute effective installTotal per expense:
-  // budget minus what's already been spent in Gastos → only project the remainder
+  // Precompute installment info per expense.
+  // perPayment = fixed amount per slot (installTotal / installN) — never changes.
+  // paidSoFar  = slots already fired before the simulation starts:
+  //              • If Gastos-linked: floor(spent / perPayment), so Gastos is the truth.
+  //              • Otherwise: elapsed payment slots since atAge up to now.
+  // The monthly loops then fire remaining slots (paidSoFar … installN-1).
+  const _curMo = new Date().getMonth() + 1;          // hoist: used in both loops
   const _effInstall = {};
   S.expenses.forEach(e => {
     if (e.type !== 'installments') return;
-    const raw = e.installTotal || 0;
-    const gc  = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
-    const spent = gc ? _projActual(gc) : 0;
-    _effInstall[e.id] = Math.max(0, raw - spent);
+    const installN   = e.installN || 1;
+    const perPayment = (e.installTotal || 0) / installN;
+    const ppy        = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
+    const start      = e.atAge || e.from || sa;
+    const moPerSlot  = 12 / ppy;
+    const gc         = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
+    let paidSoFar;
+    if (gc && perPayment > 0) {
+      // Gastos tells us how many payment-sized chunks have been spent
+      paidSoFar = Math.min(Math.floor(_projActual(gc) / perPayment), installN);
+    } else {
+      // Timing: how many slots elapsed from atAge to the start of the current month
+      const moElapsed = Math.max(0, (sa - start) * 12 + (_curMo - 1));
+      paidSoFar = Math.min(Math.floor(moElapsed / moPerSlot), installN);
+    }
+    _effInstall[e.id] = { perPayment, paidSoFar, installN, ppy };
   });
+
+  // Helper: should this installment fire at absolute month offset moFromStart?
+  function _installFires(e, moFromStart) {
+    const ei = _effInstall[e.id]; if (!ei) return false;
+    const { perPayment, paidSoFar, installN, ppy } = ei;
+    if (perPayment <= 0 || installN <= 0) return false;
+    const moPerSlot = 12 / ppy;
+    if (moFromStart < 0 || moFromStart % moPerSlot !== 0) return false;
+    const slot = Math.floor(moFromStart / moPerSlot);
+    return (paidSoFar + slot) < installN;
+  }
+
   const inf = S.inflationRate / 100;
-  const _curMo = new Date().getMonth() + 1;          // hoist: used in both loops
   const _partFrac = (12 - _curMo) / 12;              // fraction of year sa already in partial loop
   let liq = S.liquidBase;
   let _simMinLiq = Infinity, _simMinAge = sa;
 
-  // Deduct age-sa one-offs and first-year installment payments immediately (month 1)
+  // Deduct age-sa one-offs immediately (month 1 only)
   S.expenses.filter(e => e.enabled !== false).forEach(e => {
     if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1) liq -= e.amount;
-    if (e.type === 'installments' && (e.atAge||e.from||sa) === sa) {
-      const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
-      liq -= Math.min(ppy, e.installN||1) * ((_effInstall[e.id]||0) / (e.installN||1));
-    }
   });
 
   let props = S.properties.filter(p => p.enabled !== false)
@@ -2458,6 +2482,10 @@ function runSim(monthlyOverride) {
           const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
           const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
           if (startOk && endOk) _itemizedExp += e.amount / 12;
+        } else if (e.type === 'installments') {
+          const start = e.atAge || e.from || sa;
+          const moFromStart = (sa - start) * 12 + (mo - 1);
+          if (_installFires(e, moFromStart)) _itemizedExp += _effInstall[e.id].perPayment;
         }
       });
       let inc = 0;
@@ -2561,20 +2589,9 @@ function runSim(monthlyOverride) {
           const endOk   = age < to   || (age === to   && mo <= toMonth);
           if (startOk && endOk) exp += e.amount / 12;
         } else if (e.type === 'installments') {
-          const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
           const start = e.atAge || e.from || sa;
-          // Total months elapsed since start (within this age loop, mo goes 1..12)
-          const totalMo = (age - start) * 12 + (mo - 1);
-          if (totalMo >= 0) {
-            const paid = Math.floor(totalMo / (12 / ppy));
-            const remain = (e.installN||1) - paid;
-            // Pay installment at the right month slot
-            const moInYear = ((age - start) * 12 + (mo - 1));
-            const moPerInst = 12 / ppy;
-            if (remain > 0 && moInYear % moPerInst === 0 && age >= start) {
-              exp += (_effInstall[e.id]||0) / (e.installN||1);
-            }
-          }
+          const moFromStart = (age - start) * 12 + (mo - 1);
+          if (_installFires(e, moFromStart)) exp += _effInstall[e.id].perPayment;
         }
       });
 
