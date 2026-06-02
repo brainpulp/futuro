@@ -389,23 +389,38 @@ body[data-theme="graphite"] .budget-cell-sub { color: rgba(255,255,255,0.25); }
   min-width: 0;
 }
 .ribbon-seg:last-child { border-right: none; flex: 0 0 auto; }
-.ribbon-seg.min-seg { flex: 0 0 auto; width: max-content; background: #fffbeb; border-left: 1px solid #fde68a; border-right: none; }
 .ribbon-lbl { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8792a2; margin-bottom: 3px; }
 .ribbon-val { font-size: 17px; font-weight: 800; font-family: 'SF Mono', Menlo, monospace; line-height: 1; }
 .ribbon-sub { font-size: 10px; color: #8792a2; margin-top: 2px; font-family: 'SF Mono', Menlo, monospace; }
-.ribbon-seg.min-seg .ribbon-lbl { color: #92400e; }
-.ribbon-seg.min-seg .ribbon-val { color: #854d0e; }
-.ribbon-seg.min-seg .ribbon-sub { color: #92400e; }
+
+/* min-liq is a SIBLING of the ribbon (not inside it) — no flex-grow fight */
+.min-seg-outer {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  box-shadow: 0 1px 3px rgba(50,50,93,.06);
+  white-space: nowrap;
+}
+.min-seg-outer .ribbon-lbl { color: #92400e; }
+.min-seg-outer .ribbon-val { color: #854d0e; }
+.min-seg-outer .ribbon-sub { color: #a16207; }
 
 body[data-theme="graphite"] .ribbon { background: #21262d; border-color: #30363d; box-shadow: none; }
 body[data-theme="graphite"] .ribbon-seg { border-color: #30363d; }
 body[data-theme="graphite"] .ribbon-lbl { color: #6e7681; }
 body[data-theme="graphite"] .ribbon-val { color: #e6edf3; }
 body[data-theme="graphite"] .ribbon-sub { color: #6e7681; }
-body[data-theme="graphite"] .ribbon-seg.min-seg { background: #1a1400; border-left: 1px solid #7d6608; }
-body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-lbl { color: #e3b341; }
-body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-val { color: #fbbf24; }
-body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-sub { color: #e3b341; }
+/* dark min-liq: visible amber tint, NOT near-black */
+body[data-theme="graphite"] .min-seg-outer {
+  background: rgba(251,191,36,0.13);
+  border-color: #b45309;
+  box-shadow: none;
+}
+body[data-theme="graphite"] .min-seg-outer .ribbon-lbl { color: #fcd34d; }
+body[data-theme="graphite"] .min-seg-outer .ribbon-val { color: #fbbf24; }
+body[data-theme="graphite"] .min-seg-outer .ribbon-sub { color: #fcd34d; }
 
 .pill {
   background: #fff;
@@ -914,9 +929,10 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <div class="main-section-title" onclick="toggleSec('chart-nw')">Net Worth<span id="sec-arr-chart-nw" class="sec-chevron">▾</span></div>
     <div id="sec-body-chart-nw">
 
-    <!-- Metric pills -->
+    <!-- Metric ribbon + min-liq (separate element = no flex-stretch fight) -->
     <div style="display:flex;gap:5px;margin:6px 0 8px;align-items:stretch;">
       <div id="metrics" class="ribbon" style="flex:1;min-width:0;margin:0;"></div>
+      <div id="min-liq-seg" class="min-seg-outer" style="display:none;"></div>
       <div id="mc-pill" class="pill" style="display:none;min-width:110px;flex-shrink:0;cursor:pointer;" onclick="triggerMC()" title="Click to re-run Monte Carlo"></div>
     </div>
 
@@ -3824,15 +3840,17 @@ function go() {
     </div>`);
   });
 
-  // Min liq — fixed-width segment with distinct amber styling
+  // Min liq — separate sibling element (outside ribbon, so flex:0 0 auto is unambiguous)
   const _minLabel = _yearMode
     ? ((_MONTHS[minMo - 1] || '') + ' ' + ageToYear(minAge)).trim()
     : 'age ' + minAge + (_MONTHS[minMo - 1] ? ' · ' + _MONTHS[minMo - 1] : '');
   const minValC = minLiq < 0 ? '#C03030' : 'inherit';
-  segs.push(`<div class="ribbon-seg min-seg">
-    <div class="ribbon-lbl">Min liq · ${_minLabel}</div>
-    <div class="ribbon-val" style="color:${minValC}">${fmtM(minLiq)}</div>
-  </div>`);
+  const minSeg = document.getElementById('min-liq-seg');
+  if (minSeg) {
+    minSeg.style.display = '';
+    minSeg.innerHTML = `<div class="ribbon-lbl">Min liq · ${_minLabel}</div>
+      <div class="ribbon-val" style="color:${minValC}">${fmtM(minLiq)}</div>`;
+  }
 
   document.getElementById('metrics').style.gridTemplateColumns = '';
   document.getElementById('metrics').innerHTML = segs.join('');
