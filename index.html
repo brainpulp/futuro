@@ -3451,8 +3451,6 @@ function renderRC(data) {
   if (!monthly.length) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px;">No monthly data.</div>'; return; }
 
   const MONAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const fmtK = v => { const s = v < 0 ? '-' : ''; const a = Math.abs(Math.round(v)); return a >= 1000 ? s+'$'+(a/1000).toFixed(1).replace(/\.0$/,'')+'K' : s+'$'+a; };
-
   // Group by year
   const byYear = {};
   monthly.forEach(r => { (byYear[r.year] = byYear[r.year] || []).push(r); });
@@ -3471,7 +3469,7 @@ function renderRC(data) {
            style="display:flex;justify-content:space-between;align-items:center;padding:2px 8px;line-height:1;background:var(--bg-subtle,#f5f5f5);cursor:pointer;user-select:none;">
         <span style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em;">${yr} <span style="font-weight:400;color:#888;font-size:9px;">(age ${age})</span></span>
         <span style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:9px;color:${liqCol};font-variant-numeric:tabular-nums;">end liq ${fmtK(endLiq)}</span>
+          <span style="font-size:9px;color:${liqCol};font-variant-numeric:tabular-nums;">end liq ${_fmt$(endLiq)}</span>
           <span style="font-size:10px;color:#999;">${open ? '▴' : '▾'}</span>
         </span>
       </div>`;
@@ -3494,14 +3492,14 @@ function renderRC(data) {
         const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
         const ooHtml = r.oneoffs && r.oneoffs.length
-          ? r.oneoffs.map(o => `<span style="color:#c07030;">${o.name} ${fmtK(o.amount)}</span>`).join(', ')
+          ? r.oneoffs.map(o => `<span style="color:#c07030;">${o.name} ${_fmt$(o.amount)}</span>`).join(', ')
           : '<span style="color:#ccc;">—</span>';
         html += `<tr style="${bg}">
           <td style="padding:3px 8px;">${MONAMES[r.mo-1]}</td>
-          <td style="padding:3px 8px;text-align:right;color:#1A8C5F;">${r.inc ? '+'+fmtK(r.inc) : '—'}</td>
-          <td style="padding:3px 8px;text-align:right;">${fmtK(r.baseExp)}</td>
+          <td style="padding:3px 8px;text-align:right;color:#1A8C5F;">${r.inc ? '+'+_fmt$(r.inc) : '—'}</td>
+          <td style="padding:3px 8px;text-align:right;">${_fmt$(r.baseExp)}</td>
           <td style="padding:3px 8px;">${ooHtml}</td>
-          <td style="padding:3px 8px;text-align:right;${lqC?'color:'+lqC+';':''}">${fmtK(r.liq)}</td>
+          <td style="padding:3px 8px;text-align:right;${lqC?'color:'+lqC+';':''}">${_fmt$(r.liq)}</td>
         </tr>`;
       });
 
@@ -3514,85 +3512,97 @@ function renderRC(data) {
 }
 
 // ── Min-liquidity drill-down ──────────────────────────────────
-function openMinDrill() {
+let _minDrillOpen = false;
+
+// Compact dollar formatter: $1.03M / $45K / $8.5K / $500
+const _fmt$ = v => {
+  const neg = v < 0, a = Math.abs(v);
+  const p = neg ? '-$' : '$';
+  if (a >= 1_000_000) return p + (a/1_000_000).toFixed(2).replace(/\.?0+$/, '') + 'M';
+  if (a >= 10_000)    return p + Math.round(a/1_000) + 'K';
+  if (a >= 1_000)     return p + (a/1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return p + Math.round(a);
+};
+
+function renderMinDrill(data) {
   const panel = document.getElementById('min-drill');
-  if (!panel) return;
-  const data = window._lastRCData;
-  if (!data || !data.monthly || !data.monthly.length) return;
+  if (!panel || !data || !data.monthly || !data.monthly.length) return;
 
   const minAge = data.simMinAge, minMo = data.simMinMo ?? 1;
   const monthly = data.monthly;
-
-  // Find the index of the minimum month
   const minIdx = monthly.findIndex(r => r.age === minAge && r.mo === minMo);
-  if (minIdx < 0) return;
-
-  // 14 months before → 2 months after
-  const from = Math.max(0, minIdx - 14);
-  const to   = Math.min(monthly.length - 1, minIdx + 2);
-  const rows = monthly.slice(from, to + 1);
+  if (minIdx < 0) { panel.style.display = 'none'; return; }
 
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const fmtK = v => { const s = v < 0 ? '-' : ''; const a = Math.abs(Math.round(v)); return a >= 1000 ? s+'$'+(a/1000).toFixed(1).replace(/\.0$/,'')+'K' : s+'$'+a; };
+  const minLabel = `${MON[minMo-1]} ${monthly[minIdx].year}`;
+  const liqColor = data.simMinLiq >= 0 ? '#5DC49A' : '#f87171';
+  const open = _minDrillOpen;
 
-  // Compute net Δ per row; find max abs for bar scaling
-  const nets = rows.map(r => r.inc - r.baseExp - (r.oneoffs||[]).reduce((s,o)=>s+Math.abs(o.amount),0));
-  const maxAbs = Math.max(...nets.map(Math.abs), 1);
-
-  const minYear = monthly[minIdx].year;
-  const minLabel = `${MON[minMo-1]} ${minYear}`;
-
-  let html = `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px 5px;border-bottom:1px solid rgba(195,50,50,0.25);">
+  // ── Title bar (always visible) ──
+  let html = `<div onclick="_minDrillOpen=!_minDrillOpen;renderMinDrill(window._lastRCData)"
+    style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;cursor:pointer;user-select:none;">
     <span style="font-size:11px;font-weight:700;font-family:'SF Mono',Menlo,monospace;color:#f87171;letter-spacing:.04em;">
-      ▼ MIN LIQUIDITY — ${minLabel} · <span style="color:${data.simMinLiq>=0?'#5DC49A':'#f87171'}">${fmtK(data.simMinLiq)}</span>
+      Min Liquidity
+      <span style="font-weight:400;color:rgba(255,255,255,0.45);margin-left:6px;">${minLabel}</span>
+      <span style="margin-left:6px;color:${liqColor}">${_fmt$(data.simMinLiq)}</span>
     </span>
-    <button onclick="document.getElementById('min-drill').style.display='none'"
-      style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:14px;cursor:pointer;padding:0 2px;line-height:1;">×</button>
-  </div>
-  <div style="overflow-x:auto;">
-  <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'SF Mono',Menlo,monospace;">
-    <thead>
-      <tr style="color:rgba(255,255,255,0.35);font-size:9px;text-transform:uppercase;letter-spacing:.05em;">
-        <th style="padding:4px 8px 3px;text-align:left;font-weight:600;">Month</th>
-        <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Income</th>
-        <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Expenses</th>
-        <th style="padding:4px 8px 3px;text-align:left;font-weight:600;">One-offs</th>
-        <th style="padding:4px 10px 3px;text-align:left;font-weight:600;min-width:90px;">Net Δ</th>
-        <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Liquid</th>
-      </tr>
-    </thead>
-    <tbody>`;
+    <span style="color:rgba(255,255,255,0.35);font-size:10px;">${open ? '▴' : '▾'}</span>
+  </div>`;
 
-  rows.forEach((r, i) => {
-    const isMin = r.age === minAge && r.mo === minMo;
-    const net   = nets[i];
-    const barPct = Math.round(Math.abs(net) / maxAbs * 100);
-    const barCol = net >= 0 ? '#1A8C5F' : '#C03030';
-    const liqCol = r.liq < 0 ? '#f87171' : r.liq < 200000 ? '#e9972a' : 'rgba(255,255,255,0.75)';
-    const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 === 0 ? '' : 'background:rgba(255,255,255,0.025);';
-    const ooHtml = (r.oneoffs||[]).length
-      ? r.oneoffs.map(o=>`<span style="color:#e9972a;">${o.name}&nbsp;${fmtK(Math.abs(o.amount))}</span>`).join(' ')
-      : '<span style="color:rgba(255,255,255,0.18);">—</span>';
-    const minMark = isMin ? ' <span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
+  // ── Collapsible body ──
+  if (open) {
+    const from = Math.max(0, minIdx - 14);
+    const to   = Math.min(monthly.length - 1, minIdx + 2);
+    const rows = monthly.slice(from, to + 1);
+    const nets = rows.map(r => r.inc - r.baseExp - (r.oneoffs||[]).reduce((s,o) => s + Math.abs(o.amount), 0));
+    const maxAbs = Math.max(...nets.map(Math.abs), 1);
 
-    html += `<tr style="${rowBg}${isMin?'font-weight:700;':''}">
-      <td style="padding:3px 8px;color:rgba(255,255,255,0.6);">${MON[r.mo-1]} '${String(r.year).slice(2)}${minMark}</td>
-      <td style="padding:3px 8px;text-align:right;color:#5DC49A;">${r.inc ? '+'+fmtK(r.inc) : '<span style="color:rgba(255,255,255,0.2);">—</span>'}</td>
-      <td style="padding:3px 8px;text-align:right;color:rgba(255,255,255,0.5);">${fmtK(r.baseExp)}</td>
-      <td style="padding:3px 8px;">${ooHtml}</td>
-      <td style="padding:3px 10px;">
-        <div style="display:flex;align-items:center;gap:5px;">
-          <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;min-width:60px;">
-            <div style="height:100%;width:${barPct}%;background:${barCol};border-radius:3px;"></div>
+    html += `<div style="border-top:1px solid rgba(195,50,50,0.22);overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'SF Mono',Menlo,monospace;">
+      <thead>
+        <tr style="color:rgba(255,255,255,0.32);font-size:9px;text-transform:uppercase;letter-spacing:.05em;">
+          <th style="padding:4px 8px 3px;text-align:left;font-weight:600;">Month</th>
+          <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Income</th>
+          <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Expenses</th>
+          <th style="padding:4px 8px 3px;text-align:left;font-weight:600;">One-offs</th>
+          <th style="padding:4px 10px 3px;text-align:left;font-weight:600;min-width:100px;">Net Δ</th>
+          <th style="padding:4px 8px 3px;text-align:right;font-weight:600;">Liquid</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    rows.forEach((r, i) => {
+      const isMin  = r.age === minAge && r.mo === minMo;
+      const net    = nets[i];
+      const barPct = Math.round(Math.abs(net) / maxAbs * 100);
+      const barCol = net >= 0 ? '#1A8C5F' : '#C03030';
+      const liqCol = r.liq < 0 ? '#f87171' : r.liq < 200_000 ? '#e9972a' : 'rgba(255,255,255,0.75)';
+      const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
+      const ooHtml = (r.oneoffs||[]).length
+        ? r.oneoffs.map(o => `<span style="color:#e9972a;">${o.name}&nbsp;${_fmt$(Math.abs(o.amount))}</span>`).join(' ')
+        : '<span style="color:rgba(255,255,255,0.18);">—</span>';
+      const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
+
+      html += `<tr style="${rowBg}${isMin ? 'font-weight:700;' : ''}">
+        <td style="padding:3px 8px;color:rgba(255,255,255,0.6);">${MON[r.mo-1]}&nbsp;'${String(r.year).slice(2)}${minMark}</td>
+        <td style="padding:3px 8px;text-align:right;color:#5DC49A;">${r.inc ? '+' + _fmt$(r.inc) : '<span style="color:rgba(255,255,255,0.2);">—</span>'}</td>
+        <td style="padding:3px 8px;text-align:right;color:rgba(255,255,255,0.5);">${_fmt$(r.baseExp)}</td>
+        <td style="padding:3px 8px;">${ooHtml}</td>
+        <td style="padding:3px 10px;">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="flex:1;height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;min-width:60px;">
+              <div style="height:100%;width:${barPct}%;background:${barCol};border-radius:3px;"></div>
+            </div>
+            <span style="font-size:10px;color:${net>=0?'#5DC49A':'#f87171'};min-width:52px;text-align:right;">${net>=0?'+':''}${_fmt$(net)}</span>
           </div>
-          <span style="font-size:10px;color:${net>=0?'#5DC49A':'#f87171'};min-width:44px;text-align:right;">${net>=0?'+':''}${fmtK(net)}</span>
-        </div>
-      </td>
-      <td style="padding:3px 8px;text-align:right;color:${liqCol};">${fmtK(r.liq)}</td>
-    </tr>`;
-  });
+        </td>
+        <td style="padding:3px 8px;text-align:right;color:${liqCol};">${_fmt$(r.liq)}</td>
+      </tr>`;
+    });
 
-  html += '</tbody></table></div>';
+    html += '</tbody></table></div>';
+  }
+
   panel.innerHTML = html;
   panel.style.display = 'block';
 }
@@ -3937,7 +3947,7 @@ function go() {
       if (!_minLiqDot) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      if (Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 16) openMinDrill();
+      if (Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 16) { _minDrillOpen = true; renderMinDrill(window._lastRCData); }
     });
   } else {
     chart.data.labels = view.labels;
@@ -4099,6 +4109,7 @@ function go() {
 
   window._lastRCData = data;
   renderRC(data);
+  renderMinDrill(data);
   requestAnimationFrame(renderTimeline); // after chart paints; renderTimeline bails if section hidden
 
   // Auto-rerun Montecarlo (debounced) whenever params change and MC was previously run
