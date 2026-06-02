@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(start:*)",
+      "Bash(cd:*)",
+      "Bash(node:*)",
+      "Bash(npx:*)",
+      "Skill(update-config)",
+      "Bash(claude restart:*)",
+      "Bash(where jq:*)",
+      "Bash(where npx:*)",
+      "Bash(npx browser-sync:*)",
+      "Bash(curl:*)",
+      "Bash(bash \"C:/Users/mxgld/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5/skills/brainstorming/scripts/start-server.sh\" --project-dir \"F:/code/futuro\")",
+      "mcp__claude_ai_Supabase__get_logs"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"F:/code/futuro/.claude/reload.js\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

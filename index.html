@@ -263,46 +263,54 @@ body[data-theme="graphite"] .tl-age-lbl  { color: rgba(255,255,255,0.25) !import
 }
 #timeline-btn.active { opacity: 1; color: #378ADD; }
 
-/* ── PROJECT BUDGET PANEL ──────────────────────────────────── */
+/* ── PROJECT BUDGET PANEL — theme-aware ────────────────────── */
 #projects-panel {
   margin: 6px 0 10px; border-radius: 8px;
-  background: rgba(10,12,18,0.55);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: #f6f9fc;
+  border: 1px solid #e6ebf1;
   overflow: hidden;
 }
 #projects-panel-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 12px 6px; cursor: pointer; user-select: none;
   font-size: 10px; font-weight: 800; letter-spacing: .08em;
-  text-transform: uppercase; color: rgba(255,255,255,0.35);
+  text-transform: uppercase; color: #697386;
 }
-#projects-panel-header:hover { color: rgba(255,255,255,0.55); }
+#projects-panel-header:hover { color: #3c4257; }
 #projects-panel-body { padding: 0 0 6px; }
 .proj-row {
   display: grid;
   grid-template-columns: minmax(80px,1fr) 90px auto 38px;
   align-items: center; gap: 8px;
   padding: 5px 12px;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid #f0f2f8;
 }
 .proj-row:first-child { border-top: none; }
 .proj-name {
-  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.75);
+  font-size: 11px; font-weight: 600; color: #3c4257;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .proj-amounts {
   font-size: 10px; font-family: 'SF Mono', Menlo, monospace;
-  color: rgba(255,255,255,0.4); white-space: nowrap; text-align: right;
+  color: #697386; white-space: nowrap; text-align: right;
 }
 .proj-bar-wrap {
-  height: 5px; background: rgba(255,255,255,0.08);
+  height: 5px; background: rgba(0,0,0,0.08);
   border-radius: 3px; overflow: hidden; min-width: 60px;
 }
+body[data-theme="graphite"] #projects-panel { background: #21262d; border-color: #30363d; }
+body[data-theme="graphite"] #projects-panel-header { color: #6e7681; }
+body[data-theme="graphite"] #projects-panel-header:hover { color: #c9d1d9; }
+body[data-theme="graphite"] .proj-row { border-color: #30363d; }
+body[data-theme="graphite"] .proj-name { color: #c9d1d9; }
+body[data-theme="graphite"] .proj-amounts { color: #6e7681; }
+body[data-theme="graphite"] .proj-bar-wrap { background: rgba(255,255,255,0.08); }
 .proj-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
 .proj-pct {
   font-size: 10px; font-family: 'SF Mono', Menlo, monospace;
-  font-weight: 700; text-align: right; white-space: nowrap;
+  font-weight: 700; text-align: right; white-space: nowrap; color: #3c4257;
 }
+body[data-theme="graphite"] .proj-pct { color: #c9d1d9; }
 /* Inline budget indicator inside expand cards */
 .proj-inline-bar {
   height: 5px; background: rgba(0,0,0,0.08);
@@ -381,7 +389,7 @@ body[data-theme="graphite"] .budget-cell-sub { color: rgba(255,255,255,0.25); }
   min-width: 0;
 }
 .ribbon-seg:last-child { border-right: none; flex: 0 0 auto; }
-.ribbon-seg.min-seg { flex: 0 0 auto; background: #fffbeb; border-left: 1px solid #fde68a; border-right: none; }
+.ribbon-seg.min-seg { flex: 0 0 auto; width: max-content; background: #fffbeb; border-left: 1px solid #fde68a; border-right: none; }
 .ribbon-lbl { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8792a2; margin-bottom: 3px; }
 .ribbon-val { font-size: 17px; font-weight: 800; font-family: 'SF Mono', Menlo, monospace; line-height: 1; }
 .ribbon-sub { font-size: 10px; color: #8792a2; margin-top: 2px; font-family: 'SF Mono', Menlo, monospace; }
@@ -709,7 +717,7 @@ body[data-theme="graphite"] .freq-title:hover { background: rgba(255,255,255,0.0
 /* ── SECTION CHEVRON ────────────────────────────────────── */
 .sec-chevron {
   font-size: 11px; opacity: 0.5; flex-shrink: 0; user-select: none;
-  transition: opacity 0.12s;
+  transition: opacity 0.12s; pointer-events: none;
 }
 .main-section-title:hover .sec-chevron,
 .freq-title:hover .sec-chevron { opacity: 0.9; }
@@ -841,6 +849,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 </style>
 </head>
 <body>
+<div id="js-error-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#C03030;color:#fff;font-size:12px;font-family:monospace;padding:6px 12px;cursor:pointer;" onclick="this.style.display='none'"></div>
 
 <!-- ══════════════════════════════════════════════════════════
      APP SCREEN
@@ -1378,6 +1387,20 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     return this;
   };
 }
+
+// ── Visible error banner (helps debug Edge/browser issues) ───
+window.addEventListener('error', function(e) {
+  const b = document.getElementById('js-error-banner');
+  if (!b) return;
+  b.style.display = 'block';
+  b.textContent = '⚠ JS error: ' + e.message + ' (' + (e.filename||'').split('/').pop() + ':' + e.lineno + ')';
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const b = document.getElementById('js-error-banner');
+  if (!b) return;
+  b.style.display = 'block';
+  b.textContent = '⚠ Unhandled promise: ' + (e.reason?.message || e.reason);
+});
 
 const SB_URL = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
 const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYXRkbnJ4ZnJsdGNtcXZzbXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MjYzMjcsImV4cCI6MjA5MzUwMjMyN30.4HUYkjuCk3doWShF-h0CzHS-9pC4ST5uz9yd2HHbayc';
