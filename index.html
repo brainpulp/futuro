@@ -2454,8 +2454,8 @@ function runSim(monthlyOverride) {
       // Gastos tells us how many payment-sized chunks have been spent
       paidSoFar = Math.min(Math.floor(_projActual(gc) / perPayment), installN);
     } else {
-      // Timing: how many slots elapsed from atAge to the start of the current month
-      const moElapsed = Math.max(0, (sa - start) * 12 + (_curMo - 1));
+      // Timing: how many slots elapsed from (atAge, atMonth) to the start of the current month
+      const moElapsed = Math.max(0, (sa - start) * 12 + (_curMo - 1) - ((e.atMonth || 1) - 1));
       paidSoFar = Math.min(Math.floor(moElapsed / moPerSlot), installN);
     }
     _effInstall[e.id] = { perPayment, paidSoFar, installN, ppy };
@@ -2551,7 +2551,7 @@ function runSim(monthlyOverride) {
           if (startOk && endOk) _itemizedExp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
-          const moFromStart = (sa - start) * 12 + (mo - 1);
+          const moFromStart = (sa - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
           if (_installFires(e, moFromStart)) _itemizedExp += _effInstall[e.id].perPayment;
         }
       });
@@ -2660,7 +2660,7 @@ function runSim(monthlyOverride) {
           if (startOk && endOk) exp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
-          const moFromStart = (age - start) * 12 + (mo - 1);
+          const moFromStart = (age - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
           if (_installFires(e, moFromStart)) exp += _effInstall[e.id].perPayment;
         }
       });
@@ -4322,10 +4322,13 @@ function renderExpItem(e, i) {
     ageFields = `<select class="iselect" style="width:48px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atMonth',+this.value);go();">${monthOpts(_mo)}</select>
       <select class="iselect" style="width:60px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atAge',yearToAge(+this.value));go();">${yearOpts(_yr)}</select>`;
   } else if (inst) {
+    const _iYr = ageToYear(e.atAge || S.startAge);
+    const _iMo = e.atMonth || 1;
     ageFields = `<input type="number" class="ifield" value="${e.installN||12}" min="1" max="360" title="# installments" onclick="event.stopPropagation()" onchange="upE(${e.id},'installN',+this.value);go()" style="width:36px!important;">
       <select class="iselect" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'installFreq',this.value);go();" style="width:46px!important;">${freqOpts}</select>
       <span class="isep">@</span>
-      <input type="number" class="ifield" value="${e.atAge||S.startAge}" min="${S.startAge}" max="${S.endAge}" title="Start age" onclick="event.stopPropagation()" onchange="upE(${e.id},'atAge',+this.value);go()">`;
+      <select class="iselect" style="width:48px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atMonth',+this.value);go();">${monthOpts(_iMo)}</select>
+      <select class="iselect" style="width:60px!important;" onclick="event.stopPropagation()" onchange="event.stopPropagation();upE(${e.id},'atAge',yearToAge(+this.value));go();">${yearOpts(_iYr)}</select>`;
   } else {
     ageFields = `<span style="font-size:10px;color:#697386;white-space:nowrap;flex-shrink:0;">${ageMonthToLabel(e.from||S.startAge, e.fromMonth||1)} – ${ageMonthToLabel(e.to||S.endAge, e.toMonth||12)}</span>`;
   }
