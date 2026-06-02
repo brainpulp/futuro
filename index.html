@@ -2131,9 +2131,10 @@ function _applyScenarios(saved) {
     ...(sc.data.expensePhases || []), ...(sc.data.monthlyBreakdown || []),
   ]).map(x => x.id || 0).filter(Number.isFinite);
   if (_allIds.length) nextId = Math.max(nextId, ..._allIds);
-  // Restore IBKR-pulled value: apply if the active scenario still shows the default (never customised)
+  // Restore IBKR-pulled value: always apply if available — IBKR is the source of truth for current liquid.
+  // The scenario's saved liquidBase is a fallback only when no IBKR value has ever been synced.
   const _ibkrLiq = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
-  if (_ibkrLiq > 0 && S.liquidBase === 1500000) {
+  if (_ibkrLiq > 0) {
     S.liquidBase = _ibkrLiq;
   }
   saveActive();
