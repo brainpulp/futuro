@@ -4289,13 +4289,17 @@ function renderExpItem(e, i) {
   } else {
     ageFields = `<span style="font-size:10px;color:#697386;white-space:nowrap;flex-shrink:0;">${ageMonthToLabel(e.from||S.startAge, e.fromMonth||1)} – ${ageMonthToLabel(e.to||S.endAge, e.toMonth||12)}</span>`;
   }
-  const _budgetRaw = inst ? (e.budget||e.installTotal||0) : (e.budget||0);
+  // _budgetActive: true only when e.budget is *explicitly* set by the user.
+  // For installments, installTotal is always present but doesn't count as "budget active"
+  // unless the user has set e.budget explicitly.
+  const _budgetRaw = (e.budget || 0);
   const _budgetActive = _budgetRaw > 0;
-  // Compute display value: when budget active, show budget total (inst) or effective per-period
+  // Compute display value for the row amount field
   let amtVal, amtField, amtTitle, amtReadonly;
   if (inst) {
-    amtVal = _budgetRaw || e.amount || 0;
-    amtField = 'budget'; amtTitle = 'Budget (total)'; amtReadonly = false;
+    // Installments: row always shows/edits installTotal. Budget is separate (expand card only).
+    amtVal = e.budget || e.installTotal || e.amount || 0;
+    amtField = 'installTotal'; amtTitle = 'Total amount'; amtReadonly = false;
   } else if (_budgetActive) {
     // Effective per-period derived from remaining; read-only display
     const _sa = S.startAge||57, _ea = S.endAge||87, _curMo = new Date().getMonth()+1;
@@ -4351,11 +4355,11 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 </div>` : ''}
   <label class="lbl">Description</label>
   <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
-  <label class="lbl" style="margin-top:6px;">Budget (total cap) <span style="font-size:9px;font-weight:400;color:#aaa;">${inst?'— same as installment total':'— overrides amount when set'}</span></label>
-  <input type="text" placeholder="optional total cap" value="${(inst?(e.budget||e.installTotal||0):(e.budget||0))>0?fmtInput(inst?(e.budget||e.installTotal||0):(e.budget||0)):''}"
+  <label class="lbl" style="margin-top:6px;">Budget (total cap) <span style="font-size:9px;font-weight:400;color:#aaa;">${inst?'— sets installment total':'— overrides amount when set'}</span></label>
+  <input type="text" placeholder="optional total cap" value="${e.budget>0?fmtInput(e.budget):''}"
     style="width:100%;" onclick="event.stopPropagation()"
     onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
-    oninput="upE(${e.id},'budget',parseNum(this.value));${inst?'upE('+e.id+',\'installTotal\',parseNum(this.value));':''}renderExp();go()">
+    oninput="const _bv=parseNum(this.value);upE(${e.id},'budget',_bv);${inst?'upE('+e.id+',\'installTotal\',_bv);':''}renderExp();go()">
   <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
   <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}"
     style="width:100%;" onclick="event.stopPropagation()"
