@@ -5712,9 +5712,12 @@ function expTypeChanged(id, value) {
   go();
 }
 function initSections() {
-  // 'exp-installments' is a new section — always force-open it so items are never hidden on first load
   if (!localStorage.getItem('futuro-sec-exp-installments')) {
     localStorage.setItem('futuro-sec-exp-installments', '1');
+  }
+  // timeline section defaults CLOSED so user has an unambiguous click-to-open action
+  if (!localStorage.getItem('futuro-sec-timeline')) {
+    localStorage.setItem('futuro-sec-timeline', '0');
   }
   ['chart-nw','chart-market','chart-exp','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
@@ -5800,10 +5803,24 @@ function _tlAgeToX(age, ca) {
 }
 
 function renderTimeline() {
-  if (!chart) return;
+  try { _renderTimelineInner(); }
+  catch(e) {
+    console.error('renderTimeline failed:', e);
+    const b = document.getElementById('js-error-banner');
+    if (b) { b.style.display = 'block'; b.textContent = '⚠ Timeline error: ' + e.message; }
+  }
+}
+function _renderTimelineInner() {
+  if (!chart) { setTimeout(renderTimeline, 200); return; }
   const _tlSec = document.getElementById('sec-body-timeline');
   if (_tlSec && _tlSec.style.display === 'none') return;
   const strip = document.getElementById('timeline-strip');
+
+  // If chart area not yet valid (chart still painting), retry in next frame
+  const _rawCaCheck = chart.chartArea;
+  if (!_rawCaCheck || (_rawCaCheck.right - _rawCaCheck.left) < 10) {
+    requestAnimationFrame(renderTimeline); return;
+  }
 
   // Derive ca from the chart if it's rendered and visible; else fall back to strip width.
   // This lets the timeline work even when the Net Worth section is collapsed.
