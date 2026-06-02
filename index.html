@@ -5707,8 +5707,24 @@ function renderTimeline() {
       return Math.round(Math.max(0, Math.min(1, (age - sa) / Math.max(1, ea - sa))) * lw);
     }
     const lbs = chart.data.labels;
-    let idx = lbs.indexOf(age);
-    if (idx < 0) idx = age < lbs[0] ? 0 : lbs.length - 1;
+    let idx;
+    if (_chartZoom === 5) {
+      // Labels are strings like "Jan '26" — find January of the target year
+      const yr = "'" + String(ageToYear(Math.floor(age))).slice(2);
+      idx = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yr));
+      if (idx < 0) {
+        // Fractional age (mid-year): interpolate between Jan markers
+        const yrFloor = "'" + String(ageToYear(Math.floor(age))).slice(2);
+        const yrCeil  = "'" + String(ageToYear(Math.floor(age) + 1)).slice(2);
+        const i0 = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yrFloor));
+        const i1 = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yrCeil));
+        const frac = age - Math.floor(age);
+        idx = i0 >= 0 && i1 >= 0 ? Math.round(i0 + frac * (i1 - i0)) : (i0 >= 0 ? i0 : lbs.length - 1);
+      }
+    } else {
+      idx = lbs.indexOf(age);
+      if (idx < 0) idx = age < lbs[0] ? 0 : lbs.length - 1;
+    }
     return chart.scales.x.getPixelForValue(idx) - ca.left;
   }
 
