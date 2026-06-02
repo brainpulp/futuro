@@ -2403,7 +2403,8 @@ function runSim(monthlyOverride) {
   S.expenses.forEach(e => {
     if (e.type !== 'installments') return;
     const installN   = e.installN || 1;
-    const perPayment = (e.installTotal || 0) / installN;
+    const installTotal = e.budget || e.installTotal || 0;
+    const perPayment = installTotal / installN;
     const ppy        = {monthly:12, quarterly:4, semester:2, annual:1}[e.installFreq||'monthly'];
     const start      = e.atAge || e.from || sa;
     const moPerSlot  = 12 / ppy;
@@ -2418,6 +2419,29 @@ function runSim(monthlyOverride) {
       paidSoFar = Math.min(Math.floor(moElapsed / moPerSlot), installN);
     }
     _effInstall[e.id] = { perPayment, paidSoFar, installN, ppy };
+  });
+
+  // Precompute budget-driven effective amounts for non-installment expenses.
+  // When e.budget is set, remaining = budget - gastosSpent, and the effective
+  // per-period amount is derived from remaining spread over the remaining horizon.
+  const _effBudget = {};
+  S.expenses.filter(e => e.enabled !== false).forEach(e => {
+    if (e.type === 'installments') return; // handled by _effInstall
+    const budget = e.budget || 0;
+    if (budget <= 0) return;
+    const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
+    const gastosSpent = gc ? _projActual(gc) : 0;
+    const remaining = Math.max(0, budget - gastosSpent);
+    if (e.type === 'monthly') {
+      const toAge = e.to || ea, toMonth = e.toMonth || 12;
+      const monthsRem = Math.max(1, (toAge - sa) * 12 + toMonth - _curMo + 1);
+      _effBudget[e.id] = { effective: remaining / monthsRem, remaining };
+    } else if (e.type === 'annual') {
+      const yearsRem = Math.max(1, (e.to || ea) - sa);
+      _effBudget[e.id] = { effective: remaining / yearsRem, remaining };
+    } else if (e.type === 'oneoff') {
+      _effBudget[e.id] = { effective: remaining, remaining };
+    }
   });
 
   // Helper: should this installment fire at absolute month offset moFromStart?
@@ -2438,7 +2462,8 @@ function runSim(monthlyOverride) {
 
   // Deduct age-sa one-offs immediately (month 1 only)
   S.expenses.filter(e => e.enabled !== false).forEach(e => {
-    if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1) liq -= e.amount;
+    if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1)
+      liq -= (_effBudget[e.id] ? _effBudget[e.id].effective : e.amount);
   });
 
   let props = S.properties.filter(p => p.enabled !== false)
@@ -2466,8 +2491,10 @@ function runSim(monthlyOverride) {
       const _baseExp = getMonthly(sa) * _f * (S.expMultiplier || 1) + (S.winterTrip + S.summerTrip) / 12;
       const _oo = [];
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
-        if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo)
-          _oo.push({ name: e.name || '?', amount: e.amount });
+        if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo) {
+          const oAmt = _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
+          _oo.push({ name: e.name || '?', amount: oAmt });
+        }
       });
       const _ooAmt = _oo.reduce((s, o) => s + o.amount, 0);
       let _itemizedExp = 0;
@@ -2476,12 +2503,12 @@ function runSim(monthlyOverride) {
           const from = e.from || sa, to = e.to || ea;
           const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
           const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += e.amount;
+          if (startOk && endOk) _itemizedExp += _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
           const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
           const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += e.amount / 12;
+          if (startOk && endOk) _itemizedExp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
           const moFromStart = (sa - start) * 12 + (mo - 1);
@@ -2575,19 +2602,22 @@ function runSim(monthlyOverride) {
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
         if (e.type === 'oneoff') {
-          if (e.atAge === age && (e.atMonth || 1) === mo) { exp += e.amount; _oo.push({ name: e.name || '?', amount: e.amount }); }
+          if (e.atAge === age && (e.atMonth || 1) === mo) {
+            const oAmt = _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
+            exp += oAmt; _oo.push({ name: e.name || '?', amount: oAmt });
+          }
         } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
           const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
           const startOk = age > from || (age === from && mo >= fromMonth);
           const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += e.amount;
+          if (startOk && endOk) exp += _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
           const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
           const startOk = age > from || (age === from && mo >= fromMonth);
           const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += e.amount / 12;
+          if (startOk && endOk) exp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
           const moFromStart = (age - start) * 12 + (mo - 1);
@@ -4259,15 +4289,38 @@ function renderExpItem(e, i) {
   } else {
     ageFields = `<span style="font-size:10px;color:#697386;white-space:nowrap;flex-shrink:0;">${ageMonthToLabel(e.from||S.startAge, e.fromMonth||1)} – ${ageMonthToLabel(e.to||S.endAge, e.toMonth||12)}</span>`;
   }
-  const amtVal   = inst ? (e.installTotal||e.amount||0) : e.amount;
-  const amtField = inst ? 'installTotal' : 'amount';
+  const _budgetRaw = inst ? (e.budget||e.installTotal||0) : (e.budget||0);
+  const _budgetActive = _budgetRaw > 0;
+  // Compute display value: when budget active, show budget total (inst) or effective per-period
+  let amtVal, amtField, amtTitle, amtReadonly;
+  if (inst) {
+    amtVal = _budgetRaw || e.amount || 0;
+    amtField = 'budget'; amtTitle = 'Budget (total)'; amtReadonly = false;
+  } else if (_budgetActive) {
+    // Effective per-period derived from remaining; read-only display
+    const _sa = S.startAge||57, _ea = S.endAge||87, _curMo = new Date().getMonth()+1;
+    const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
+    const spent = gc ? _projActual(gc) : 0;
+    const rem = Math.max(0, _budgetRaw - spent);
+    if (e.type === 'monthly') {
+      const mRem = Math.max(1, (_ea-_sa)*12+(e.toMonth||12)-_curMo+1);
+      amtVal = rem / mRem;
+    } else if (e.type === 'annual') {
+      amtVal = rem / Math.max(1, _ea-_sa);
+    } else { amtVal = rem; }
+    amtField = 'amount'; amtTitle = 'Auto (from budget)'; amtReadonly = true;
+  } else {
+    amtVal = e.amount || 0;
+    amtField = 'amount'; amtTitle = 'Amount'; amtReadonly = false;
+  }
   return `<div class="item-row${e.enabled===false?' disabled-row':''}" onclick="toggle(${e.id});renderExp()">
   <span class="expand-arr">${openId===e.id?'▼':'▶'}</span>
   <span class="item-num">${i}</span>
   <input class="iname" type="text" value="${e.name}" onclick="event.stopPropagation()" onchange="upE(${e.id},'name',this.value)">
-  <input type="text" class="iamt" value="${fmtInput(amtVal)}" title="${inst?'Total amount':'Amount'}"
+  <input type="text" class="iamt${amtReadonly?' iamt-auto':''}" value="${fmtInput(amtVal)}" title="${amtTitle}"
     onfocus="moneyFocus(this);event.stopPropagation();"
     onblur="moneyBlur(this)"
+    ${amtReadonly?'readonly style="opacity:0.55;cursor:default;"':''}
     onchange="event.stopPropagation();upE(${e.id},'${amtField}',parseNum(this.value));go()"
     onclick="event.stopPropagation()">
   <select class="iselect" onchange="event.stopPropagation();expTypeChanged(${e.id},this.value);" onclick="event.stopPropagation()">
@@ -4298,20 +4351,46 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 </div>` : ''}
   <label class="lbl">Description</label>
   <textarea class="desc" rows="2" placeholder="What is this expense? Any context for the AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
+  <label class="lbl" style="margin-top:6px;">Budget (total cap) <span style="font-size:9px;font-weight:400;color:#aaa;">${inst?'— same as installment total':'— overrides amount when set'}</span></label>
+  <input type="text" placeholder="optional total cap" value="${(inst?(e.budget||e.installTotal||0):(e.budget||0))>0?fmtInput(inst?(e.budget||e.installTotal||0):(e.budget||0)):''}"
+    style="width:100%;" onclick="event.stopPropagation()"
+    onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
+    oninput="upE(${e.id},'budget',parseNum(this.value));${inst?'upE('+e.id+',\'installTotal\',parseNum(this.value));':''}renderExp();go()">
   <label class="lbl" style="margin-top:6px;">Gastos category <span style="font-size:9px;font-weight:400;color:#aaa;">(matches cat name in Gastos — e.g. "delta")</span></label>
   <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}"
     style="width:100%;" onclick="event.stopPropagation()"
-    oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets()">
+    oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets();go()">
   ${(()=>{
+    const budget = _projBudget(e);
     const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
     const pa = gc && _projectActuals[gc];
-    if (!pa) return '';
-    const budget = _projBudget(e);
-    const actual = _projActual(gc);
-    const pct    = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
-    const color  = _projColor(pct);
-    return `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
-    <div class="proj-inline-label">${fmtM(actual)} spent · ${budget>0?fmtM(Math.max(0,budget-actual))+' remaining ('+pct+'%)':'no budget set'}</div>`;
+    const actual = gc ? _projActual(gc) : 0;
+    const remaining = Math.max(0, budget - actual);
+    const pct = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
+    const color = _projColor(pct);
+    // Compute effective per-period label
+    let effLabel = '';
+    if (budget > 0) {
+      const _sa = S.startAge || 57, _ea = S.endAge || 87;
+      const _curMo = new Date().getMonth() + 1;
+      if (e.type === 'monthly') {
+        const monthsRem = Math.max(1, ((e.to||_ea) - _sa)*12 + (e.toMonth||12) - _curMo + 1);
+        effLabel = `→ ${fmtM(remaining / monthsRem)}/mo effective`;
+      } else if (e.type === 'annual') {
+        const yearsRem = Math.max(1, (e.to||_ea) - _sa);
+        effLabel = `→ ${fmtM(remaining / yearsRem)}/yr effective`;
+      } else if (e.type === 'oneoff') {
+        effLabel = `→ ${fmtM(remaining)} at scheduled date`;
+      } else if (inst) {
+        const installN = e.installN || 1;
+        const perPmt = budget / installN;
+        effLabel = `→ ${fmtM(perPmt)}/payment`;
+      }
+    }
+    if (!pa && budget <= 0) return '';
+    return `${budget > 0 && actual > 0 ? `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="proj-inline-label">${fmtM(actual)} spent · ${fmtM(remaining)} remaining (${pct}%)${effLabel?' · <em>'+effLabel+'</em>':''}</div>` :
+    budget > 0 ? `<div class="proj-inline-label" style="color:rgba(255,255,255,0.4);">${effLabel}</div>` : ''}`;
   })()}
 </div>`:''}`;
 }
@@ -4338,7 +4417,7 @@ function renderExp() {
   const mSum = sumEnabled(monthly, e => e.amount);
   const ySum = sumEnabled(annual, e => e.amount);
   const oSum = sumEnabled(oneoff, e => e.amount);
-  const iSum = sumEnabled(installs, e => e.installTotal || e.amount);
+  const iSum = sumEnabled(installs, e => e.budget || e.installTotal || e.amount);
   const el_mt = document.getElementById('exp-monthly-total');      if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
   const el_yt = document.getElementById('exp-yearly-total');       if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
   const el_ot = document.getElementById('exp-oneoff-total');       if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
@@ -5195,6 +5274,7 @@ async function projectActualsSync() {
 
 function _projBudget(item) {
   // Returns the budget amount for an expense or property item
+  if (item.budget)       return item.budget;
   if (item.installTotal) return item.installTotal;
   if (item.amount)       return item.amount;
   if (item.value)        return item.value; // property
