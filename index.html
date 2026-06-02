@@ -1546,21 +1546,34 @@ async function sbSave(payload) {
 async function sbLoad() {
   if (!_sb) return null;
   try {
-    // 1. Try own device row first
-    const { data, error } = await _sb.from('futuro_state')
-      .select('data, updated_at').eq('id', getSbId()).maybeSingle();
-    if (!error && data?.data?.scenarios?.length > 0)
-      return { ...data.data, _sbUpdatedAt: data.updated_at };
-
-    // 2. No own row — recover from the most recently updated row across all devices.
-    //    This prevents data loss when opening a new browser, private window, or device.
-    const { data: rows, error: e2 } = await _sb.from('futuro_state')
+    // Load ALL rows, merge scenarios by name keeping the most-recently-updated version
+    // of each. This means a scenario added on any device is never silently lost.
+    const { data: rows, error } = await _sb.from('futuro_state')
       .select('data, updated_at')
       .order('updated_at', { ascending: false })
-      .limit(1);
-    if (!e2 && rows?.length > 0 && rows[0].data?.scenarios?.length > 0)
-      return { ...rows[0].data, _sbUpdatedAt: rows[0].updated_at };
-  } catch(e) { /* offline — will fall through to localStorage or seed */ }
+      .limit(30); // all plausible device rows
+    if (error || !rows?.length) return null;
+
+    // Collect all unique scenarios across all rows, newest version wins per name
+    const byName = {};  // name → { scenario, updatedAt }
+    let newestData = null;
+    let newestAt = '';
+    rows.forEach(row => {
+      if (!row.data?.scenarios) return;
+      if (row.updated_at > newestAt) { newestAt = row.updated_at; newestData = row.data; }
+      row.data.scenarios.forEach(sc => {
+        if (!byName[sc.name] || row.updated_at > byName[sc.name].at)
+          byName[sc.name] = { sc, at: row.updated_at };
+      });
+    });
+    if (!newestData) return null;
+
+    const mergedScenarios = Object.values(byName)
+      .sort((a, b) => a.at < b.at ? 1 : -1)  // newest first
+      .map(x => x.sc);
+
+    return { ...newestData, scenarios: mergedScenarios, _sbUpdatedAt: newestAt };
+  } catch(e) { /* offline */ }
   return null;
 }
 
