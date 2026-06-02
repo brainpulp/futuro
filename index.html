@@ -2462,28 +2462,8 @@ function runSim(monthlyOverride) {
     _effInstall[e.id] = { perPayment, paidSoFar, installN, ppy };
   });
 
-  // Precompute budget-driven effective amounts for non-installment expenses.
-  // When e.budget is set, remaining = budget - gastosSpent, and the effective
-  // per-period amount is derived from remaining spread over the remaining horizon.
-  const _effBudget = {};
-  S.expenses.filter(e => e.enabled !== false).forEach(e => {
-    if (e.type === 'installments') return; // handled by _effInstall
-    const budget = e.budget || 0;
-    if (budget <= 0) return;
-    const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
-    const gastosSpent = gc ? _projActual(gc) : 0;
-    const remaining = Math.max(0, budget - gastosSpent);
-    if (e.type === 'monthly') {
-      const toAge = e.to || ea, toMonth = e.toMonth || 12;
-      const monthsRem = Math.max(1, (toAge - sa) * 12 + toMonth - _curMo + 1);
-      _effBudget[e.id] = { effective: remaining / monthsRem, remaining };
-    } else if (e.type === 'annual') {
-      const yearsRem = Math.max(1, (e.to || ea) - sa);
-      _effBudget[e.id] = { effective: remaining / yearsRem, remaining };
-    } else if (e.type === 'oneoff') {
-      _effBudget[e.id] = { effective: remaining, remaining };
-    }
-  });
+  // _effBudget is display-only (expand card summary). The simulation always uses
+  // e.amount / e.installTotal directly — budget is a tracking field, not a sim override.
 
   // Helper: should this installment fire at absolute month offset moFromStart?
   function _installFires(e, moFromStart) {
@@ -2504,7 +2484,7 @@ function runSim(monthlyOverride) {
   // Deduct age-sa one-offs immediately (month 1 only)
   S.expenses.filter(e => e.enabled !== false).forEach(e => {
     if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === 1)
-      liq -= (_effBudget[e.id] ? _effBudget[e.id].effective : e.amount);
+      liq -= e.amount;
   });
 
   let props = S.properties.filter(p => p.enabled !== false)
@@ -2533,8 +2513,7 @@ function runSim(monthlyOverride) {
       const _oo = [];
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
         if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo) {
-          const oAmt = _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
-          _oo.push({ name: e.name || '?', amount: oAmt });
+          _oo.push({ name: e.name || '?', amount: e.amount });
         }
       });
       const _ooAmt = _oo.reduce((s, o) => s + o.amount, 0);
@@ -2544,12 +2523,12 @@ function runSim(monthlyOverride) {
           const from = e.from || sa, to = e.to || ea;
           const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
           const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
+          if (startOk && endOk) _itemizedExp += e.amount;
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
           const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
           const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
+          if (startOk && endOk) _itemizedExp += e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
           const moFromStart = (sa - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
@@ -2644,21 +2623,20 @@ function runSim(monthlyOverride) {
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
         if (e.type === 'oneoff') {
           if (e.atAge === age && (e.atMonth || 1) === mo) {
-            const oAmt = _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
-            exp += oAmt; _oo.push({ name: e.name || '?', amount: oAmt });
+            exp += e.amount; _oo.push({ name: e.name || '?', amount: e.amount });
           }
         } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
           const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
           const startOk = age > from || (age === from && mo >= fromMonth);
           const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += _effBudget[e.id] ? _effBudget[e.id].effective : e.amount;
+          if (startOk && endOk) exp += e.amount;
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
           const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
           const startOk = age > from || (age === from && mo >= fromMonth);
           const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += _effBudget[e.id] ? _effBudget[e.id].effective / 12 : e.amount / 12;
+          if (startOk && endOk) exp += e.amount / 12;
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
           const moFromStart = (age - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
