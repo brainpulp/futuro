@@ -363,6 +363,42 @@ body[data-theme="graphite"] .budget-cell-sub { color: rgba(255,255,255,0.25); }
 .sbadge.err { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
 
 /* ── METRIC PILLS ──────────────────────────────────────────── */
+/* ── STAT RIBBON ────────────────────────────────────────────── */
+.ribbon {
+  display: flex;
+  align-items: stretch;
+  background: #fff;
+  border: 1px solid #e6ebf1;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(50,50,93,.06);
+  overflow: hidden;
+  margin: 8px 0;
+}
+.ribbon-seg {
+  flex: 1;
+  padding: 8px 14px;
+  border-right: 1px solid #e6ebf1;
+  min-width: 0;
+}
+.ribbon-seg:last-child { border-right: none; flex: 0 0 auto; }
+.ribbon-seg.min-seg { background: #fffbeb; border-left: 1px solid #fde68a; border-right: none; }
+.ribbon-lbl { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8792a2; margin-bottom: 3px; }
+.ribbon-val { font-size: 17px; font-weight: 800; font-family: 'SF Mono', Menlo, monospace; line-height: 1; }
+.ribbon-sub { font-size: 10px; color: #8792a2; margin-top: 2px; font-family: 'SF Mono', Menlo, monospace; }
+.ribbon-seg.min-seg .ribbon-lbl { color: #92400e; }
+.ribbon-seg.min-seg .ribbon-val { color: #854d0e; }
+.ribbon-seg.min-seg .ribbon-sub { color: #92400e; }
+
+body[data-theme="graphite"] .ribbon { background: #21262d; border-color: #30363d; box-shadow: none; }
+body[data-theme="graphite"] .ribbon-seg { border-color: #30363d; }
+body[data-theme="graphite"] .ribbon-lbl { color: #6e7681; }
+body[data-theme="graphite"] .ribbon-val { color: #e6edf3; }
+body[data-theme="graphite"] .ribbon-sub { color: #6e7681; }
+body[data-theme="graphite"] .ribbon-seg.min-seg { background: #1a1400; border-color: #7d6608; }
+body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-lbl { color: #e3b341; }
+body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-val { color: #fbbf24; }
+body[data-theme="graphite"] .ribbon-seg.min-seg .ribbon-sub { color: #e3b341; }
+
 .pill {
   background: #fff;
   border: 1px solid #e6ebf1;
@@ -871,7 +907,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 
     <!-- Metric pills -->
     <div style="display:flex;gap:5px;margin:6px 0 8px;align-items:stretch;">
-      <div id="metrics" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1;min-width:0;"></div>
+      <div id="metrics" class="ribbon" style="flex:1;min-width:0;margin:0;"></div>
       <div id="mc-pill" class="pill" style="display:none;min-width:110px;flex-shrink:0;cursor:pointer;" onclick="triggerMC()" title="Click to re-run Monte Carlo"></div>
     </div>
 
@@ -3740,70 +3776,43 @@ function go() {
     updateMonthlyBaseSlider();
   }, 600);
 
-  // Pills
-  const pills = [];
+  // ── Ribbon segments ──────────────────────────────────────────
   const swrColor = r => r <= 0 ? '#5DC49A' : r < 3 ? '#1A8C5F' : r < 5 ? '#c07030' : '#C03030';
+  const segs = [];
   pillAges.forEach((age, i) => {
-    const d     = i === 0 ? d0   : at(age);
+    const d     = i === 0 ? d0 : at(age);
     const total = d.liq + d.iliq;
     const liq   = d.liq;
     const burn  = d?.annualNetBurn ?? null;
-    const totalCol = i === 0 ? '#1a1a1a' : total >= 0 ? '#1A8C5F' : '#C03030';
-    const liqCol   = i === 0 ? '#888'    : liq   >= 0 ? '#5DC49A' : '#E07070';
-    // SWR rows — only show when burn is meaningful and denominator is positive
-    let swrHtml = '';
+    const lbl   = i === 0 ? 'Now' : _yearMode ? String(ageToYear(age)) : 'Age ' + age;
+    const totC  = i === 0 ? 'inherit' : total >= 0 ? '#1A8C5F' : '#C03030';
+    const liqC  = liq >= 0 ? '#5DC49A' : '#E07070';
+    let subHtml = `<div class="ribbon-sub" style="color:${liqC}">${fmtM(liq)} liq</div>`;
     if (burn !== null) {
-      const swrL = liq   > 0 ? (burn / liq   * 100) : null;
-      const swrT = total > 0 ? (burn / total * 100) : null;
-      const fmtR = r => r === null ? '—' : (r <= 0 ? '▲surplus' : r.toFixed(1) + '%');
-      swrHtml = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px;">
-        <div style="font-size:10px;color:#aaa;font-family:'SF Mono',Menlo,monospace;font-weight:500;">
-          <span style="color:${swrL !== null ? swrColor(swrL) : '#aaa'};">${fmtR(swrL)}</span>
-          <span style="color:#ccc;"> liq · </span>
-          <span style="color:${swrT !== null ? swrColor(swrT) : '#aaa'};">${fmtR(swrT)}</span>
-          <span style="color:#ccc;"> tot</span>
-        </div>
-        <div style="font-size:9px;color:#bbb;">withdrawal rate</div>
-      </div>`;
+      const swrL = liq > 0 ? (burn / liq * 100) : null;
+      const sC = swrL !== null ? swrColor(swrL) : '';
+      const sT = swrL !== null ? (swrL <= 0 ? '▲' : swrL.toFixed(1) + '%') : '';
+      if (sT) subHtml += `<div class="ribbon-sub" style="color:${sC};font-size:9px;">${sT} withdrawal</div>`;
     }
-    pills.push(`<div class="pill">
-      <div class="pill-label">${i === 0 ? 'Current' : _yearMode ? String(ageToYear(age)) : 'Age ' + age}</div>
-      <div class="pill-val" style="color:${totalCol}">${fmt(total)}</div>
-      <div style="font-size:12px;font-weight:700;font-family:'SF Mono',Menlo,monospace;color:${liqCol};margin-top:2px;">${fmt(liq)} <span style="font-weight:400;font-size:10px;">liq</span></div>
-      ${swrHtml}
+    segs.push(`<div class="ribbon-seg">
+      <div class="ribbon-lbl">${lbl}</div>
+      <div class="ribbon-val" style="color:${totC}">${fmtM(total)}</div>
+      ${subHtml}
     </div>`);
   });
-  // Min liq pill — theme-aware, with month info from remote
-  const _dark = document.body.dataset.theme === 'graphite';
-  const minBg  = _dark ? '#1a1400' : '#FEF9C3';
-  const minBrd = _dark ? '1px solid #7d6608' : '1px solid #fde68a';
-  const minLblC = _dark ? '#e3b341' : '#92400E';
-  const minValC = minLiq < 0 ? (_dark ? '#f87171' : '#C03030') : (_dark ? '#fbbf24' : '#854D0E');
+
+  // Min liq — fixed-width segment with distinct amber styling
   const _minLabel = _yearMode
-    ? (_MONTHS[minMo - 1] || '') + ' ' + ageToYear(minAge)
+    ? ((_MONTHS[minMo - 1] || '') + ' ' + ageToYear(minAge)).trim()
     : 'age ' + minAge + (_MONTHS[minMo - 1] ? ' · ' + _MONTHS[minMo - 1] : '');
-  const minPill = `<div class="pill" style="background:${minBg};border:${minBrd};">
-    <div class="pill-label" style="color:${minLblC}">Lowest liq · ${_minLabel}</div>
-    <div class="pill-val" style="color:${minValC}">${fmt(minLiq)}</div>
-  </div>`;
+  const minValC = minLiq < 0 ? '#C03030' : 'inherit';
+  segs.push(`<div class="ribbon-seg min-seg">
+    <div class="ribbon-lbl">Min liq · ${_minLabel}</div>
+    <div class="ribbon-val" style="color:${minValC}">${fmtM(minLiq)}</div>
+  </div>`);
 
-  // Pills: first 2 milestones always visible; rest behind ▶ toggle
-  const ALWAYS_SHOW = 2;
-  const visiblePills = pills.slice(0, ALWAYS_SHOW);
-  const hiddenPills  = pills.slice(ALWAYS_SHOW);
-  const hasHidden = hiddenPills.length > 0;
-
-  const toggleBtn = hasHidden ? `<div class="pill" style="cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:28px;flex:0 0 28px;opacity:0.5;"
-    onclick="_pillsExpanded=!_pillsExpanded;localStorage.setItem('futuro-pills-expanded',_pillsExpanded?'1':'0');go();"
-    title="${_pillsExpanded ? 'Hide far future' : 'Show far future'}">
-    <span style="font-size:14px;">${_pillsExpanded ? '◀' : '▶'}</span>
-  </div>` : '';
-
-  const shownPills = _pillsExpanded ? [...visiblePills, ...hiddenPills, minPill] : [...visiblePills, minPill];
-  const allPills = hasHidden ? [...shownPills.slice(0, -1), toggleBtn, shownPills[shownPills.length-1]] : shownPills;
-
-  document.getElementById('metrics').style.gridTemplateColumns = `repeat(${allPills.length}, minmax(0,1fr))`;
-  document.getElementById('metrics').innerHTML = allPills.join('');
+  document.getElementById('metrics').style.gridTemplateColumns = '';
+  document.getElementById('metrics').innerHTML = segs.join('');
 
   // ── Sub-chart data: zoom-filtered to match main chart period ──
   const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
