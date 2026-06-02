@@ -4389,10 +4389,14 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
     style="width:100%;" onclick="event.stopPropagation()"
     oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets();go()">
   ${(()=>{
-    const budget = _projBudget(e);
+    // Use e.budget explicitly — never fall back to installTotal or amount here.
+    // installTotal is a simulation field; budget is an intentional cap.
+    const budget = e.budget || 0;
     const gc = e.gastosCategory && e.gastosCategory.trim().toLowerCase();
     const pa = gc && _projectActuals[gc];
     const actual = gc ? _projActual(gc) : 0;
+    // Nothing to show: no Gastos data and no explicit budget
+    if (!pa && budget <= 0) return '';
     const remaining = Math.max(0, budget - actual);
     const overBudget = budget > 0 && actual > budget;
     const pct = budget > 0 ? Math.min(100, Math.round(actual / budget * 100)) : 0;
@@ -4415,26 +4419,35 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
         effSub = `${fmtM(budget / installN)}/payment × ${installN}`;
       }
     }
-    if (!pa && budget <= 0) return '';
+    // If only Gastos data (no budget set): show spent alone, no cap comparison
+    if (budget <= 0) {
+      return `<div class="budget-summary" style="grid-template-columns:1fr;">
+        <div class="budget-cell">
+          <div class="budget-cell-label">Spent in Gastos</div>
+          <div class="budget-cell-value">${fmtM(actual)}</div>
+          <div class="budget-cell-sub">set a budget cap above to track remaining</div>
+        </div>
+      </div>`;
+    }
     return `
     <div class="budget-summary">
       <div class="budget-cell">
         <div class="budget-cell-label">Budgeted</div>
-        <div class="budget-cell-value">${budget > 0 ? fmtM(budget) : '—'}</div>
+        <div class="budget-cell-value">${fmtM(budget)}</div>
         <div class="budget-cell-sub">${inst ? (e.installN||1)+' payments' : 'total cap'}</div>
       </div>
       <div class="budget-cell">
         <div class="budget-cell-label">Spent</div>
         <div class="budget-cell-value" style="color:${actual>0?barColor:''}">${fmtM(actual)}</div>
-        <div class="budget-cell-sub">${budget > 0 ? pct+'% of budget' : 'from Gastos'}</div>
+        <div class="budget-cell-sub">${pct}% of budget</div>
       </div>
       <div class="budget-cell">
         <div class="budget-cell-label">${overBudget ? '⚠ Over budget' : 'Remaining'}</div>
-        <div class="budget-cell-value" style="${overBudget?'color:#c0392b':''}">${budget > 0 ? fmtM(remaining) : '—'}</div>
+        <div class="budget-cell-value" style="${overBudget?'color:#c0392b':''}">${fmtM(remaining)}</div>
         <div class="budget-cell-sub">${effSub}</div>
       </div>
     </div>
-    ${budget > 0 ? `<div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${barColor};"></div></div>` : ''}`;
+    <div class="proj-inline-bar"><div class="proj-inline-fill" style="width:${pct}%;background:${barColor};"></div></div>`;
   })()}
 </div>`:''}`;
 }
