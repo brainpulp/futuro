@@ -4713,7 +4713,11 @@ function renderInc() {
           </select>
         </div>
         ${oo
-          ? `<div><label class="lbl">At age</label><input type="number" value="${inc.atAge||sa}" min="${sa}" max="${S.endAge}" onchange="upI(${inc.id},'atAge',+this.value);go()"></div>`
+          ? `<div><label class="lbl">When</label>
+   <div style="display:flex;gap:4px;">
+     <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'atMonth',+this.value);go()">${monthOpts(inc.atMonth||1)}</select>
+     <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'atAge',yearToAge(+this.value));go()">${yearOpts(ageToYear(inc.atAge||sa))}</select>
+   </div></div>`
           : `<div><label class="lbl">From</label>
    <div style="display:flex;gap:4px;">
      <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'fromMonth',+this.value);go()">${monthOpts(inc.fromMonth||1)}</select>
@@ -4735,7 +4739,7 @@ function renderInc() {
     const years = !oo ? Math.max(0, (inc.to || S.endAge) - (inc.from || sa) + 1) : 0;
     const total = !oo ? (inc.type === 'annual' ? inc.amount * years : inc.monthly * 12 * years) : 0;
     const fromTag = oo
-      ? `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">${_yearMode ? ageToYear(inc.atAge||sa) : 'age ' + (inc.atAge||sa)}</span>`
+      ? `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">${ageMonthToLabel(inc.atAge||sa, inc.atMonth||1)}</span>`
       : `<span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">${ageMonthToLabel(inc.from||sa, inc.fromMonth||1)}</span>`;
     const totalTag = !oo && total > 0
       ? `<span style="font-size:10px;color:#34d399;font-family:'SF Mono',Menlo,monospace;flex-shrink:0;white-space:nowrap;font-weight:700;">${fmt(total)}</span>`
