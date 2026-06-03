@@ -534,7 +534,7 @@ body:not([data-theme="graphite"]) #txn-tip .tt-hint { border-color: #f0f2f8; col
 /* ── TRANSACTION EDIT MODAL ─────────────────────────────────── */
 #txn-edit-backdrop {
   display: none; position: fixed; inset: 0; z-index: 1500;
-  background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+  background: rgba(0,0,0,.35);
   align-items: center; justify-content: center;
 }
 #txn-edit-backdrop.open { display: flex; }
@@ -5136,21 +5136,27 @@ function openTxnEdit(t) {
   const item = arr && arr.find(x => x.id === t.id);
   if (!item) return;
   const sa = S.startAge || 57, ea = S.endAge || 87;
+  const ageLbl = _yearMode ? 'Year' : 'Age';
   function field(lbl, html) { return `<div class="em-field"><label class="em-label">${lbl}</label>${html}</div>`; }
   function inp(fld, val, type='text') { return `<input type="${type}" value="${val??''}" oninput="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">`; }
+  // Age field: displays dispA(), writes back via readA() in _txnFieldUpd
+  function ageInp(fld, age) {
+    const disp = age !== undefined ? dispA(age) : dispA(sa);
+    return `<input type="number" value="${disp}" oninput="_txnAgeUpd(${t.id},'${t.arr}','${fld}',this.value)">`;
+  }
   function sel(fld, val, opts) { return `<select onchange="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">${opts.map(o=>`<option value="${o}"${o===val?' selected':''}>${o}</option>`).join('')}</select>`; }
   let html = field('Name', inp('name', item.name));
   if (t.arr === 'incomes' || (t.arr === 'expenses' && item.type === 'monthly')) {
     html += `<div class="em-row">${field('Amount', inp(t.arr==='incomes'?'monthly':'amount', t.arr==='incomes'?(item.monthly||0):(item.amount||0), 'number'))}${field('Type', sel('type', item.type||'monthly',['monthly','annual','oneoff']))}</div>`;
-    html += `<div class="em-row">${field('From', inp('from', item.from||sa,'number'))}${field('To', inp('to', item.to||ea,'number'))}</div>`;
+    html += `<div class="em-row">${field('From '+ageLbl, ageInp('from', item.from||sa))}${field('To '+ageLbl, ageInp('to', item.to||ea))}</div>`;
   } else if (t.arr === 'expenses' && item.type === 'oneoff') {
-    html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field('Age', inp('atAge', item.atAge||sa,'number'))}</div>`;
+    html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field(ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'expenses' && item.type === 'installments') {
     html += `<div class="em-row">${field('Total amount', inp('installTotal', item.installTotal||0,'number'))}${field('# payments', inp('installN', item.installN||1,'number'))}</div>`;
-    html += field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']));
+    html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start '+ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'properties') {
     html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
-    html += `<div class="em-row">${field('Sale age', inp('saleAge', item.saleAge||ea,'number'))}${field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'))}</div>`;
+    html += `<div class="em-row">${field('Sale '+ageLbl, ageInp('saleAge', item.saleAge||ea))}${field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'))}</div>`;
   }
   fields.innerHTML = html;
   modal.classList.add('open');
@@ -5171,6 +5177,14 @@ function _txnFieldUpd(id, arrName, field, val) {
   const num = parseFloat(val);
   item[field] = (!isNaN(num) && String(val).trim() !== '') ? num : val;
   markDirty(); go();
+}
+function _txnAgeUpd(id, arrName, field, val) {
+  const arr = S[arrName];
+  if (!arr) return;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+  const num = parseFloat(val);
+  if (!isNaN(num)) { item[field] = readA(num); markDirty(); go(); }
 }
 function saveTxnEdit() { markDirty(); go(); closeTxnEdit(); }
 function deleteTxnEdit() {
