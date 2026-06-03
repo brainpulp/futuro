@@ -2769,10 +2769,11 @@ function runSim(monthlyOverride) {
         return { ...p, cv: p.cv * (1 + mApp) };
       });
 
-      // Sell properties at sale age + month
+      // Sell properties at sale age + month — track sold props for later _oo push
+      const _soldThisMo = [];
       props = props.map(p => {
         if (!p.sold && !p.hold && p.saleAge === age && (p.saleMonth || 6) === mo) {
-          _oo.push({ name: p.name + ' sold', amount: -Math.round(p.cv), sale: true }); // negative = cash IN (shown as income)
+          _soldThisMo.push({ name: p.name, cv: p.cv });
           liq += p.cv; return { ...p, sold: true };
         }
         return p;
@@ -2794,6 +2795,8 @@ function runSim(monthlyOverride) {
 
       let exp = _gastos !== undefined ? _gastos : inflM + (S.winterTrip + S.summerTrip) / 12;
       const _oo = [];
+      // Add property sales that occurred this month (tracked above, before _oo was declared)
+      _soldThisMo.forEach(s => _oo.push({ name: s.name + ' sold', amount: -Math.round(s.cv), sale: true }));
 
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
