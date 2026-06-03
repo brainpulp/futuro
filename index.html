@@ -3138,16 +3138,31 @@ function fmtM(v) {
 let _vigSeed = 0x9e3779b9;
 function _vigRand() { _vigSeed = (Math.imul(_vigSeed^_vigSeed>>>16,0x45d9f3b)^_vigSeed>>>4)>>>0; return _vigSeed/0xffffffff; }
 // Emoji vignette — full-color, same motion as the old canvas paths
-const _VIG_EMOJIS = [
+// Full emoji pool — sampled randomly at startup, pre-rendered once
+const _VIG_EMOJI_POOL = [
   // flowers & plants
-  '🌸','🌺','🌻','🌼','🌷','💐','🌹','🏵️','🪷','🌱','🌿','🍀','🍃','🌾','🪻','🌴',
+  '🌸','🌺','🌻','🌼','🌷','💐','🌹','🏵️','🪷','🪻','🌱','🌿','🍀','🍃','🌾','🌴',
+  '🌵','🎋','🎍','🍂','🍁','🍄','🌲','🌳','🎄','🪴','🫚','🌰',
   // sea & water creatures
-  '🐠','🐟','🐡','🦋','🐙','🦑','🦐','🦞','🐚','🪸','🐬','🦈','🦭','🐢','🦀','🦪',
-  // land & air creatures
-  '🐝','🦜','🦚','🦩','🦆','🦉','🦊','🐰','🦋','🐞','🦎','🐸','🦓','🦒','🦤','🐿️',
-  // nature & sky
-  '🍄','🌙','⭐','🌈','🍁','🍂','🌊','❄️','🔮','🫧','🪨','🌀',
+  '🐠','🐟','🐡','🐙','🦑','🦐','🦞','🐚','🪸','🐬','🦈','🦭','🐢','🦀','🦪','🐋',
+  '🦦','🐊','🐳','🫐','🪼','🦩',
+  // land animals
+  '🦊','🐰','🐸','🦎','🦓','🦒','🦁','🐯','🐻','🐼','🐨','🦘','🦥','🦨','🦡','🐺',
+  '🦫','🐗','🦌','🐑','🐃','🦬','🐘','🦏','🦛','🐪','🐫','🦙','🦚',
+  // birds & insects
+  '🐝','🦋','🐞','🦗','🦟','🐜','🪲','🪳','🕷️','🦂','🐛','🐌',
+  '🦜','🦉','🦅','🦆','🦤','🦢','🕊️','🦩','🪶','🐓','🦚','🦃',
+  // weather & sky
+  '🌙','⭐','🌟','💫','✨','🌈','❄️','🌊','🌀','☄️','🌤️','⛅','🌥️','🌦️','🌧️',
+  '⛈️','🌩️','🌨️','🌬️','💨','🌫️','🌪️','🔥','💧','💦','🫧','🌠',
+  // gems, objects & fun
+  '💎','🔮','🪩','🎪','🎨','🎭','🎠','🪅','🎡','🎢','🪁','🎯','🎱','🧩',
+  '🧿','🪬','🫀','🪸','🪨','🍭','🍬','🍡','🍮','🎂','🧁','🍩','🍪',
+  // fruits (colorful)
+  '🍎','🍊','🍋','🍇','🍓','🍒','🍑','🥭','🍍','🍌','🍉','🥥','🫒','🍑',
 ];
+// Pick a random subset of ~80 for this session, pre-render those
+const _VIG_EMOJIS = [..._VIG_EMOJI_POOL].sort(() => Math.random() - 0.5).slice(0, 80);
 const _VIG_OPACITY = 0.55;
 
 // Pre-render each emoji to an offscreen canvas once — drawImage is GPU-accelerated
