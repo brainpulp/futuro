@@ -516,11 +516,13 @@ select.iselect {
 body:not([data-theme="graphite"]) #txn-tip { background: #fff; border-color: #e6ebf1; box-shadow: 0 4px 20px rgba(0,0,0,.12); }
 #txn-tip .tt-month { font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #64748b; margin-bottom: 7px; }
 body:not([data-theme="graphite"]) #txn-tip .tt-month { color: #8792a2; }
-#txn-tip .tt-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; border-radius: 3px; }
+#txn-tip .tt-row { display: flex; align-items: center; gap: 7px; padding: 4px 6px; margin: 0 -6px; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; border-radius: 5px; transition: background .1s; }
 body:not([data-theme="graphite"]) #txn-tip .tt-row { border-color: #f0f2f8; }
 #txn-tip .tt-row:last-child { border-bottom: none; }
-#txn-tip .tt-row:hover { background: rgba(255,255,255,.06); }
-body:not([data-theme="graphite"]) #txn-tip .tt-row:hover { background: #f6f9fc; }
+#txn-tip .tt-row:hover { background: rgba(99,91,255,.18); }
+body:not([data-theme="graphite"]) #txn-tip .tt-row:hover { background: rgba(99,91,255,.10); }
+#txn-tip .tt-row::after { content: '›'; font-size: 14px; color: transparent; margin-left: auto; flex-shrink: 0; transition: color .1s; }
+#txn-tip .tt-row:hover::after { color: #818cf8; }
 #txn-tip .tt-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 #txn-tip .tt-name { font-size: 11px; font-weight: 600; color: #e2e8f0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body:not([data-theme="graphite"]) #txn-tip .tt-name { color: #1a1f36; }
@@ -1041,8 +1043,8 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     </div>
     </div><!-- /sec-body-chart-nw -->
 
-    <!-- MARKET collapsible section -->
-    <div class="main-section-title" onclick="toggleSec('chart-market')">Market<span id="sec-arr-chart-market" class="sec-chevron">▾</span></div>
+    <!-- MARKET + MONTHLY EXPENSES merged collapsible section -->
+    <div class="main-section-title" onclick="toggleSec('chart-market')">Market Projection &amp; Monthly Burn<span id="sec-arr-chart-market" class="sec-chevron">▾</span></div>
     <div id="sec-body-chart-market">
 
     <!-- SPY preset selector -->
@@ -1071,13 +1073,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
     </div>
 
-    </div><!-- /sec-body-chart-market -->
-
-    <!-- MONTHLY EXPENSES CHART collapsible section -->
-    <div class="main-section-title" onclick="toggleSec('chart-exp')">Monthly Expenses<span id="sec-arr-chart-exp" class="sec-chevron">▾</span></div>
-    <div id="sec-body-chart-exp">
-
-    <!-- Expense sub-chart -->
+    <!-- Expense sub-chart (merged into market section) -->
     <div style="position:relative;padding-top:18px;margin-bottom:10px;">
       <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(100,50,160,0.5);pointer-events:none;">Monthly Expenses &nbsp;<span id="exp-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
       <div style="display:flex;align-items:stretch;gap:0;">
@@ -1099,7 +1095,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </div>
     </div>
 
-    </div><!-- /sec-body-chart-exp -->
+    </div><!-- /sec-body-chart-market -->
 
     <!-- TIMELINE & BUDGETS collapsible section -->
     <div class="main-section-title" onclick="toggleSec('timeline')">Timeline &amp; Budgets<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
@@ -6081,7 +6077,7 @@ function initSections() {
   if (!localStorage.getItem('futuro-sec-timeline')) {
     localStorage.setItem('futuro-sec-timeline', '0');
   }
-  ['chart-nw','chart-market','chart-exp','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
+  ['chart-nw','chart-market','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
     const body = document.getElementById('sec-body-' + key);
     const arr  = document.getElementById('sec-arr-' + key);
