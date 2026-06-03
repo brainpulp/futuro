@@ -506,6 +506,62 @@ select.iselect {
   color: #1a1f36; font-size: 13px; font-weight: 600; min-width: 0; flex: 1;
 }
 
+/* ── TRANSACTION TOOLTIP ────────────────────────────────────── */
+#txn-tip {
+  position: fixed; z-index: 1400; pointer-events: none;
+  background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+  padding: 10px 12px; min-width: 210px; max-width: 300px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.55); display: none;
+}
+body:not([data-theme="graphite"]) #txn-tip { background: #fff; border-color: #e6ebf1; box-shadow: 0 4px 20px rgba(0,0,0,.12); }
+#txn-tip .tt-month { font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #64748b; margin-bottom: 7px; }
+body:not([data-theme="graphite"]) #txn-tip .tt-month { color: #8792a2; }
+#txn-tip .tt-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; border-radius: 3px; }
+body:not([data-theme="graphite"]) #txn-tip .tt-row { border-color: #f0f2f8; }
+#txn-tip .tt-row:last-child { border-bottom: none; }
+#txn-tip .tt-row:hover { background: rgba(255,255,255,.06); }
+body:not([data-theme="graphite"]) #txn-tip .tt-row:hover { background: #f6f9fc; }
+#txn-tip .tt-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+#txn-tip .tt-name { font-size: 11px; font-weight: 600; color: #e2e8f0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body:not([data-theme="graphite"]) #txn-tip .tt-name { color: #1a1f36; }
+#txn-tip .tt-badge { font-size: 8px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,.07); color: #94a3b8; flex-shrink: 0; }
+#txn-tip .tt-amt { font-size: 11px; font-family: 'SF Mono', Menlo, monospace; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+#txn-tip .tt-hint { font-size: 9px; color: #475569; margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.05); }
+body:not([data-theme="graphite"]) #txn-tip .tt-hint { border-color: #f0f2f8; color: #8792a2; }
+
+/* ── TRANSACTION EDIT MODAL ─────────────────────────────────── */
+#txn-edit-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 1500;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+  align-items: center; justify-content: center;
+}
+#txn-edit-backdrop.open { display: flex; }
+#txn-edit-modal {
+  background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+  padding: 20px; width: 340px; box-shadow: 0 16px 48px rgba(0,0,0,.6);
+}
+body:not([data-theme="graphite"]) #txn-edit-modal { background: #fff; border-color: #e6ebf1; }
+#txn-edit-modal .em-hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+#txn-edit-modal .em-title { font-size: 13px; font-weight: 800; color: #e2e8f0; }
+body:not([data-theme="graphite"]) #txn-edit-modal .em-title { color: #1a1f36; }
+#txn-edit-modal .em-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 18px; padding: 0; line-height: 1; }
+#txn-edit-modal .em-close:hover { color: #e2e8f0; }
+#txn-edit-modal .em-field { margin-bottom: 11px; }
+#txn-edit-modal .em-label { display: block; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+#txn-edit-modal .em-field input, #txn-edit-modal .em-field select {
+  width: 100%; background: rgba(255,255,255,.05); border: 1px solid #334155;
+  border-radius: 6px; color: #e2e8f0; font-size: 13px; font-family: inherit; padding: 7px 10px; outline: none;
+}
+body:not([data-theme="graphite"]) #txn-edit-modal .em-field input,
+body:not([data-theme="graphite"]) #txn-edit-modal .em-field select { background: #f6f9fc; border-color: #e0e6ed; color: #1a1f36; }
+#txn-edit-modal .em-field input:focus, #txn-edit-modal .em-field select:focus { border-color: #60a5fa; }
+#txn-edit-modal .em-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#txn-edit-modal .em-actions { display: flex; gap: 6px; margin-top: 14px; }
+#txn-edit-modal .em-save   { flex:1; background:#3b82f6; color:#fff; border:none; border-radius:6px; padding:8px; font-size:12px; font-weight:700; cursor:pointer; }
+#txn-edit-modal .em-save:hover { background:#2563eb; }
+#txn-edit-modal .em-cancel { background:rgba(255,255,255,.06); color:#94a3b8; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+#txn-edit-modal .em-delete { background:rgba(239,68,68,.15); color:#f87171; border:1px solid rgba(239,68,68,.3); border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+
 /* ── CHART BOX ─────────────────────────────────────────────── */
 .chart-box {
   background: #fff;
@@ -1067,6 +1123,20 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
+    <!-- Transaction hover tooltip -->
+    <div id="txn-tip"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to edit</div></div>
+    <!-- Transaction edit modal -->
+    <div id="txn-edit-backdrop" onclick="if(event.target===this)closeTxnEdit()">
+      <div id="txn-edit-modal">
+        <div class="em-hdr"><div><div class="em-title" id="txn-edit-title">Edit</div></div><button class="em-close" onclick="closeTxnEdit()">✕</button></div>
+        <div id="txn-edit-fields"></div>
+        <div class="em-actions">
+          <button class="em-save" onclick="saveTxnEdit()">Save</button>
+          <button class="em-cancel" onclick="closeTxnEdit()">Cancel</button>
+          <button class="em-delete" onclick="deleteTxnEdit()">Delete</button>
+        </div>
+      </div>
+    </div>
     <div id="sync-ticker">
       <span class="tick-icon" id="tick-icon">📡</span>
       <span id="tick-msg">Syncing…</span>
@@ -1768,6 +1838,7 @@ let _chartDrag = null; // { idx, age, type:'spy'|'exp' }
 let _saleDots  = []; // [{ xp, yp, age, name, value }] — populated by msPlugin for hover tooltip
 let _totalDots = []; // [{ xp, yp, age, liq, total }] — every year on the Total curve
 let _minLiqDot = null; // { xp, yp, age, liq } — the red min-liquidity dot
+let _txnDots   = []; // [{ xp, yp, age, mo, txns, net }] — monthly transaction dots
 let _onelineTimer = null;
 let _aiSections = [];
 let _onelineCallLog = []; // timestamps of recent one-liner calls
@@ -3195,6 +3266,76 @@ function _drawHouse(ctx, cx, cy, size, color) {
   ctx.restore();
 }
 
+// ── Transaction helpers ───────────────────────────────────────
+const _TXN_COLORS = { income:'#22c55e', expense:'#f87171', oneoff:'#a78bfa',
+  installment:'#a78bfa', annual:'#fb923c', rent:'#38bdf8', sale:'#fbbf24' };
+
+function getMonthTxns(age, mo) {
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const txns = [];
+  // Incomes
+  (S.incomes || []).filter(i => i.enabled !== false).forEach(inc => {
+    if (inc.type === 'oneoff') {
+      if ((inc.atAge || inc.from) === age && (inc.atMonth || 1) === mo)
+        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: inc.amount || inc.monthly || 0, type: 'income' });
+    } else {
+      const from = inc.from || sa, to = inc.to || ea;
+      if ((age > from || (age === from && mo >= (inc.fromMonth || 1))) &&
+          (age < to   || (age === to   && mo <= (inc.toMonth || 12))))
+        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: inc.monthly || 0, type: 'income' });
+    }
+  });
+  // Expenses
+  (S.expenses || []).filter(e => e.enabled !== false).forEach(exp => {
+    if (exp.type === 'oneoff') {
+      if (exp.atAge === age && (exp.atMonth || 1) === mo)
+        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0), type: 'oneoff' });
+    } else if (exp.type === 'monthly') {
+      const from = exp.from || sa, to = exp.to || ea;
+      if ((age > from || (age === from && mo >= (exp.fromMonth || 1))) &&
+          (age < to   || (age === to   && mo <= (exp.toMonth || 12))))
+        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0), type: 'expense' });
+    } else if (exp.type === 'annual') {
+      const from = exp.from || sa, to = exp.to || ea;
+      if ((age > from || (age === from && mo >= (exp.fromMonth || 1))) &&
+          (age < to   || (age === to   && mo <= (exp.toMonth || 12))))
+        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0) / 12, type: 'annual' });
+    } else if (exp.type === 'installments') {
+      const ppy = { monthly:12, quarterly:4, semester:2, annual:1 }[exp.installFreq || 'monthly'];
+      const start = exp.atAge || exp.from || sa;
+      const totalMo = (age - start) * 12 + (mo - 1);
+      const moPerInst = 12 / ppy;
+      if (totalMo >= 0 && age >= start && totalMo % moPerInst === 0) {
+        const paid = Math.floor(totalMo / moPerInst);
+        const remain = (exp.installN || 1) - paid;
+        if (remain > 0)
+          txns.push({ id: exp.id, arr: 'expenses', name: exp.name,
+            amount: -((exp.installTotal || exp.amount || 0) / (exp.installN || 1)),
+            type: 'installment', installNum: paid + 1, installTotal: exp.installN || 1 });
+      }
+    }
+  });
+  // Rental income from properties
+  (S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).forEach(prop => {
+    const ra = prop.rentFromAge !== undefined ? prop.rentFromAge : (prop.acquireAge || sa);
+    const sellAge = prop.hold ? ea + 1 : (prop.saleAge || ea);
+    const sellMo  = prop.hold ? 13 : (prop.saleMonth || 6);
+    if (age >= ra && (age < sellAge || (age === sellAge && mo < sellMo)))
+      txns.push({ id: prop.id, arr: 'properties', name: prop.name + ' rent', amount: prop.monthlyRent, type: 'rent' });
+  });
+  // Property sales
+  (S.properties || []).filter(p => p.enabled !== false && !p.hold).forEach(prop => {
+    if (prop.saleAge === age && (prop.saleMonth || 6) === mo) {
+      const yrs = age - ((prop.acquireAge !== undefined ? prop.acquireAge : sa));
+      const val = (prop.value || 0) * Math.pow(1 + ((prop.appRate !== undefined ? prop.appRate : S.assetAppreciation) || 3) / 100, yrs);
+      txns.push({ id: prop.id, arr: 'properties', name: prop.name + ' sold', amount: val, type: 'sale' });
+    }
+  });
+  return txns;
+}
+
+let _txnEditItem = null; // { id, arr, type } — currently editing
+
 const msPlugin = {
   id: 'ms',
   afterDraw(ch) {
@@ -3542,6 +3683,38 @@ const msPlugin = {
       }
       ctx.restore();
     });
+
+    // ── Transaction dots on liquid curve ─────────────────────
+    _txnDots = [];
+    const monthlyData = window._lastSimData;
+    if (monthlyData && _chartZoom !== 1) {
+      const lbsA = data.labels;  // annual age labels
+      monthlyData.forEach(m => {
+        const txns = getMonthTxns(m.age, m.mo);
+        if (!txns.length) return;
+        // x: interpolate within the year band
+        const aidx = lbsA.indexOf(m.age);
+        if (aidx < 0) return;
+        const x0 = x.getPixelForValue(aidx);
+        const x1 = aidx + 1 < lbsA.length ? x.getPixelForValue(aidx + 1) : x0 + (x0 - (aidx > 0 ? x.getPixelForValue(aidx - 1) : x0 - 20));
+        const xp = x0 + (m.mo - 0.5) / 12 * (x1 - x0);
+        if (xp < chartArea.left - 2 || xp > chartArea.right + 2) return;
+        const yp = y.getPixelForValue(m.liq);
+        if (yp < chartArea.top - 2 || yp > chartArea.bottom + 2) return;
+        const hasSale = txns.some(t => t.type === 'sale');
+        const hasOneoff = txns.some(t => t.type === 'oneoff' || t.type === 'installment');
+        const net = txns.reduce((s, t) => s + t.amount, 0);
+        const color = hasSale ? '#fbbf24' : hasOneoff ? '#a78bfa' : net >= 0 ? '#22c55e' : '#f87171';
+        const r = hasSale ? 5 : hasOneoff ? 4.5 : 3.5;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(xp, yp, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.shadowColor = color; ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.restore();
+        _txnDots.push({ xp, yp, age: m.age, mo: m.mo, year: m.year, txns, net });
+      });
+    }
 
     ctx.restore();
   }
@@ -3996,6 +4169,19 @@ function go() {
       const tip = document.getElementById('drag-tip');
       const rect = e.currentTarget.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      // Txn dot hover — check first (smallest hit radius)
+      const txnHit = _txnDots.reduce((best, d) => {
+        const dist = Math.hypot(d.xp - mx, d.yp - my);
+        return dist < 10 && dist < best.dist ? { d, dist } : best;
+      }, { d: null, dist: 10 }).d;
+      window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
+      if (txnHit) {
+        showTxnTooltip(txnHit, e.clientX, e.clientY);
+        e.currentTarget.style.cursor = 'pointer';
+        tip.style.display = 'none';
+        return;
+      }
+      hideTxnTooltip();
       const saleHit = _saleDots.find(d => Math.hypot(d.xp - mx, d.yp - my) < 14);
       const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14 ? _minLiqDot : null;
       if (saleHit) {
@@ -4030,6 +4216,16 @@ function go() {
     });
     document.getElementById('nwChart').addEventListener('mouseleave', () => {
       if (!_chartDrag) document.getElementById('drag-tip').style.display = 'none';
+      hideTxnTooltip();
+    });
+    document.getElementById('nwChart').addEventListener('click', e => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const txnHit = _txnDots.reduce((best, d) => {
+        const dist = Math.hypot(d.xp - mx, d.yp - my);
+        return dist < 10 && dist < best.dist ? { d, dist } : best;
+      }, { d: null, dist: 10 }).d;
+      if (txnHit) { openTxnEditForDot(txnHit); }
     });
     document.getElementById('nwChart').addEventListener('touchmove', e => {
       const tip = document.getElementById('drag-tip');
@@ -4218,6 +4414,7 @@ function go() {
   }, 15_000);
 
   window._lastRCData = data;
+  window._lastSimData = data.monthly || [];
   renderRC(data);
   renderMinDrill(data);
   requestAnimationFrame(renderTimeline); // after chart paints; renderTimeline bails if section hidden
@@ -4853,6 +5050,101 @@ function toggleSettings() {
   const p = document.getElementById('settings-panel');
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
   if (p.style.display === 'block') syncSettingsPanel();
+}
+
+// ── Transaction tooltip ───────────────────────────────────────
+const _MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function showTxnTooltip(dot, cx, cy) {
+  const tip = document.getElementById('txn-tip');
+  const mLbl = document.getElementById('txn-tip-month');
+  const rows = document.getElementById('txn-tip-rows');
+  if (!tip) return;
+  mLbl.textContent = (_MON_SHORT[dot.mo - 1] || '') + ' ' + dot.year + ' · age ' + dot.age;
+  rows.innerHTML = dot.txns.map((t, i) => {
+    const col = _TXN_COLORS[t.type] || '#94a3b8';
+    const sign = t.amount >= 0 ? '+' : '';
+    const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
+    const badge = t.type === 'installment' ? `${t.installNum}/${t.installTotal}` : t.type;
+    return `<div class="tt-row" onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+      <div class="tt-dot" style="background:${col}"></div>
+      <div class="tt-name">${t.name}</div>
+      <div class="tt-badge">${badge}</div>
+      <div class="tt-amt" style="color:${amtCol}">${sign}${fmtM(Math.abs(t.amount))}</div>
+    </div>`;
+  }).join('');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const tw = 280, th = 60 + dot.txns.length * 26;
+  tip.style.left = (cx + 14 + tw > vw ? cx - tw - 8 : cx + 14) + 'px';
+  tip.style.top  = (cy + 10 + th > vh ? cy - th - 8 : cy + 10) + 'px';
+  tip.style.display = 'block';
+  tip.style.pointerEvents = 'auto';
+}
+function hideTxnTooltip() {
+  const tip = document.getElementById('txn-tip');
+  if (tip && !tip.matches(':hover')) { tip.style.display = 'none'; tip.style.pointerEvents = 'none'; }
+}
+
+// ── Transaction edit modal ────────────────────────────────────
+function openTxnEdit(t) {
+  _txnEditItem = t;
+  hideTxnTooltip();
+  const modal = document.getElementById('txn-edit-backdrop');
+  const title = document.getElementById('txn-edit-title');
+  const fields = document.getElementById('txn-edit-fields');
+  if (!modal) return;
+  title.textContent = t.name;
+  const arr = S[t.arr];
+  const item = arr && arr.find(x => x.id === t.id);
+  if (!item) return;
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  function field(lbl, html) { return `<div class="em-field"><label class="em-label">${lbl}</label>${html}</div>`; }
+  function inp(fld, val, type='text') { return `<input type="${type}" value="${val??''}" oninput="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">`; }
+  function sel(fld, val, opts) { return `<select onchange="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">${opts.map(o=>`<option value="${o}"${o===val?' selected':''}>${o}</option>`).join('')}</select>`; }
+  let html = field('Name', inp('name', item.name));
+  if (t.arr === 'incomes' || (t.arr === 'expenses' && item.type === 'monthly')) {
+    html += `<div class="em-row">${field('Amount', inp(t.arr==='incomes'?'monthly':'amount', t.arr==='incomes'?(item.monthly||0):(item.amount||0), 'number'))}${field('Type', sel('type', item.type||'monthly',['monthly','annual','oneoff']))}</div>`;
+    html += `<div class="em-row">${field('From', inp('from', item.from||sa,'number'))}${field('To', inp('to', item.to||ea,'number'))}</div>`;
+  } else if (t.arr === 'expenses' && item.type === 'oneoff') {
+    html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field('Age', inp('atAge', item.atAge||sa,'number'))}</div>`;
+  } else if (t.arr === 'expenses' && item.type === 'installments') {
+    html += `<div class="em-row">${field('Total amount', inp('installTotal', item.installTotal||0,'number'))}${field('# payments', inp('installN', item.installN||1,'number'))}</div>`;
+    html += field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']));
+  } else if (t.arr === 'properties') {
+    html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
+    html += `<div class="em-row">${field('Sale age', inp('saleAge', item.saleAge||ea,'number'))}${field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'))}</div>`;
+  }
+  fields.innerHTML = html;
+  modal.classList.add('open');
+}
+function openTxnEditForDot(dot) {
+  if (dot.txns.length === 1) { openTxnEdit(dot.txns[0]); return; }
+  showTxnTooltip(dot, window._lastMouseX || 400, window._lastMouseY || 300);
+}
+function closeTxnEdit() {
+  document.getElementById('txn-edit-backdrop').classList.remove('open');
+  _txnEditItem = null;
+}
+function _txnFieldUpd(id, arrName, field, val) {
+  const arr = S[arrName];
+  if (!arr) return;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+  const num = parseFloat(val);
+  item[field] = (!isNaN(num) && String(val).trim() !== '') ? num : val;
+  markDirty(); go();
+}
+function saveTxnEdit() { markDirty(); go(); closeTxnEdit(); }
+function deleteTxnEdit() {
+  if (!_txnEditItem) return;
+  const arr = S[_txnEditItem.arr];
+  if (!arr) return;
+  const idx = arr.findIndex(x => x.id === _txnEditItem.id);
+  if (idx >= 0) arr.splice(idx, 1);
+  markDirty(); go();
+  if (_txnEditItem.arr === 'incomes') renderInc();
+  else if (_txnEditItem.arr === 'expenses') renderExp();
+  else if (_txnEditItem.arr === 'properties') renderProps();
+  closeTxnEdit();
 }
 
 function toggleTheme() {
