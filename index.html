@@ -3128,75 +3128,12 @@ function fmtM(v) {
 // ── Liquid-fill vignette background plugin ──────────────────
 let _vigSeed = 0x9e3779b9;
 function _vigRand() { _vigSeed = (Math.imul(_vigSeed^_vigSeed>>>16,0x45d9f3b)^_vigSeed>>>4)>>>0; return _vigSeed/0xffffffff; }
-const _VIG_FLOWER_COLS = [
-  'rgba(55,138,221,0.20)','rgba(90,200,120,0.20)','rgba(230,90,80,0.20)',
-  'rgba(180,100,220,0.20)','rgba(240,170,40,0.20)','rgba(45,190,200,0.20)',
+// Emoji vignette — full-color, same motion as the old canvas paths
+const _VIG_EMOJIS = [
+  '🌸','🌺','🌻','🌼','🌷','💐','🌹','🏵️',   // flowers
+  '🐠','🐟','🦋','🐝','🦜','🦚','🐡','🦩',   // creatures
 ];
-const _VIG_ANIMAL_COLS = [
-  'rgba(45,190,205,0.20)','rgba(80,160,240,0.20)',
-  'rgba(100,200,150,0.20)','rgba(200,130,80,0.20)',
-];
-function _vigAnimal(ctx, type, sz) {
-  const n = type % 4;
-  if (n === 0) {
-    // Bird — two wing arcs
-    ctx.lineWidth = sz * 0.11;
-    ctx.beginPath();
-    ctx.moveTo(-sz*.44, 0);
-    ctx.quadraticCurveTo(-sz*.22, -sz*.3, 0, 0);
-    ctx.quadraticCurveTo(sz*.22, -sz*.3, sz*.44, 0);
-    ctx.stroke();
-  } else if (n === 1) {
-    // Fish — oval body + triangle tail
-    ctx.beginPath();
-    ctx.ellipse(sz*.12, 0, sz*.33, sz*.17, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-sz*.26, 0);
-    ctx.lineTo(-sz*.5, -sz*.19);
-    ctx.lineTo(-sz*.5,  sz*.19);
-    ctx.closePath();
-    ctx.fill();
-  } else if (n === 2) {
-    // Butterfly — 4 wing ellipses
-    const ang = Math.PI/5;
-    ctx.beginPath(); ctx.ellipse(-sz*.27,-sz*.17,sz*.27,sz*.15, ang,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse( sz*.27,-sz*.17,sz*.27,sz*.15,-ang,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-sz*.21, sz*.15,sz*.21,sz*.12,-ang,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse( sz*.21, sz*.15,sz*.21,sz*.12, ang,0,Math.PI*2); ctx.fill();
-  } else {
-    // Turtle — shell ellipse + head circle
-    ctx.beginPath();
-    ctx.ellipse(0, 0, sz*.3, sz*.21, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(sz*.37, 0, sz*.1, 0, Math.PI*2);
-    ctx.fill();
-  }
-}
-
-function _vig(ctx, type, sz) {
-  // 6 flower varieties, cycled
-  const n = type % 6;
-  const petals = [5, 6, 8, 5, 6, 7][n];
-  const pr = [sz*.42, sz*.38, sz*.32, sz*.45, sz*.4, sz*.35][n]; // petal reach
-  const pw = [sz*.22, sz*.2, sz*.18, sz*.28, sz*.24, sz*.2][n];  // petal width
-  const cr = [sz*.14, sz*.13, sz*.12, sz*.16, sz*.14, sz*.13][n]; // centre radius
-
-  // Petals
-  for (let i = 0; i < petals; i++) {
-    const a = (i / petals) * Math.PI * 2;
-    const cx = Math.cos(a) * pr * .5;
-    const cy = Math.sin(a) * pr * .5;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, pw * .5, pr * .5, a, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // Centre dot
-  ctx.beginPath();
-  ctx.arc(0, 0, cr, 0, Math.PI * 2);
-  ctx.fill();
-}
+const _VIG_OPACITY = 0.55; // global alpha for the emoji layer
 
 const liquidBgPlugin = {
   id: 'liquidBg',
@@ -3218,28 +3155,29 @@ const liquidBgPlugin = {
     ctx.clip();
     _vigSeed = 0x9e3779b9;
     const aw = chartArea.right - chartArea.left, ah = chartArea.bottom - chartArea.top;
+    ctx.globalAlpha = _VIG_OPACITY;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     for (let i = 0; i < 960; i++) {
       const vx = chartArea.left + _vigRand() * aw;
       const vy = chartArea.top  + _vigRand() * ah;
       const sz = 16 + _vigRand() * 18;
-      const isAnimal = i % 2 === 0;
-      const speed = (0.12 + (i % 7) * 0.04) * 4; // 2× faster spin
+      const speed = (0.12 + (i % 7) * 0.04) * 4;
       const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
-      const col = isAnimal ? _VIG_ANIMAL_COLS[(i >> 1) % 4] : _VIG_FLOWER_COLS[i % 6];
-      // Eccentric orbit: each flower drifts elliptically around its base position
-      const oPhase = (i * 2.39996) % (Math.PI * 2); // golden-angle phase spread
-      const orx = sz * (0.35 + (i % 5) * 0.13);     // semi-major axis
-      const ory = sz * (0.12 + (i % 3) * 0.10);     // semi-minor axis (flattened = eccentric)
+      const oPhase = (i * 2.39996) % (Math.PI * 2);
+      const orx = sz * (0.35 + (i % 5) * 0.13);
+      const ory = sz * (0.12 + (i % 3) * 0.10);
       const ox = Math.sin(_danceT * 0.001 * speed * 0.45 + oPhase) * orx;
       const oy = Math.cos(_danceT * 0.001 * speed * 0.32 + oPhase * 1.5) * ory;
+      const emoji = _VIG_EMOJIS[i % _VIG_EMOJIS.length];
       ctx.save();
+      ctx.font = `${Math.round(sz)}px serif`;
       ctx.translate(vx + ox, vy + oy);
       ctx.rotate(rot);
-      ctx.strokeStyle = col; ctx.fillStyle = col;
-      ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      if (isAnimal) _vigAnimal(ctx, i >> 1, sz); else _vig(ctx, i, sz);
+      ctx.fillText(emoji, 0, 0);
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 };
