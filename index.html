@@ -3687,30 +3687,69 @@ const msPlugin = {
     // ── Transaction dots on liquid curve ─────────────────────
     _txnDots = [];
     const monthlyData = window._lastSimData;
-    if (monthlyData && _chartZoom !== 1) {
-      const lbsA = data.labels;  // annual age labels
+    if (monthlyData) {
+      const lbsA = data.labels;   // chart x labels (ages for annual, strings for monthly)
+      const dense = _chartZoom === 1 || _chartZoom === 5;  // monthly chart modes
+
       monthlyData.forEach(m => {
-        const txns = getMonthTxns(m.age, m.mo);
+        const allTxns = getMonthTxns(m.age, m.mo);
+        if (!allTxns.length) return;
+
+        // ── Filter by zoom ──────────────────────────────────
+        const txns = dense
+          ? allTxns   // 1y/5y: show everything
+          : allTxns.filter(t =>
+              t.type === 'sale' ||
+              (t.type === 'oneoff' && Math.abs(t.amount) >= 10000)
+            );
         if (!txns.length) return;
-        // x: interpolate within the year band
-        const aidx = lbsA.indexOf(m.age);
-        if (aidx < 0) return;
-        const x0 = x.getPixelForValue(aidx);
-        const x1 = aidx + 1 < lbsA.length ? x.getPixelForValue(aidx + 1) : x0 + (x0 - (aidx > 0 ? x.getPixelForValue(aidx - 1) : x0 - 20));
-        const xp = x0 + (m.mo - 0.5) / 12 * (x1 - x0);
+
+        // ── X position ──────────────────────────────────────
+        let xp, yp;
+        if (dense) {
+          // Monthly chart: find exact label index
+          const moLabel = (_MON_SHORT[m.mo - 1] || '') + " '" + String(m.year).slice(2);
+          const moIdx = lbsA.findIndex(l => l === moLabel);
+          if (moIdx < 0) return;
+          xp = x.getPixelForValue(moIdx);
+          // Y: use exact chart data point — perfectly on curve
+          yp = y.getPixelForValue(liqData[moIdx] ?? m.liq);
+        } else {
+          // Annual chart: interpolate x within the year band
+          const aidx = lbsA.indexOf(m.age);
+          if (aidx < 0) return;
+          const x0 = x.getPixelForValue(aidx);
+          const x1 = aidx + 1 < lbsA.length
+            ? x.getPixelForValue(aidx + 1)
+            : x0 + (aidx > 0 ? x0 - x.getPixelForValue(aidx - 1) : 20);
+          const t_mo = (m.mo - 0.5) / 12;
+          xp = x0 + t_mo * (x1 - x0);
+          // Y: interpolate annual liq data to stay ON the rendered curve
+          const liqA = liqData[aidx]   ?? 0;
+          const liqB = liqData[aidx+1] ?? liqA;
+          yp = y.getPixelForValue(liqA + t_mo * (liqB - liqA));
+        }
         if (xp < chartArea.left - 2 || xp > chartArea.right + 2) return;
-        const yp = y.getPixelForValue(m.liq);
-        if (yp < chartArea.top - 2 || yp > chartArea.bottom + 2) return;
-        const hasSale = txns.some(t => t.type === 'sale');
-        const hasOneoff = txns.some(t => t.type === 'oneoff' || t.type === 'installment');
-        const net = txns.reduce((s, t) => s + t.amount, 0);
-        const color = hasSale ? '#fbbf24' : hasOneoff ? '#a78bfa' : net >= 0 ? '#22c55e' : '#f87171';
-        const r = hasSale ? 5 : hasOneoff ? 4.5 : 3.5;
+        if (yp < chartArea.top - 2  || yp > chartArea.bottom + 2) return;
+
+        // ── Draw ─────────────────────────────────────────────
+        const isSale = txns.some(t => t.type === 'sale');
+        const isRE   = txns.some(t => t.arr === 'properties');
+        const net    = txns.reduce((s, t) => s + t.amount, 0);
+
         ctx.save();
-        ctx.beginPath(); ctx.arc(xp, yp, r, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.shadowColor = color; ctx.shadowBlur = 4;
-        ctx.fill();
+        ctx.shadowBlur = 5;
+        if (isSale || isRE) {
+          // House icon for real estate events
+          const col = net >= 0 ? '#fbbf24' : '#f87171';
+          ctx.shadowColor = col;
+          _drawHouse(ctx, xp, yp - 7, 13, col);
+        } else {
+          const col = net >= 0 ? '#22c55e' : '#f87171';
+          ctx.shadowColor = col;
+          ctx.beginPath(); ctx.arc(xp, yp, dense ? 4 : 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = col; ctx.fill();
+        }
         ctx.restore();
         _txnDots.push({ xp, yp, age: m.age, mo: m.mo, year: m.year, txns, net });
       });
