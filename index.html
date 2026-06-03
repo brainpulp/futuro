@@ -6242,14 +6242,16 @@ function _renderTimelineInner() {
   (S.expenses || []).forEach(exp => {
     let a0, a1;
     if (exp.type === 'installments') {
-      // Bar from start to last payment
-      const ppy = {monthly:12, quarterly:4, semester:2, annual:1}[exp.installFreq||'monthly'];
-      const installN  = exp.installN || 1;
-      const startAge  = exp.atAge || sa;
-      const startMo   = (exp.atMonth || 1) - 1; // 0-based
-      const totalMos  = Math.round((installN - 1) / ppy * 12) + startMo;
+      const ppy      = {monthly:12, quarterly:4, semester:2, annual:1}[exp.installFreq||'monthly'];
+      const installN = exp.installN || 1;
+      const startAge = exp.atAge || sa;
+      const moToLast = Math.round((installN - 1) / ppy * 12);
+      // lastAbsMo: 0-based absolute month of the final payment
+      const lastAbsMo = startAge * 12 + ((exp.atMonth || 1) - 1) + moToLast;
       a0 = startAge;
-      a1 = startAge + (totalMos / 12);
+      // a1 must be an INTEGER age so xFor() finds it in the labels array
+      a1 = Math.floor(lastAbsMo / 12);
+      if (a1 <= a0) a1 = a0 + 1; // ensure at least a visible bar
     } else if (exp.type === 'oneoff') {
       a0 = exp.atAge || exp.from || sa;
       a1 = null;
