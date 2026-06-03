@@ -4111,6 +4111,12 @@ function go() {
   renderZoomButtons();
 
   // ── Main chart (NW only) ──
+  // Recreate chart when switching between monthly and annual modes — Chart.js
+  // doesn't reliably handle in-place label type changes (int→string or length jumps).
+  if (chart && (chart._isMonthly !== view.monthly)) {
+    chart.destroy();
+    chart = null;
+  }
   if (!chart) {
     chart = new Chart(document.getElementById('nwChart'), {
       type: 'line',
@@ -4184,6 +4190,7 @@ function go() {
         }
       }
     });
+    chart._isMonthly = !!view.monthly;
     _startDanceLoop();
     // Hover tooltip for sale diamonds
     document.getElementById('nwChart').addEventListener('mousemove', e => {
@@ -4297,6 +4304,7 @@ function go() {
     view.props.forEach(d => chart.data.datasets.push(d));
     chart.options.scales.y.min = 0;
     chart.options.scales.y.max = view.yMax;
+    chart._isMonthly = !!view.monthly;
     chart.update('none');
   }
 
