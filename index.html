@@ -3705,8 +3705,9 @@ const msPlugin = {
         let xp, yp;
         const liqMeta = ch.getDatasetMeta(0).data; // rendered positions of liquid dataset
         if (dense) {
-          const moLabel = (_MON_SHORT[m.mo - 1] || '') + " '" + String(m.year).slice(2);
-          const moIdx = lbsA.findIndex(l => l === moLabel);
+          // Match by age+mo directly against the chart's actual monthly slice
+          const slice = window._chartMonthSlice || [];
+          const moIdx = slice.findIndex(cm => cm.age === m.age && cm.mo === m.mo);
           if (moIdx < 0 || !liqMeta[moIdx]) return;
           xp = liqMeta[moIdx].x;
           yp = liqMeta[moIdx].y;  // exact rendered position — perfectly on curve
@@ -3946,6 +3947,7 @@ function _buildChartView(data) {
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   if (_chartZoom === 1) {
     const mo = (data.monthly || []).slice(0, 12);
+    window._chartMonthSlice = mo; // expose to msPlugin for dot index lookup
     const labels = mo.map(m => MON[m.mo-1] + ' \'' + String(m.year).slice(2));
     const liq    = mo.map(m => m.liq);
     const iliq0  = data.length ? data[0].iliq : 0;
@@ -3957,6 +3959,7 @@ function _buildChartView(data) {
   if (_chartZoom === 5) {
     const maxAge  = sa + 5;
     const mo60    = (data.monthly || []).filter(m => m.age < maxAge || (m.age === maxAge && m.mo === 1));
+    window._chartMonthSlice = mo60; // expose to msPlugin for dot index lookup
     const MON5    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const labels  = mo60.map(m => MON5[m.mo-1] + " '" + String(m.year).slice(2));
     const liq     = mo60.map(m => m.liq);
