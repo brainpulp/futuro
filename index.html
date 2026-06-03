@@ -3913,11 +3913,24 @@ function _buildChartView(data) {
   if (_chartZoom === 5) {
     const maxAge  = sa + 5;
     const mo60    = (data.monthly || []).filter(m => m.age < maxAge || (m.age === maxAge && m.mo === 1));
-    window._chartMonthSlice = mo60; // expose to msPlugin for dot index lookup
+    window._chartMonthSlice = mo60;
     const MON5    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const labels  = mo60.map(m => MON5[m.mo-1] + " '" + String(m.year).slice(2));
     const liq     = mo60.map(m => m.liq);
     const iliq    = mo60.map(m => m.iliq || 0);
+    const total   = liq.map((l,i) => l + iliq[i]);
+    const real    = total.map((t,i) => Math.round(t / Math.pow(1+(S.inflationRate||2.5)/100, i/12)));
+    const yMax    = Math.max(Math.max(...total, 0) * 1.1, 500_000);
+    return { labels, liq, iliq, total, real, props: [], monthly: true, yMax };
+  }
+  // 10y zoom: also use monthly data (120 pts) — shows sales/crises as real kinks
+  if (_chartZoom === 10) {
+    const maxAge  = sa + 10;
+    const mo120   = (data.monthly || []).filter(m => m.age < maxAge || (m.age === maxAge && m.mo === 1));
+    window._chartMonthSlice = mo120;
+    const labels  = mo120.map(m => MON[m.mo-1] + " '" + String(m.year).slice(2));
+    const liq     = mo120.map(m => m.liq);
+    const iliq    = mo120.map(m => m.iliq || 0);
     const total   = liq.map((l,i) => l + iliq[i]);
     const real    = total.map((t,i) => Math.round(t / Math.pow(1+(S.inflationRate||2.5)/100, i/12)));
     const yMax    = Math.max(Math.max(...total, 0) * 1.1, 500_000);
