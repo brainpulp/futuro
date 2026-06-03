@@ -2740,8 +2740,11 @@ function runSim(monthlyOverride) {
       || (S.crises || []).some(c => c.enabled !== false && c.age === age && (c.drop || 0) > 0);
 
     // ── Apply crisis drops (portfolio corrections) at start of year ──
+    const _crisisItems = []; // collected here, pushed into month-1 _oo below
     (S.crises || []).filter(c => c.enabled !== false && c.age === age).forEach(c => {
+      const dropAmt = Math.round(liq * (c.drop || 0) / 100);
       liq *= (1 - (c.drop || 0) / 100);
+      _crisisItems.push({ name: `${c.name||'Crisis'} (−${c.drop}%)`, amount: dropAmt, crisis: true });
     });
 
     let lastInflM = 0;
@@ -2797,6 +2800,8 @@ function runSim(monthlyOverride) {
       const _oo = [];
       // Add property sales that occurred this month (tracked above, before _oo was declared)
       _soldThisMo.forEach(s => _oo.push({ name: s.name + ' sold', amount: -Math.round(s.cv), sale: true }));
+      // Add crisis drops to month 1 so they're visible in the reality check table
+      if (mo === 1) _crisisItems.forEach(c => _oo.push(c));
 
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
@@ -3776,9 +3781,9 @@ function renderRC(data) {
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
         const ooHtml = r.oneoffs && r.oneoffs.length
           ? r.oneoffs.map(o => {
-              const col = o.sale ? '#16a34a' : '#c07030';
-              const sign = o.sale ? '+' : '';
-              return `<span style="color:${col};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+              const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#c07030';
+              const sign = o.sale ? '+' : o.crisis ? '−' : '';
+              return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
             }).join(', ')
           : '<span style="color:#ccc;">—</span>';
         html += `<tr style="${bg}">
@@ -3867,9 +3872,9 @@ function renderMinDrill(data) {
       const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
       const ooHtml = (r.oneoffs||[]).length
         ? r.oneoffs.map(o => {
-            const col = o.sale ? '#16a34a' : '#e9972a';
-            const sign = o.sale ? '+' : '';
-            return `<span style="color:${col};">${o.name}&nbsp;${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+            const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#e9972a';
+            const sign = o.sale ? '+' : o.crisis ? '−' : '';
+            return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name}&nbsp;${sign}${_fmt$(Math.abs(o.amount))}</span>`;
           }).join(' ')
         : '<span style="color:rgba(255,255,255,0.18);">—</span>';
       const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
