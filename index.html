@@ -3700,54 +3700,52 @@ const msPlugin = {
             );
         if (!txns.length) return;
 
-        // ── X position ──────────────────────────────────────
+        // ── X / Y position — interpolate ACTUAL meta pixel positions ──
+        // Using meta pixels (not data→pixel conversion) matches the bezier curve.
         let xp, yp;
+        const liqMeta = ch.getDatasetMeta(0).data; // rendered positions of liquid dataset
         if (dense) {
-          // Monthly chart: find exact label index
           const moLabel = (_MON_SHORT[m.mo - 1] || '') + " '" + String(m.year).slice(2);
           const moIdx = lbsA.findIndex(l => l === moLabel);
-          if (moIdx < 0) return;
-          xp = x.getPixelForValue(moIdx);
-          // Y: use exact chart data point — perfectly on curve
-          yp = y.getPixelForValue(liqData[moIdx] ?? m.liq);
+          if (moIdx < 0 || !liqMeta[moIdx]) return;
+          xp = liqMeta[moIdx].x;
+          yp = liqMeta[moIdx].y;  // exact rendered position — perfectly on curve
         } else {
-          // Annual chart: interpolate x within the year band
           const aidx = lbsA.indexOf(m.age);
-          if (aidx < 0) return;
-          const x0 = x.getPixelForValue(aidx);
-          const x1 = aidx + 1 < lbsA.length
-            ? x.getPixelForValue(aidx + 1)
-            : x0 + (aidx > 0 ? x0 - x.getPixelForValue(aidx - 1) : 20);
+          if (aidx < 0 || !liqMeta[aidx]) return;
+          const mpA = liqMeta[aidx];
+          const mpB = liqMeta[aidx + 1] || mpA;
           const t_mo = (m.mo - 0.5) / 12;
-          xp = x0 + t_mo * (x1 - x0);
-          // Y: interpolate annual liq data to stay ON the rendered curve
-          const liqA = liqData[aidx]   ?? 0;
-          const liqB = liqData[aidx+1] ?? liqA;
-          yp = y.getPixelForValue(liqA + t_mo * (liqB - liqA));
+          // Interpolate actual rendered pixel positions → stays on bezier curve
+          xp = mpA.x + t_mo * (mpB.x - mpA.x);
+          yp = mpA.y + t_mo * (mpB.y - mpA.y);
         }
         if (xp < chartArea.left - 2 || xp > chartArea.right + 2) return;
         if (yp < chartArea.top - 2  || yp > chartArea.bottom + 2) return;
 
         // ── Draw ─────────────────────────────────────────────
         const isSale = txns.some(t => t.type === 'sale');
-        const isRE   = txns.some(t => t.arr === 'properties');
         const net    = txns.reduce((s, t) => s + t.amount, 0);
 
         ctx.save();
         ctx.shadowBlur = 5;
-        if (isSale || isRE) {
-          // House icon for real estate events
+        let yHit = yp; // hit-detection y — must match visual center
+        if (isSale) {
+          // House sits ON the curve: bottom at yp, icon floats upward
           const col = net >= 0 ? '#fbbf24' : '#f87171';
           ctx.shadowColor = col;
-          _drawHouse(ctx, xp, yp - 7, 13, col);
+          _drawHouse(ctx, xp, yp - 1, 13, col); // bottom ~yp
+          yHit = yp - 6; // visual center of house (~halfway up)
         } else {
           const col = net >= 0 ? '#22c55e' : '#f87171';
           ctx.shadowColor = col;
           ctx.beginPath(); ctx.arc(xp, yp, dense ? 4 : 3.5, 0, Math.PI * 2);
           ctx.fillStyle = col; ctx.fill();
+          yHit = yp;
         }
         ctx.restore();
-        _txnDots.push({ xp, yp, age: m.age, mo: m.mo, year: m.year, txns, net });
+        _txnDots.push({ xp, yp: yHit, hitR: isSale ? 14 : 9,
+          age: m.age, mo: m.mo, year: m.year, txns, net });
       });
     }
 
@@ -4207,8 +4205,9 @@ function go() {
       // Txn dot hover — check first (smallest hit radius)
       const txnHit = _txnDots.reduce((best, d) => {
         const dist = Math.hypot(d.xp - mx, d.yp - my);
-        return dist < 10 && dist < best.dist ? { d, dist } : best;
-      }, { d: null, dist: 10 }).d;
+        const r = d.hitR || 9;
+        return dist < r && dist < best.dist ? { d, dist } : best;
+      }, { d: null, dist: 99 }).d;
       window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
       if (txnHit) {
         showTxnTooltip(txnHit, e.clientX, e.clientY);
@@ -4258,8 +4257,9 @@ function go() {
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       const txnHit = _txnDots.reduce((best, d) => {
         const dist = Math.hypot(d.xp - mx, d.yp - my);
-        return dist < 10 && dist < best.dist ? { d, dist } : best;
-      }, { d: null, dist: 10 }).d;
+        const r = d.hitR || 9;
+        return dist < r && dist < best.dist ? { d, dist } : best;
+      }, { d: null, dist: 99 }).d;
       if (txnHit) { openTxnEditForDot(txnHit); }
     });
     document.getElementById('nwChart').addEventListener('touchmove', e => {
