@@ -3649,7 +3649,7 @@ const msPlugin = {
     const monthlyData = window._lastSimData;
     if (monthlyData) {
       const lbsA = data.labels;   // chart x labels (ages for annual, strings for monthly)
-      const dense = _chartZoom === 1 || _chartZoom === 5 || _chartZoom === 10;  // monthly chart modes
+      const dense = _chartZoom === 1 || _chartZoom === 5;  // monthly chart modes — 10y uses sparse filter
 
       monthlyData.forEach(m => {
         const allTxns = getMonthTxns(m.age, m.mo);
@@ -4256,19 +4256,24 @@ function go() {
     });
   } else {
     chart.data.labels = view.labels;
+    const _pr = _chartZoom === 1 ? 3 : 0; // only show points in 1y monthly mode
     chart.data.datasets[0].data = view.liq;
     chart.data.datasets[0]._simMinLiq = data.simMinLiq;
     chart.data.datasets[0]._simMinAge = data.simMinAge;
     chart.data.datasets[0]._simMinMo  = data.simMinMo;
-    chart.data.datasets[0].pointRadius = 0;
+    chart.data.datasets[0].pointRadius = _pr;
     chart.data.datasets[0].tension = 0;
     chart.data.datasets[1].data = view.iliq;
-    chart.data.datasets[1].pointRadius = 0;
+    chart.data.datasets[1].pointRadius = 0; // RE curve never shows points
     chart.data.datasets[1].tension = 0;
-    chart.data.datasets[2].tension = 0;
-    if (chart.data.datasets[3]) chart.data.datasets[3].tension = 0;
     chart.data.datasets[2].data = view.total;
-    chart.data.datasets[3].data = view.real;
+    chart.data.datasets[2].pointRadius = 0;
+    chart.data.datasets[2].tension = 0;
+    if (chart.data.datasets[3]) {
+      chart.data.datasets[3].data = view.real;
+      chart.data.datasets[3].pointRadius = 0;
+      chart.data.datasets[3].tension = 0;
+    }
     chart.data.datasets.splice(4);
     view.props.forEach(d => chart.data.datasets.push(d));
     chart.options.scales.y.min = 0;
