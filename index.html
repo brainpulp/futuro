@@ -4194,56 +4194,26 @@ function go() {
     _startDanceLoop();
     // Hover tooltip for sale diamonds
     document.getElementById('nwChart').addEventListener('mousemove', e => {
-      const tip = document.getElementById('drag-tip');
       const rect = e.currentTarget.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      // Txn dot hover — check first (smallest hit radius)
+      window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
+      // Txn dot hover
       const txnHit = _txnDots.reduce((best, d) => {
         const dist = Math.hypot(d.xp - mx, d.yp - my);
         const r = d.hitR || 9;
         return dist < r && dist < best.dist ? { d, dist } : best;
       }, { d: null, dist: 99 }).d;
-      window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
       if (txnHit) {
         showTxnTooltip(txnHit, e.clientX, e.clientY);
         e.currentTarget.style.cursor = 'pointer';
         return;
       }
       hideTxnTooltip();
-      const saleHit = _saleDots.find(d => Math.hypot(d.xp - mx, d.yp - my) < 14);
-      const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14 ? _minLiqDot : null;
-      if (saleHit) {
-        tip.innerHTML = `${saleHit.name} &nbsp;·&nbsp; sell age ${saleHit.age} &nbsp;·&nbsp; ≈${fmtM(saleHit.value)}`;
-        tip.style.left = (e.clientX + 14) + 'px';
-        tip.style.top  = (e.clientY - 10) + 'px';
-        tip.style.display = 'block';
-      } else if (minLiqHit) {
-        const liqCol = minLiqHit.liq >= 0 ? '#5DC49A' : '#f87171';
-        tip.innerHTML = `Min liquidity &nbsp;·&nbsp; age ${minLiqHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">${fmtM(minLiqHit.liq)}</span> &nbsp;<span style="color:rgba(255,255,255,0.4);font-size:10px;">· click to drill down</span>`;
-        e.currentTarget.style.cursor = 'pointer';
-        tip.style.left = (e.clientX + 14) + 'px';
-        tip.style.top  = (e.clientY - 10) + 'px';
-        tip.style.display = 'block';
-      } else {
-        e.currentTarget.style.cursor = '';
-        // Find nearest total-curve dot (snap within 18px horizontally)
-        const tHit = _totalDots.reduce((best, d) => {
-          const dist = Math.abs(d.xp - mx);
-          return dist < best.dist ? { d, dist } : best;
-        }, { d: null, dist: 18 }).d;
-        if (tHit) {
-          const liqCol = tHit.liq >= 0 ? '#5DC49A' : '#f87171';
-          tip.innerHTML = `Age ${tHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">liq ${fmtM(tHit.liq)}</span> &nbsp;·&nbsp; total ${fmtM(tHit.total)}`;
-          tip.style.left = (e.clientX + 14) + 'px';
-          tip.style.top  = (e.clientY - 10) + 'px';
-          tip.style.display = 'block';
-        } else if (!_chartDrag) {
-          tip.style.display = 'none';
-        }
-      }
+      // Min liq dot — cursor + click to drill down (no tooltip)
+      const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14;
+      e.currentTarget.style.cursor = minLiqHit ? 'pointer' : '';
     });
     document.getElementById('nwChart').addEventListener('mouseleave', () => {
-      if (!_chartDrag) document.getElementById('drag-tip').style.display = 'none';
       hideTxnTooltip();
     });
     document.getElementById('nwChart').addEventListener('click', e => {
