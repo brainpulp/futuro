@@ -3700,24 +3700,24 @@ const msPlugin = {
             );
         if (!txns.length) return;
 
-        // ── X / Y position — interpolate ACTUAL meta pixel positions ──
-        // Using meta pixels (not data→pixel conversion) matches the bezier curve.
+        // ── X / Y position ───────────────────────────────────────
         let xp, yp;
-        const liqMeta = ch.getDatasetMeta(0).data; // rendered positions of liquid dataset
         if (dense) {
-          // Match by age+mo directly against the chart's actual monthly slice
+          // Monthly chart: find index in chart's monthly slice, use scale directly
           const slice = window._chartMonthSlice || [];
           const moIdx = slice.findIndex(cm => cm.age === m.age && cm.mo === m.mo);
-          if (moIdx < 0 || !liqMeta[moIdx]) return;
-          xp = liqMeta[moIdx].x;
-          yp = liqMeta[moIdx].y;  // exact rendered position — perfectly on curve
+          if (moIdx < 0) return;
+          xp = x.getPixelForValue(moIdx);
+          yp = y.getPixelForValue(liqData[moIdx] ?? 0);
         } else {
+          // Annual chart: interpolate between adjacent meta pixel positions
+          const liqMeta = ch.getDatasetMeta(0).data;
           const aidx = lbsA.indexOf(m.age);
-          if (aidx < 0 || !liqMeta[aidx]) return;
+          if (aidx < 0) return;
           const mpA = liqMeta[aidx];
           const mpB = liqMeta[aidx + 1] || mpA;
+          if (!mpA) return;
           const t_mo = (m.mo - 0.5) / 12;
-          // Interpolate actual rendered pixel positions → stays on bezier curve
           xp = mpA.x + t_mo * (mpB.x - mpA.x);
           yp = mpA.y + t_mo * (mpB.y - mpA.y);
         }
