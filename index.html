@@ -2772,6 +2772,7 @@ function runSim(monthlyOverride) {
       // Sell properties at sale age + month
       props = props.map(p => {
         if (!p.sold && !p.hold && p.saleAge === age && (p.saleMonth || 6) === mo) {
+          _oo.push({ name: p.name + ' sold', amount: -Math.round(p.cv), sale: true }); // negative = cash IN (shown as income)
           liq += p.cv; return { ...p, sold: true };
         }
         return p;
@@ -3639,7 +3640,7 @@ const msPlugin = {
     const monthlyData = window._lastSimData;
     if (monthlyData) {
       const lbsA = data.labels;   // chart x labels (ages for annual, strings for monthly)
-      const dense = _chartZoom === 1 || _chartZoom === 5;  // monthly chart modes
+      const dense = _chartZoom === 1 || _chartZoom === 5 || _chartZoom === 10;  // monthly chart modes
 
       monthlyData.forEach(m => {
         const allTxns = getMonthTxns(m.age, m.mo);
@@ -3765,7 +3766,11 @@ function renderRC(data) {
         const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
         const ooHtml = r.oneoffs && r.oneoffs.length
-          ? r.oneoffs.map(o => `<span style="color:#c07030;">${o.name} ${_fmt$(o.amount)}</span>`).join(', ')
+          ? r.oneoffs.map(o => {
+              const col = o.sale ? '#16a34a' : '#c07030';
+              const sign = o.sale ? '+' : '';
+              return `<span style="color:${col};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+            }).join(', ')
           : '<span style="color:#ccc;">—</span>';
         html += `<tr style="${bg}">
           <td style="padding:3px 8px;">${MONAMES[r.mo-1]}</td>
@@ -3852,7 +3857,11 @@ function renderMinDrill(data) {
       const liqCol = r.liq < 0 ? '#f87171' : r.liq < 200_000 ? '#e9972a' : 'rgba(255,255,255,0.75)';
       const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
       const ooHtml = (r.oneoffs||[]).length
-        ? r.oneoffs.map(o => `<span style="color:#e9972a;">${o.name}&nbsp;${_fmt$(Math.abs(o.amount))}</span>`).join(' ')
+        ? r.oneoffs.map(o => {
+            const col = o.sale ? '#16a34a' : '#e9972a';
+            const sign = o.sale ? '+' : '';
+            return `<span style="color:${col};">${o.name}&nbsp;${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+          }).join(' ')
         : '<span style="color:rgba(255,255,255,0.18);">—</span>';
       const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
 
