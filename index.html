@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="./index_files/chart.umd.js.download"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="./index_files/supabase-js@2"></script>
 
 <style>
@@ -1038,7 +1039,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         <span style="color:rgba(55,138,221,0.25);font-size:10px;margin:0 1px;">·</span>
         <button id="mc-btn" onclick="triggerMC()" title="Run Montecarlo: 500 random return sequences → success rate" style="background:none;border:none;border-bottom:2px solid transparent;padding:0 2px;font-size:11px;font-weight:700;color:#378ADD;cursor:pointer;letter-spacing:.03em;">Montecarlo</button>
       </div>
-      <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;"><canvas id="nwChart"></canvas></div>
+      <div class="chart-box" style="margin-bottom:0;border-bottom:none;border-radius:4px 4px 0 0;position:relative;overflow:hidden;"><div id="nwChart" style="width:100%;height:100%;"></div></div>
       <div id="min-drill" style="display:none;margin:0 0 6px;border-radius:0 0 8px 8px;background:rgba(10,12,20,0.72);border:1px solid rgba(195,50,50,0.35);border-top:none;overflow:hidden;"></div>
     </div>
     </div><!-- /sec-body-chart-nw -->
@@ -1825,9 +1826,17 @@ let nextId = 1000, chart = null, chart2 = null, chart3 = null, openId = null, _m
 let _chartZoom = parseInt(localStorage.getItem('futuro-chart-zoom') || '10');
 let _lastMaxMonthly = 0;
 let _danceT = 0, _danceRaf = null;
+
+// ── LightweightCharts globals ────────────────────────────────
+let lwChart = null, lwLiqSeries = null, lwReSeries = null;
+let lwTotalSeries = null, lwRealSeries = null;
+let lwVigCanvas = null;
+
+function _mt(year, mo) { return `${year}-${String(mo).padStart(2,'0')}-01`; }
+
 function _startDanceLoop() {
   if (_danceRaf) return;
-  function loop(t) { _danceT = t; if (chart) chart.draw(); _danceRaf = requestAnimationFrame(loop); }
+  function loop(t) { _danceT = t; _updateVig(); _danceRaf = requestAnimationFrame(loop); }
   _danceRaf = requestAnimationFrame(loop);
 }
 let _chartDrag = null; // { idx, age, type:'spy'|'exp' }
@@ -3948,6 +3957,7 @@ function setChartZoom(y) {
   _chartZoom = y;
   localStorage.setItem('futuro-chart-zoom', y);
   renderZoomButtons();
+  _setLwZoom(y); // instant — no full re-render needed
   go();
   lsSave();
 }
@@ -4019,6 +4029,256 @@ function _buildChartView(data) {
     return { label: p.name, data: pData, borderColor:'rgba(239,159,39,0.45)', borderWidth:1, borderDash:[2,2], pointRadius:0, fill:false, tension:0.3 };
   });
   return { labels, liq, iliq, total, real, props, monthly: false, yMax };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LIGHTWEIGHT CHARTS — main NW chart
+// ══════════════════════════════════════════════════════════════
+function _initLwChart() {
+  const el = document.getElementById('nwChart');
+  if (!el || !window.LightweightCharts) return;
+  if (lwChart) { lwChart.remove(); lwChart = null; }
+
+  const dark = document.body.dataset.theme === 'graphite';
+  const gc = v => dark ? `rgba(255,255,255,${v})` : `rgba(128,128,128,${v})`;
+
+  lwChart = LightweightCharts.createChart(el, {
+    autoSize: true,
+    layout: { background: { color: 'transparent' }, textColor: dark ? '#6e7681' : '#999', fontSize: 10 },
+    grid: { vertLines: { color: gc(0.06) }, horzLines: { color: gc(0.06) } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Magnet },
+    timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: false, timeVisible: false },
+    rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.08, bottom: 0.05 } },
+    handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
+    handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: false },
+  });
+
+  // RE (orange) — drawn first so liquid renders on top
+  lwReSeries = lwChart.addAreaSeries({
+    lineColor: '#EF9F27', topColor: 'rgba(239,159,39,0.09)', bottomColor: 'rgba(239,159,39,0)',
+    lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
+  });
+  // Liquid (blue)
+  lwLiqSeries = lwChart.addAreaSeries({
+    lineColor: '#378ADD', topColor: 'rgba(55,138,221,0.10)', bottomColor: 'rgba(55,138,221,0)',
+    lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
+  });
+  // Total NW (green dashed)
+  lwTotalSeries = lwChart.addLineSeries({
+    color: '#1D9E75', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dashed,
+    priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
+  });
+  // Real / inflation-adjusted (purple dashed)
+  lwRealSeries = lwChart.addLineSeries({
+    color: 'rgba(160,140,200,0.65)', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dotted,
+    priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
+  });
+
+  // Crosshair: show liq + total values
+  lwChart.subscribeCrosshairMove(param => {
+    if (!param.point || !param.time) { hideTxnTooltip(); return; }
+    const lv = param.seriesData?.get(lwLiqSeries)?.value;
+    const tv = param.seriesData?.get(lwTotalSeries)?.value;
+    if (lv == null) return;
+    const liqCol = lv >= 0 ? '#5DC49A' : '#f87171';
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + (param.point.x || 0);
+    const cy = rect.top  + (param.point.y || 0);
+    // Reuse txn-tip as crosshair tooltip when no dot is hovered
+    const tt = document.getElementById('txn-tip');
+    if (tt && tt.style.display === 'none') {
+      tt.style.display = 'block';
+      tt.style.pointerEvents = 'none';
+      tt.style.left = (cx + 14) + 'px';
+      tt.style.top  = (cy - 10) + 'px';
+      document.getElementById('txn-tip-month').textContent = param.time;
+      document.getElementById('txn-tip-rows').innerHTML =
+        `<div style="font-size:12px;font-family:'SF Mono',Menlo,monospace;">
+          <span style="color:${liqCol}">${fmtM(lv)}</span> liq &nbsp;·&nbsp;
+          <span style="color:#1D9E75">${fmtM(tv||0)}</span> total
+         </div>`;
+    }
+  });
+
+  // Init overlay canvas for emoji vignette
+  if (lwVigCanvas) lwVigCanvas.remove();
+  lwVigCanvas = document.createElement('canvas');
+  lwVigCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:2;';
+  el.appendChild(lwVigCanvas);
+
+  // Mouse events for transaction dots (forwarded from LW crosshair)
+  el.addEventListener('mousemove', e => {
+    const rect = el.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
+    const txnHit = _txnDots.reduce((best, d) => {
+      const dist = Math.hypot(d.xp - mx, d.yp - my);
+      const r = d.hitR || 10;
+      return dist < r && dist < best.dist ? { d, dist } : best;
+    }, { d: null, dist: 99 }).d;
+    if (txnHit) { showTxnTooltip(txnHit, e.clientX, e.clientY); el.style.cursor = 'pointer'; }
+    else { hideTxnTooltip(); el.style.cursor = ''; }
+  });
+  el.addEventListener('mouseleave', () => hideTxnTooltip());
+  el.addEventListener('click', e => {
+    const rect = el.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = _txnDots.reduce((best, d) => {
+      const dist = Math.hypot(d.xp - mx, d.yp - my);
+      return dist < (d.hitR||10) && dist < best.dist ? { d, dist } : best;
+    }, { d: null, dist: 99 }).d;
+    if (hit) openTxnEditForDot(hit);
+  });
+
+  _startDanceLoop();
+}
+
+function _updateLwChart(data) {
+  if (!lwChart || !lwLiqSeries) return;
+  const sim = data.monthly || [];
+  if (!sim.length) return;
+  window._lastSimData = sim;
+
+  const inf = (S.inflationRate || 2.5) / 100;
+  lwReSeries.setData(  sim.map(m => ({ time: _mt(m.year, m.mo), value: m.iliq || 0 })));
+  lwLiqSeries.setData( sim.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
+  lwTotalSeries.setData(sim.map(m => ({ time: _mt(m.year, m.mo), value: m.liq + (m.iliq||0) })));
+  lwRealSeries.setData( sim.map((m,i) => ({ time: _mt(m.year, m.mo), value: Math.round((m.liq+(m.iliq||0))/Math.pow(1+inf,i/12)) })));
+
+  // Transaction markers
+  _txnDots = [];
+  lwLiqSeries.setMarkers(_buildLwMarkers(data));
+
+  _setLwZoom(_chartZoom);
+  renderZoomButtons();
+}
+
+function _buildLwMarkers(data) {
+  const sa = S.startAge || 57, sy = S.startYear || 2026;
+  const markers = [], dotMeta = [];
+
+  // Min liq marker
+  if (data.simMinAge != null) {
+    const my = data.simMinAge - sa + sy;
+    const mm = data.simMinMo || 1;
+    markers.push({ time: _mt(my, mm), position: 'belowBar', color: '#C03030', shape: 'circle', text: '', size: 0.8 });
+  }
+
+  // Yearly aggregate dots
+  const sim = data.monthly || [];
+  const ages = [...new Set(sim.map(m => m.age))];
+  ages.forEach(age => {
+    let income = 0, expenses = 0;
+    const allTxns = [];
+    for (let mo = 1; mo <= 12; mo++) {
+      getMonthTxns(age, mo).forEach(t => {
+        allTxns.push({ ...t, mo });
+        t.amount > 0 ? (income += t.amount) : (expenses += Math.abs(t.amount));
+      });
+    }
+    if (!allTxns.length) return;
+    const net = income - expenses;
+    const hasSale = allTxns.some(t => t.type === 'sale');
+    const year = age - sa + sy;
+    const midMo = 7;
+    const time = _mt(year, midMo);
+    const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
+
+    markers.push({ time, position: 'inBar', color: col,
+      shape: hasSale ? 'square' : 'circle',
+      text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1.2 });
+
+    // Store for hit detection — positioned after LW renders
+    dotMeta.push({ time, age, mo: midMo, year, txns: allTxns, net, isSale: hasSale });
+  });
+
+  // Compute pixel positions after a frame (LW needs to render first)
+  requestAnimationFrame(() => {
+    if (!lwChart || !lwLiqSeries) return;
+    dotMeta.forEach(d => {
+      const xp = lwChart.timeScale().timeToCoordinate(d.time);
+      const idx = (window._lastSimData||[]).findIndex(m => m.year===d.year && m.mo===d.mo);
+      const liqVal = idx >= 0 ? (window._lastSimData[idx]?.liq ?? 0) : 0;
+      const yp = lwLiqSeries.priceToCoordinate(liqVal);
+      if (xp != null && yp != null) {
+        _txnDots.push({ xp, yp: d.isSale ? yp - 6 : yp, hitR: d.isSale ? 14 : 10,
+          age: d.age, mo: d.mo, year: d.year, txns: d.txns, net: d.net });
+      }
+    });
+  });
+
+  return markers.sort((a, b) => a.time < b.time ? -1 : 1);
+}
+
+function _setLwZoom(years) {
+  if (!lwChart) return;
+  const sy = S.startYear || 2026;
+  const curMo = new Date().getMonth() + 1;
+  const fromTime = _mt(sy, curMo);
+  const toTime   = _mt(sy + years, curMo);
+  lwChart.timeScale().setVisibleRange({ from: fromTime, to: toTime });
+}
+
+function _updateVig() {
+  if (!lwVigCanvas || !lwLiqSeries || !lwChart) return;
+  const c = lwVigCanvas, el = document.getElementById('nwChart');
+  if (!el) return;
+  const W = el.offsetWidth, H = el.offsetHeight;
+  if (W === 0 || H === 0) return;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Build liquid curve for clipping
+  const sim = window._lastSimData || [];
+  if (!sim.length) return;
+  ctx.save();
+  ctx.beginPath();
+  let started = false, lastX = 0;
+  sim.forEach(m => {
+    const xp = lwChart.timeScale().timeToCoordinate(_mt(m.year, m.mo));
+    const yp = lwLiqSeries.priceToCoordinate(m.liq);
+    if (xp == null || yp == null) return;
+    if (!started) { ctx.moveTo(xp, yp); started = true; } else ctx.lineTo(xp, yp);
+    lastX = xp;
+  });
+  if (started) { ctx.lineTo(lastX, H + 4); ctx.lineTo(0, H + 4); ctx.closePath(); ctx.clip(); }
+
+  // Emoji vignette (same logic as before)
+  _vigSeed = 0x9e3779b9;
+  ctx.globalAlpha = _VIG_OPACITY;
+  const COUNT = 480;
+  for (let i = 0; i < COUNT; i++) {
+    const vx = _vigRand() * W, vy = _vigRand() * H, sz = 16 + _vigRand() * 18;
+    const speed = (0.12 + (i % 7) * 0.04) * 4;
+    const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
+    const oPhase = (i * 2.39996) % (Math.PI * 2);
+    const ox = Math.sin(_danceT * 0.001 * speed * 0.45 + oPhase) * sz * (0.35 + (i%5)*0.13);
+    const oy = Math.cos(_danceT * 0.001 * speed * 0.32 + oPhase * 1.5) * sz * (0.12 + (i%3)*0.10);
+    const bmp = _vigBitmaps[_VIG_EMOJIS[i % _VIG_EMOJIS.length]];
+    if (!bmp) continue;
+    ctx.save(); ctx.translate(vx+ox, vy+oy); ctx.rotate(rot);
+    ctx.drawImage(bmp, -sz/2, -sz/2, sz, sz); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Decade background text (overlay, not clipped)
+  const dark = document.body.dataset.theme === 'graphite';
+  ctx.font = '800 110px "SF Mono", Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+  for (let decade = 60; decade <= 90; decade += 10) {
+    const age = decade;
+    const year = age - (S.startAge||57) + (S.startYear||2026);
+    const midTime = _mt(year + 5, 1);
+    const xp = lwChart.timeScale().timeToCoordinate(midTime);
+    if (xp != null) ctx.fillText(decade + 's', xp, H * 0.6 + 38);
+  }
 }
 
 function go() {
@@ -4152,181 +4412,12 @@ function go() {
               'rgba(192,48,48,0.9)'
   );
 
-  // ── Chart view (zoom-filtered) ──
-  const view = _buildChartView(data);
   renderZoomButtons();
 
-  // ── Main chart (NW only) ──
-  // Recreate chart when switching between monthly and annual modes — Chart.js
-  // doesn't reliably handle in-place label type changes (int→string or length jumps).
-  if (chart && (chart._isMonthly !== view.monthly)) {
-    chart.destroy();
-    chart = null;
-  }
-  if (!chart) {
-    chart = new Chart(document.getElementById('nwChart'), {
-      type: 'line',
-      plugins: [mcBandPlugin, liquidBgPlugin, msPlugin, {
-        id: 'ageAxisTop',
-        afterDraw(ch) {
-          const { ctx, scales: { x }, data, chartArea } = ch;
-          const lbs = data.labels; if (!lbs) return;
-          ctx.save();
-          ctx.font = '600 9px "SF Mono", Menlo, monospace';
-          ctx.fillStyle = document.body.dataset.theme === 'graphite' ? 'rgba(200,210,220,0.5)' : 'rgba(80,80,100,0.45)';
-          ctx.textAlign = 'center';
-          if (_chartZoom === 1) {
-            const isDark = document.body.dataset.theme === 'graphite';
-            ctx.strokeStyle = isDark ? 'rgba(200,210,220,0.13)' : 'rgba(80,80,100,0.1)';
-            ctx.lineWidth = 1;
-            lbs.forEach((lbl, idx) => {
-              const xp = x.getPixelForValue(idx);
-              ctx.beginPath(); ctx.moveTo(xp, chartArea.top); ctx.lineTo(xp, chartArea.bottom); ctx.stroke();
-              if (idx % 3 === 0) ctx.fillText(lbl, xp, chartArea.top + 13);
-            });
-          } else if (_chartZoom === 5) {
-            // Monthly data — draw subtle month lines, stronger year lines, label quarters
-            const isDark = document.body.dataset.theme === 'graphite';
-            lbs.forEach((lbl, idx) => {
-              const xp = x.getPixelForValue(idx);
-              const isJan = lbl.startsWith('Jan');
-              // gridline
-              ctx.strokeStyle = isJan
-                ? (isDark ? 'rgba(200,210,220,0.22)' : 'rgba(80,80,100,0.18)')
-                : (isDark ? 'rgba(200,210,220,0.07)' : 'rgba(80,80,100,0.06)');
-              ctx.lineWidth = isJan ? 1.5 : 0.75;
-              ctx.setLineDash(isJan ? [] : [2, 3]);
-              ctx.beginPath(); ctx.moveTo(xp, chartArea.top); ctx.lineTo(xp, chartArea.bottom); ctx.stroke();
-              ctx.setLineDash([]);
-              // label: year at Jan, abbreviated month at Apr/Jul/Oct
-              if (isJan) {
-                ctx.font = '700 9px "SF Mono", Menlo, monospace';
-                ctx.fillStyle = isDark ? 'rgba(200,210,220,0.65)' : 'rgba(80,80,100,0.6)';
-                ctx.fillText(lbl.slice(4), xp, chartArea.top - 7); // e.g. "'26"
-              } else if (lbl.startsWith('Apr') || lbl.startsWith('Jul') || lbl.startsWith('Oct')) {
-                ctx.font = '600 8px "SF Mono", Menlo, monospace';
-                ctx.fillStyle = isDark ? 'rgba(200,210,220,0.35)' : 'rgba(80,80,100,0.3)';
-                ctx.fillText(lbl.slice(0,3), xp, chartArea.top - 7);
-              }
-            });
-          } else {
-            const step = _chartZoom <= 10 ? 1 : _chartZoom <= 20 ? 2 : 5;
-            lbs.forEach((age, idx) => { if (age % step !== 0) return; ctx.fillText(_yearMode ? ageToYear(age) : age, x.getPixelForValue(idx), chartArea.top - 8); });
-          }
-          ctx.restore();
-        }
-      }],
-      data: {
-        labels: view.labels,
-        datasets: [
-          { label:'Liquid',   data: view.liq,   _simMinLiq: data.simMinLiq, _simMinAge: data.simMinAge, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.06)', borderWidth:2, pointRadius:_chartZoom===1?3:0, fill:true,  tension:0 },
-          { label:'Real Estate', data: view.iliq,  borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.06)', borderWidth:2, pointRadius:_chartZoom===1?3:0, fill:true,  tension:0 },
-          { label:'Total',    data: view.total, borderColor:'#1D9E75', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0 },
-          { label:'Real',     data: view.real,  borderColor:'rgba(160,140,200,0.7)', borderDash:[4,4], borderWidth:1.5, pointRadius:0, fill:false, tension:0 },
-          ...view.props
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 22, bottom: 0 } },
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        scales: {
-          x: { display: false },
-          y: { min: 0, max: view.yMax, ticks:{ font:{size:10}, color:'#999', callback: fmtM }, grid:{ color:'rgba(128,128,128,0.06)' } }
-        }
-      }
-    });
-    chart._isMonthly = !!view.monthly;
-    _startDanceLoop();
-    // Hover tooltip for sale diamonds
-    document.getElementById('nwChart').addEventListener('mousemove', e => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
-      // Txn dot hover
-      const txnHit = _txnDots.reduce((best, d) => {
-        const dist = Math.hypot(d.xp - mx, d.yp - my);
-        const r = d.hitR || 9;
-        return dist < r && dist < best.dist ? { d, dist } : best;
-      }, { d: null, dist: 99 }).d;
-      if (txnHit) {
-        showTxnTooltip(txnHit, e.clientX, e.clientY);
-        e.currentTarget.style.cursor = 'pointer';
-        return;
-      }
-      hideTxnTooltip();
-      // Min liq dot — cursor + click to drill down (no tooltip)
-      const minLiqHit = _minLiqDot && Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 14;
-      e.currentTarget.style.cursor = minLiqHit ? 'pointer' : '';
-    });
-    document.getElementById('nwChart').addEventListener('mouseleave', () => {
-      hideTxnTooltip();
-    });
-    document.getElementById('nwChart').addEventListener('click', e => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      const txnHit = _txnDots.reduce((best, d) => {
-        const dist = Math.hypot(d.xp - mx, d.yp - my);
-        const r = d.hitR || 9;
-        return dist < r && dist < best.dist ? { d, dist } : best;
-      }, { d: null, dist: 99 }).d;
-      if (txnHit) { openTxnEditForDot(txnHit); }
-    });
-    document.getElementById('nwChart').addEventListener('touchmove', e => {
-      const tip = document.getElementById('drag-tip');
-      const t = e.touches[0];
-      const rect = e.currentTarget.getBoundingClientRect();
-      const mx = t.clientX - rect.left;
-      const tHit = _totalDots.reduce((best, d) => {
-        const dist = Math.abs(d.xp - mx);
-        return dist < best.dist ? { d, dist } : best;
-      }, { d: null, dist: 22 }).d;
-      if (tHit) {
-        const liqCol = tHit.liq >= 0 ? '#5DC49A' : '#f87171';
-        tip.innerHTML = `Age ${tHit.age} &nbsp;·&nbsp; <span style="color:${liqCol}">liq ${fmtM(tHit.liq)}</span> &nbsp;·&nbsp; total ${fmtM(tHit.total)}`;
-        tip.style.left = (t.clientX + 14) + 'px';
-        tip.style.top  = (t.clientY - 30) + 'px';
-        tip.style.display = 'block';
-      } else {
-        tip.style.display = 'none';
-      }
-    }, { passive: true });
-    document.getElementById('nwChart').addEventListener('touchend', () => {
-      setTimeout(() => { document.getElementById('drag-tip').style.display = 'none'; }, 1200);
-    });
-    document.getElementById('nwChart').addEventListener('click', e => {
-      if (!_minLiqDot) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      if (Math.hypot(_minLiqDot.xp - mx, _minLiqDot.yp - my) < 16) { _minDrillOpen = true; renderMinDrill(window._lastRCData); }
-    });
-  } else {
-    chart.data.labels = view.labels;
-    const _pr = _chartZoom === 1 ? 3 : 0; // only show points in 1y monthly mode
-    chart.data.datasets[0].data = view.liq;
-    chart.data.datasets[0]._simMinLiq = data.simMinLiq;
-    chart.data.datasets[0]._simMinAge = data.simMinAge;
-    chart.data.datasets[0]._simMinMo  = data.simMinMo;
-    chart.data.datasets[0].pointRadius = _pr;
-    chart.data.datasets[0].tension = 0;
-    chart.data.datasets[1].data = view.iliq;
-    chart.data.datasets[1].pointRadius = 0; // RE curve never shows points
-    chart.data.datasets[1].tension = 0;
-    chart.data.datasets[2].data = view.total;
-    chart.data.datasets[2].pointRadius = 0;
-    chart.data.datasets[2].tension = 0;
-    if (chart.data.datasets[3]) {
-      chart.data.datasets[3].data = view.real;
-      chart.data.datasets[3].pointRadius = 0;
-      chart.data.datasets[3].tension = 0;
-    }
-    chart.data.datasets.splice(4);
-    view.props.forEach(d => chart.data.datasets.push(d));
-    chart.options.scales.y.min = 0;
-    chart.options.scales.y.max = view.yMax;
-    chart._isMonthly = !!view.monthly;
-    chart.update('none');
-  }
+  // ── Main NW chart — LightweightCharts ──────────────────────
+  if (!lwChart) { _initLwChart(); }
+  _updateLwChart(data);
+
 
   // ── Sub-chart label plugins ──
   const fmtShort = v => {
@@ -6231,25 +6322,14 @@ function _renderTimelineInner() {
   if (_tlSec && _tlSec.style.display === 'none') return;
   const strip = document.getElementById('timeline-strip');
 
-  // If chart area not yet valid (chart still painting), retry in next frame
-  const _rawCaCheck = chart.chartArea;
-  if (!_rawCaCheck || (_rawCaCheck.right - _rawCaCheck.left) < 10) {
-    requestAnimationFrame(renderTimeline); return;
-  }
-
-  // Derive ca from the chart if it's rendered and visible; else fall back to strip width.
-  // This lets the timeline work even when the Net Worth section is collapsed.
-  const _rawCa = chart.chartArea;
-  const _caValid = _rawCa && (_rawCa.right - _rawCa.left) > 10;
-  let ca;
-  if (_caValid) {
-    ca = _rawCa;
-  } else {
-    // Chart not rendered (section collapsed). Measure from the strip container.
-    const containerW = (strip.parentElement || strip).offsetWidth || 600;
-    const LABEL_W = 72; // fixed left margin for row labels
-    ca = { left: LABEL_W, right: Math.max(200, containerW - 4), top: 0, bottom: 100 };
-  }
+  // With LightweightCharts, derive ca from the chart element dimensions
+  const nwEl = document.getElementById('nwChart');
+  if (!nwEl || !lwChart) { requestAnimationFrame(renderTimeline); return; }
+  // LW puts price scale on right; timeline inner starts at left=0 of chart element
+  const nwRect = nwEl.getBoundingClientRect();
+  if (nwRect.width < 10) { requestAnimationFrame(renderTimeline); return; }
+  const LABEL_W = 72;
+  const ca = { left: LABEL_W, right: nwRect.width - 50, top: 0, bottom: nwRect.height };
 
   const ROW_H = 14, ROW_GAP = 2, SEC_GAP = 6, PAD_TOP = 4, PAD_BOT = 4;
 
@@ -6333,51 +6413,31 @@ function _renderTimelineInner() {
   const lw = ca.right - ca.left;
 
   function xFor(age) {
-    if (_chartZoom === 1) {
-      if (age > sa) return lw;
-      return 0;
-    }
-    // Linear fallback when chart scales aren't available (chart section collapsed)
-    if (!_caValid || !chart.scales || !chart.scales.x || !chart.data || !chart.data.labels) {
-      return Math.round(Math.max(0, Math.min(1, (age - sa) / Math.max(1, ea - sa))) * lw);
-    }
-    const lbs = chart.data.labels;
-    let idx;
-    if (_chartZoom === 5) {
-      // Labels are strings like "Jan '26" — find January of the target year
-      const yr = "'" + String(ageToYear(Math.floor(age))).slice(2);
-      idx = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yr));
-      if (idx < 0) {
-        // Fractional age (mid-year): interpolate between Jan markers
-        const yrFloor = "'" + String(ageToYear(Math.floor(age))).slice(2);
-        const yrCeil  = "'" + String(ageToYear(Math.floor(age) + 1)).slice(2);
-        const i0 = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yrFloor));
-        const i1 = lbs.findIndex(l => l.startsWith('Jan') && l.includes(yrCeil));
-        const frac = age - Math.floor(age);
-        idx = i0 >= 0 && i1 >= 0 ? Math.round(i0 + frac * (i1 - i0)) : (i0 >= 0 ? i0 : lbs.length - 1);
-      }
-    } else {
-      idx = lbs.indexOf(age);
-      if (idx < 0) idx = age < lbs[0] ? 0 : lbs.length - 1;
-    }
-    return chart.scales.x.getPixelForValue(idx) - ca.left;
+    if (!lwChart) return Math.round((age - sa) / Math.max(1, ea - sa) * lw);
+    // Use LightweightCharts time scale for x position — works for all zoom levels
+    const year = ageToYear(Math.floor(age));
+    const mo   = Math.round((age - Math.floor(age)) * 12) + 1;
+    const time = _mt(year, Math.min(12, Math.max(1, mo)));
+    const coord = lwChart.timeScale().timeToCoordinate(time);
+    if (coord == null) return age < sa ? 0 : lw;
+    return coord - ca.left; // coord is relative to chart container; ca.left offsets to inner
   }
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
   // ── Vertical age/year lines ──────────────────────────────────
-  if (_chartZoom !== 1 && _caValid && chart.data && chart.data.labels) {
-    chart.data.labels.forEach(age => {
-      const isMajor = (age - sa) % 10 === 0 && age !== sa;
-      const isMinor = (age - sa) % 5 === 0 && (age - sa) % 10 !== 0;
-      if (!isMajor && !isMinor) return;
-      const xp = xFor(age);
-      if (xp <= 0 || xp >= lw) return;
+  if (lwChart) {
+    for (let yr = sa + 1; yr <= ea; yr++) {
+      const isMajor = (yr - sa) % 10 === 0;
+      const isMinor = (yr - sa) % 5 === 0 && !isMajor;
+      if (!isMajor && !isMinor) continue;
+      const xp = xFor(yr);
+      if (xp <= 0 || xp >= lw) continue;
       const vline = document.createElement('div');
       vline.className = 'tl-age-line';
       vline.style.cssText = `position:absolute;left:${xp}px;top:0;bottom:0;width:${isMajor?1.5:1}px;background:rgba(0,0,0,${isMajor?0.13:0.06});pointer-events:none;`;
       inner.appendChild(vline);
-    });
+    }
   }
 
   // ── Render all rows ──────────────────────────────────────────
