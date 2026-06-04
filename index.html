@@ -4157,20 +4157,18 @@ function _updateLwChart(data) {
   renderZoomButtons();
 }
 
-// Group installment transactions by name for yearly summary tooltips
+// Group all repeated transactions by name for yearly summary tooltips
 function _groupTxnsForYearly(txns) {
-  const byName = {}, result = [];
+  const byKey = {}, result = [];
   txns.forEach(t => {
-    if (t.type === 'installment') {
-      if (!byName[t.name]) {
-        byName[t.name] = { ...t, _count: 1, amount: t.amount, installNum: null, installTotal: null };
-        result.push(byName[t.name]);
-      } else {
-        byName[t.name]._count++;
-        byName[t.name].amount += t.amount;
-      }
+    // Key by name+type so "Delta rent" and "Delta sale" stay separate
+    const key = t.name + '||' + t.type;
+    if (!byKey[key]) {
+      byKey[key] = { ...t, _count: 1, amount: t.amount, installNum: null, installTotal: null };
+      result.push(byKey[key]);
     } else {
-      result.push(t);
+      byKey[key]._count++;
+      byKey[key].amount += t.amount;
     }
   });
   return result;
@@ -5255,10 +5253,10 @@ function showTxnTooltip(dot, cx, cy) {
     const col = _TXN_COLORS[t.type] || '#94a3b8';
     const sign = t.amount >= 0 ? '+' : '';
     const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
-    // For grouped installments: show "N payments" badge; for monthly: show "X/Y"
+    // Badge: grouped recurring shows "×N/yr", single installment shows "X/Y", else type name
     let badge;
-    if (t.type === 'installment' && t._count > 1) {
-      badge = `${t._count} pmts`;
+    if (t._count > 1) {
+      badge = `×${t._count}/yr`;
     } else if (t.type === 'installment' && t.installNum != null) {
       badge = `${t.installNum}/${t.installTotal}`;
     } else {
