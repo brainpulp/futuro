@@ -3672,72 +3672,92 @@ const msPlugin = {
     _txnDots = [];
     const monthlyData = window._lastSimData;
     if (monthlyData) {
-      const lbsA = data.labels;   // chart x labels (ages for annual, strings for monthly)
-      const dense = _chartZoom === 1 || _chartZoom === 5;  // monthly chart modes — 10y uses sparse filter
+      const lbsA = data.labels;
+      const dense = _chartZoom === 1 || _chartZoom === 5;
 
-      monthlyData.forEach(m => {
-        const allTxns = getMonthTxns(m.age, m.mo);
-        if (!allTxns.length) return;
-
-        // ── Filter by zoom ──────────────────────────────────
-        const txns = dense
-          ? allTxns   // 1y/5y: show everything
-          : allTxns.filter(t =>
-              t.type === 'sale' ||
-              (t.type === 'oneoff' && Math.abs(t.amount) >= 10000)
-            );
-        if (!txns.length) return;
-
-        // ── X / Y position ───────────────────────────────────────
-        let xp, yp;
-        // Position lookup: monthly slice for 1y/5y/10y, annual interpolation for 20y/30y
-        const monthlyLabels = _chartZoom <= 10; // these zooms use monthly string labels
-        if (monthlyLabels) {
-          // Find this month in the chart's monthly slice and use its x/y directly
-          const slice = window._chartMonthSlice || [];
-          const moIdx = slice.findIndex(cm => cm.age === m.age && cm.mo === m.mo);
-          if (moIdx < 0) return;
-          xp = x.getPixelForValue(moIdx);
-          yp = y.getPixelForValue(liqData[moIdx] ?? 0);
-        } else {
-          // Annual chart (20y/30y): labels are integer ages, interpolate meta positions
-          const liqMeta = ch.getDatasetMeta(0).data;
-          const aidx = lbsA.indexOf(m.age);
-          if (aidx < 0) return;
-          const mpA = liqMeta[aidx];
-          const mpB = liqMeta[aidx + 1] || mpA;
-          if (!mpA) return;
-          const t_mo = (m.mo - 0.5) / 12;
-          xp = mpA.x + t_mo * (mpB.x - mpA.x);
-          yp = mpA.y + t_mo * (mpB.y - mpA.y);
-        }
+      function drawDot(xp, yp, txns, net, year, age, mo) {
         if (xp < chartArea.left - 2 || xp > chartArea.right + 2) return;
         if (yp < chartArea.top - 2  || yp > chartArea.bottom + 2) return;
-
-        // ── Draw ─────────────────────────────────────────────
         const isSale = txns.some(t => t.type === 'sale');
-        const net    = txns.reduce((s, t) => s + t.amount, 0);
-
-        ctx.save();
-        ctx.shadowBlur = 5;
-        let yHit = yp; // hit-detection y — must match visual center
+        ctx.save(); ctx.shadowBlur = 5;
+        let yHit = yp;
         if (isSale) {
-          // House sits ON the curve: bottom at yp, icon floats upward
-          const col = net >= 0 ? '#fbbf24' : '#f87171';
+          const col = '#fbbf24';
           ctx.shadowColor = col;
-          _drawHouse(ctx, xp, yp - 1, 13, col); // bottom ~yp
-          yHit = yp - 6; // visual center of house (~halfway up)
+          _drawHouse(ctx, xp, yp - 1, 13, col);
+          yHit = yp - 6;
         } else {
           const col = net >= 0 ? '#22c55e' : '#f87171';
           ctx.shadowColor = col;
-          ctx.beginPath(); ctx.arc(xp, yp, dense ? 4 : 3.5, 0, Math.PI * 2);
+          ctx.beginPath(); ctx.arc(xp, yp, dense ? 4 : 4.5, 0, Math.PI * 2);
           ctx.fillStyle = col; ctx.fill();
-          yHit = yp;
         }
         ctx.restore();
-        _txnDots.push({ xp, yp: yHit, hitR: isSale ? 14 : 9,
-          age: m.age, mo: m.mo, year: m.year, txns, net });
-      });
+        _txnDots.push({ xp, yp: yHit, hitR: isSale ? 14 : 10, age, mo, year, txns, net });
+      }
+
+      if (dense) {
+        // ── 1y / 5y: one dot per month ──────────────────────
+        const slice = window._chartMonthSlice || [];
+        monthlyData.forEach(m => {
+          const txns = getMonthTxns(m.age, m.mo);
+          if (!txns.length) return;
+          const moIdx = slice.findIndex(cm => cm.age === m.age && cm.mo === m.mo);
+          if (moIdx < 0) return;
+          const xp = x.getPixelForValue(moIdx);
+          const yp = y.getPixelForValue(liqData[moIdx] ?? 0);
+          const net = txns.reduce((s, t) => s + t.amount, 0);
+          drawDot(xp, yp, txns, net, m.year, m.age, m.mo);
+        });
+
+      } else if (_chartZoom === 10) {
+        // ── 10y: one dot per year (aggregate), positioned at July ──
+        const slice = window._chartMonthSlice || [];
+        const ages = [...new Set(slice.map(m => m.age))];
+        ages.forEach(age => {
+          let income = 0, expenses = 0;
+          const allTxns = [];
+          for (let mo = 1; mo <= 12; mo++) {
+            const t = getMonthTxns(age, mo);
+            t.forEach(tx => {
+              allTxns.push({ ...tx, mo });
+              tx.amount > 0 ? (income += tx.amount) : (expenses += Math.abs(tx.amount));
+            });
+          }
+          if (!allTxns.length) return;
+          const net = income - expenses;
+          // Position: prefer July (midpoint), else first available month for this age
+          let moIdx = slice.findIndex(cm => cm.age === age && cm.mo === 7);
+          if (moIdx < 0) moIdx = slice.findIndex(cm => cm.age === age);
+          if (moIdx < 0) return;
+          const xp = x.getPixelForValue(moIdx);
+          const yp = y.getPixelForValue(liqData[moIdx] ?? 0);
+          const year = slice[moIdx]?.year ?? age - (S.startAge||57) + (S.startYear||2026);
+          drawDot(xp, yp, allTxns, net, year, age, 7);
+        });
+
+      } else {
+        // ── 20y / 30y: one dot per year using annual meta positions ──
+        const liqMeta = ch.getDatasetMeta(0).data;
+        lbsA.forEach((age, aidx) => {
+          if (typeof age !== 'number') return;
+          let income = 0, expenses = 0;
+          const allTxns = [];
+          for (let mo = 1; mo <= 12; mo++) {
+            const t = getMonthTxns(age, mo);
+            t.forEach(tx => {
+              allTxns.push({ ...tx, mo });
+              tx.amount > 0 ? (income += tx.amount) : (expenses += Math.abs(tx.amount));
+            });
+          }
+          if (!allTxns.length) return;
+          const net = income - expenses;
+          const mp = liqMeta[aidx];
+          if (!mp) return;
+          const year = age - (S.startAge||57) + (S.startYear||2026);
+          drawDot(mp.x, mp.y, allTxns, net, year, age, 7);
+        });
+      }
     }
 
     ctx.restore();
@@ -5098,13 +5118,32 @@ function showTxnTooltip(dot, cx, cy) {
   const mLbl = document.getElementById('txn-tip-month');
   const rows = document.getElementById('txn-tip-rows');
   if (!tip) return;
-  mLbl.textContent = (_MON_SHORT[dot.mo - 1] || '') + ' ' + dot.year + ' · age ' + dot.age;
-  rows.innerHTML = dot.txns.map((t, i) => {
+  const dense = _chartZoom === 1 || _chartZoom === 5;
+  mLbl.textContent = dense
+    ? ((_MON_SHORT[dot.mo - 1] || '') + ' ' + dot.year + ' · age ' + dot.age)
+    : (dot.year + ' · age ' + dot.age);
+
+  // For yearly aggregate dots (10y+), group by type instead of listing every transaction
+  const displayTxns = dense ? dot.txns : (() => {
+    const income = dot.txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
+    const expenses = dot.txns.filter(t => t.amount < 0).reduce((s,t) => s + t.amount, 0);
+    const sales = dot.txns.filter(t => t.type === 'sale');
+    const notable = dot.txns.filter(t => (t.type==='oneoff'||t.type==='installment') && Math.abs(t.amount)>=5000);
+    const grouped = [];
+    if (sales.length) sales.forEach(s => grouped.push(s));
+    if (notable.length) notable.forEach(e => grouped.push(e));
+    if (income > 0 && !sales.length) grouped.push({name:'Total income', amount: income, type:'income', id:null, arr:null});
+    if (expenses < 0) grouped.push({name:'Total expenses', amount: expenses, type:'expense', id:null, arr:null});
+    return grouped;
+  })();
+
+  rows.innerHTML = displayTxns.map((t, i) => {
     const col = _TXN_COLORS[t.type] || '#94a3b8';
     const sign = t.amount >= 0 ? '+' : '';
     const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
     const badge = t.type === 'installment' ? `${t.installNum}/${t.installTotal}` : t.type;
-    return `<div class="tt-row" onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+    const clickable = t.id != null;
+    return `<div class="tt-row" style="${clickable?'':'cursor:default;'}" ${clickable?`onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})"`:''}">
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
