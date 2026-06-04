@@ -3329,13 +3329,16 @@ const msPlugin = {
     const _haloHvy = _dark ? 'rgba(8,10,18,0.75)' : 'rgba(230,230,235,0.92)';
     const _haloSub = _dark ? 'rgba(8,10,18,0.65)' : 'rgba(230,230,235,0.80)';
 
-    // Always populate _totalDots for hover tooltip (all zoom modes)
     const totalData0 = data.datasets[2].data;
+    // Only populate _totalDots for annual modes — monthly modes have 60-120 points
+    // and the hover tooltip was removed, so dense total-dots are pure visual noise.
     _totalDots = [];
-    labels.forEach((age, idx) => {
-      const tv = totalData0[idx], lv = liqData[idx];
-      _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
-    });
+    if (_chartZoom >= 20) {
+      labels.forEach((age, idx) => {
+        const tv = totalData0[idx], lv = liqData[idx];
+        _totalDots.push({ xp: x.getPixelForValue(idx), yp: y.getPixelForValue(tv), age, liq: lv, total: tv });
+      });
+    }
 
     if (_chartZoom === 1 || _chartZoom === 5) {
       // Monthly view: label both curves using rendered pixel positions
@@ -3686,15 +3689,17 @@ const msPlugin = {
 
         // ── X / Y position ───────────────────────────────────────
         let xp, yp;
-        if (dense) {
-          // Monthly chart: find index in chart's monthly slice, use scale directly
+        // Position lookup: monthly slice for 1y/5y/10y, annual interpolation for 20y/30y
+        const monthlyLabels = _chartZoom <= 10; // these zooms use monthly string labels
+        if (monthlyLabels) {
+          // Find this month in the chart's monthly slice and use its x/y directly
           const slice = window._chartMonthSlice || [];
           const moIdx = slice.findIndex(cm => cm.age === m.age && cm.mo === m.mo);
           if (moIdx < 0) return;
           xp = x.getPixelForValue(moIdx);
           yp = y.getPixelForValue(liqData[moIdx] ?? 0);
         } else {
-          // Annual chart: interpolate between adjacent meta pixel positions
+          // Annual chart (20y/30y): labels are integer ages, interpolate meta positions
           const liqMeta = ch.getDatasetMeta(0).data;
           const aidx = lbsA.indexOf(m.age);
           if (aidx < 0) return;
