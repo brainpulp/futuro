@@ -3297,7 +3297,8 @@ function getMonthTxns(age, mo) {
   });
   // Rental income from properties
   (S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).forEach(prop => {
-    const ra = prop.rentFromAge !== undefined ? prop.rentFromAge : (prop.acquireAge || sa);
+    let ra = prop.rentFromAge !== undefined ? prop.rentFromAge : (prop.acquireAge || sa);
+    if (ra > 2000) ra = yearToAge(ra); // guard: rentFromAge may have been saved as a calendar year
     const sellAge = prop.hold ? ea + 1 : (prop.saleAge || ea);
     const sellMo  = prop.hold ? 13 : (prop.saleMonth || 6);
     if (age >= ra && (age < sellAge || (age === sellAge && mo < sellMo)))
