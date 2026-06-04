@@ -4157,9 +4157,29 @@ function _updateLwChart(data) {
   renderZoomButtons();
 }
 
+// Group installment transactions by name for yearly summary tooltips
+function _groupTxnsForYearly(txns) {
+  const byName = {}, result = [];
+  txns.forEach(t => {
+    if (t.type === 'installment') {
+      if (!byName[t.name]) {
+        byName[t.name] = { ...t, _count: 1, amount: t.amount, installNum: null, installTotal: null };
+        result.push(byName[t.name]);
+      } else {
+        byName[t.name]._count++;
+        byName[t.name].amount += t.amount;
+      }
+    } else {
+      result.push(t);
+    }
+  });
+  return result;
+}
+
 function _buildLwMarkers(data) {
   const sa = S.startAge || 57, sy = S.startYear || 2026;
   const markers = [], dotMeta = [];
+  const dense = _chartZoom <= 5; // 1y and 5y get monthly dots
 
   // Min liq marker
   if (data.simMinAge != null) {
@@ -4168,33 +4188,50 @@ function _buildLwMarkers(data) {
     markers.push({ time: _mt(my, mm), position: 'belowBar', color: '#C03030', shape: 'circle', text: '', size: 0.8 });
   }
 
-  // Yearly aggregate dots
   const sim = data.monthly || [];
-  const ages = [...new Set(sim.map(m => m.age))];
-  ages.forEach(age => {
-    let income = 0, expenses = 0;
-    const allTxns = [];
-    for (let mo = 1; mo <= 12; mo++) {
-      getMonthTxns(age, mo).forEach(t => {
-        allTxns.push({ ...t, mo });
-        t.amount > 0 ? (income += t.amount) : (expenses += Math.abs(t.amount));
-      });
-    }
-    if (!allTxns.length) return;
-    const net = income - expenses;
-    const hasSale = allTxns.some(t => t.type === 'sale');
-    const year = age - sa + sy;
-    const midMo = 7;
-    const time = _mt(year, midMo);
-    const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
 
-    markers.push({ time, position: 'inBar', color: col,
-      shape: hasSale ? 'square' : 'circle',
-      text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1.2 });
-
-    // Store for hit detection — positioned after LW renders
-    dotMeta.push({ time, age, mo: midMo, year, txns: allTxns, net, isSale: hasSale });
-  });
+  if (dense) {
+    // Monthly dots: one per month that has transactions
+    sim.forEach(m => {
+      const txns = getMonthTxns(m.age, m.mo);
+      if (!txns.length) return;
+      const income = txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
+      const expenses = txns.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
+      const hasSale = txns.some(t => t.type === 'sale');
+      const net = income - expenses;
+      const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
+      const time = _mt(m.year, m.mo);
+      markers.push({ time, position: 'inBar', color: col,
+        shape: hasSale ? 'square' : 'circle',
+        text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1 });
+      dotMeta.push({ time, age: m.age, mo: m.mo, year: m.year, txns, net, isSale: hasSale, isYearly: false });
+    });
+  } else {
+    // Yearly aggregate dots: one per age/year, installments grouped
+    const ages = [...new Set(sim.map(m => m.age))];
+    ages.forEach(age => {
+      let income = 0, expenses = 0;
+      const allTxns = [];
+      for (let mo = 1; mo <= 12; mo++) {
+        getMonthTxns(age, mo).forEach(t => {
+          allTxns.push({ ...t, mo });
+          t.amount > 0 ? (income += t.amount) : (expenses += Math.abs(t.amount));
+        });
+      }
+      if (!allTxns.length) return;
+      const net = income - expenses;
+      const hasSale = allTxns.some(t => t.type === 'sale');
+      const year = age - sa + sy;
+      const time = _mt(year, 7);
+      const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
+      markers.push({ time, position: 'inBar', color: col,
+        shape: hasSale ? 'square' : 'circle',
+        text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1.2 });
+      // Group installments so tooltip doesn't list every payment
+      const groupedTxns = _groupTxnsForYearly(allTxns);
+      dotMeta.push({ time, age, mo: 7, year, txns: groupedTxns, net, isSale: hasSale, isYearly: true });
+    });
+  }
 
   // Compute pixel positions after a frame (LW needs to render first)
   requestAnimationFrame(() => {
@@ -4206,7 +4243,7 @@ function _buildLwMarkers(data) {
       const yp = lwLiqSeries.priceToCoordinate(liqVal);
       if (xp != null && yp != null) {
         _txnDots.push({ xp, yp: d.isSale ? yp - 6 : yp, hitR: d.isSale ? 14 : 10,
-          age: d.age, mo: d.mo, year: d.year, txns: d.txns, net: d.net });
+          age: d.age, mo: d.mo, year: d.year, txns: d.txns, net: d.net, isYearly: d.isYearly });
       }
     });
   });
@@ -5209,30 +5246,24 @@ function showTxnTooltip(dot, cx, cy) {
   const mLbl = document.getElementById('txn-tip-month');
   const rows = document.getElementById('txn-tip-rows');
   if (!tip) return;
-  const dense = _chartZoom === 1 || _chartZoom === 5;
-  mLbl.textContent = dense
-    ? ((_MON_SHORT[dot.mo - 1] || '') + ' ' + dot.year + ' · age ' + dot.age)
-    : (dot.year + ' · age ' + dot.age);
+  // dot.isYearly: yearly aggregate dot; otherwise monthly
+  mLbl.textContent = dot.isYearly
+    ? (dot.year + ' · age ' + dot.age)
+    : ((_MON_SHORT[dot.mo - 1] || '') + ' ' + dot.year + ' · age ' + dot.age);
 
-  // For yearly aggregate dots (10y+), group by type instead of listing every transaction
-  const displayTxns = dense ? dot.txns : (() => {
-    const income = dot.txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
-    const expenses = dot.txns.filter(t => t.amount < 0).reduce((s,t) => s + t.amount, 0);
-    const sales = dot.txns.filter(t => t.type === 'sale');
-    const notable = dot.txns.filter(t => (t.type==='oneoff'||t.type==='installment') && Math.abs(t.amount)>=5000);
-    const grouped = [];
-    if (sales.length) sales.forEach(s => grouped.push(s));
-    if (notable.length) notable.forEach(e => grouped.push(e));
-    if (income > 0 && !sales.length) grouped.push({name:'Total income', amount: income, type:'income', id:null, arr:null});
-    if (expenses < 0) grouped.push({name:'Total expenses', amount: expenses, type:'expense', id:null, arr:null});
-    return grouped;
-  })();
-
-  rows.innerHTML = displayTxns.map((t, i) => {
+  rows.innerHTML = dot.txns.map(t => {
     const col = _TXN_COLORS[t.type] || '#94a3b8';
     const sign = t.amount >= 0 ? '+' : '';
     const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
-    const badge = t.type === 'installment' ? `${t.installNum}/${t.installTotal}` : t.type;
+    // For grouped installments: show "N payments" badge; for monthly: show "X/Y"
+    let badge;
+    if (t.type === 'installment' && t._count > 1) {
+      badge = `${t._count} pmts`;
+    } else if (t.type === 'installment' && t.installNum != null) {
+      badge = `${t.installNum}/${t.installTotal}`;
+    } else {
+      badge = t.type;
+    }
     const clickable = t.id != null;
     return `<div class="tt-row" style="${clickable?'':'cursor:default;'}" ${clickable?`onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})"`:''}">
       <div class="tt-dot" style="background:${col}"></div>
