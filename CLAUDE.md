@@ -1,5 +1,27 @@
 # Futuro — Handoff
 
+## Quick lookup — key function line numbers (index.html)
+| Function | Line | Purpose |
+|----------|------|---------|
+| `sbSave` | 1597 | Save scenario to Supabase |
+| `sbLoad` | 1613 | Load scenarios from Supabase (merges ALL rows) |
+| `runSim` | 2615 | Monthly simulation engine → `data.monthly[]` |
+| `getMonthTxns(age,mo)` | 3262 | Returns txns for one month |
+| `setChartZoom(y)` | 3956 | Zoom button handler |
+| `_initLwChart` | 4037 | Create LW chart + overlay canvas |
+| `_updateLwChart` | 4140 | Feed sim data into LW chart |
+| `_groupTxnsForYearly` | 4161 | Collapse repeated txns for yearly tooltip |
+| `_buildLwMarkers` | 4177 | Build LW markers + `_txnDots[]` |
+| `_setLwZoom` | 4252 | Set LW visible time range |
+| `_updateVig` | 4261 | Draw emoji vignette on overlay canvas |
+| `go()` | 4319 | Main render entry point (runs sim + updates chart) |
+| `showTxnTooltip` | 5242 | Render transaction hover tooltip |
+| `ibkrSync` | 6060 | Pull IBKR net liquidation |
+| `gastosSync` | 6096 | Pull gastos monthly actuals |
+| `renderTimeline` | 6340 | Render event timeline strip |
+
+**Note:** Line numbers shift as code changes. Use as starting point, not gospel.
+
 ## Code review
 **ALWAYS run the `check-futuro` skill before committing.** It is at `.claude/skills/check-futuro/SKILL.md`.
 Invoke it by reading that file and following every check listed. Fix all 🔴 CRITICAL findings before pushing.
@@ -112,3 +134,16 @@ Main branch → GitHub Pages auto-deploys.
 git add index.html && git commit -m "..." && git push
 ```
 Always update CLAUDE.md and `memory/project_retiro.md` after significant changes.
+
+## Known bugs & gotchas (don't re-diagnose these)
+
+| Symptom | Root cause | Fix |
+|---------|-----------|-----|
+| Rental income silently $0 | `rentFromAge` saved as calendar year (2026) not age (57) | `if (ra > 2000) ra = yearToAge(ra)` guard in `getMonthTxns` |
+| Tooltip lists 12× same rent | Yearly dot collects all 12 months, rent not grouped | `_groupTxnsForYearly` groups by name+type key |
+| Scenario data lost on reload | `sbLoad` was picking newest row only | Now merges ALL rows' scenarios |
+| Chart y-axis squishes liquid line | Chart.js shared y-axis with RE (~$12M) | Resolved: LightweightCharts auto-scales per series |
+| Crisis drops invisible in table | Applied in sim but not in `_oo` | `_crisisItems` array injected into month-1 `_oo` |
+| TDZ crash on property sale | `_oo.push()` before `const _oo = []` | Use `_soldThisMo` intermediate array |
+| "Correction (-X%) -$Y" in table | Expected — market crisis drop from Market Behavior settings | Not a bug |
+| Edge browser timeline won't expand | Title bar click handler issue, Chrome/Mac work | Known deferred |
