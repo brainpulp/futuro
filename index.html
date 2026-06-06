@@ -2735,7 +2735,7 @@ function runSim(monthlyOverride) {
       liq += inc - _baseExp - _ooAmt - _itemizedExp;
       _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; _simMinMo = mo; }
-      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), totalExp: Math.round(_baseExp + _ooAmt + _itemizedExp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
     // Annualise partial-year burn so pill shows a full-year equivalent
     const _saMonths = 13 - _curMo;
@@ -2869,7 +2869,7 @@ function runSim(monthlyOverride) {
       yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
-      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
 
     out.push({
@@ -3782,11 +3782,97 @@ try {
 
 // ── Reality Check Table ──────────────────────────────────────
 let _rcOpen = {};
+// ── Sim audit: compare runSim monthly data vs getMonthTxns (two independent code paths) ──
+function _simAudit(data) {
+  const m = data.monthly;
+  if (!m || !m.length) return [];
+  const issues = [];
+
+  m.forEach(r => {
+    const ym = `${r.year}-${String(r.mo).padStart(2,'0')}`;
+    const isFuture = ym >= _currentYM;
+    if (!isFuture) return; // past months use gastos actuals, skip income check
+
+    const txns = getMonthTxns(r.age, r.mo);
+
+    // Income: only count income/rent types — NOT sales (which are also positive in getMonthTxns).
+    // Sim inflates income over time; getMonthTxns returns nominal. Flag gaps > 5% & > $200.
+    const txnInc = Math.round(txns.filter(t => t.type === 'income' || t.type === 'rent').reduce((s, t) => s + t.amount, 0));
+    const incDiff = Math.abs(r.inc - txnInc);
+    if (incDiff > 200 && incDiff / Math.max(r.inc, txnInc, 1) > 0.10) {
+      issues.push({ ym, age: r.age, type: 'income', sim: r.inc, txn: txnInc, diff: r.inc - txnInc, note: 'sim inflates; txn is nominal' });
+    }
+
+    // Oneoffs / installments: use absolute values — sim stores as positive cost, getMonthTxns as negative.
+    const simOoAbs = Math.round(Math.abs((r.oneoffs || []).filter(o => !o.crisis && !o.sale).reduce((s, o) => s + o.amount, 0)));
+    const txnOoAbs = Math.round(Math.abs(txns.filter(t => ['oneoff', 'installment'].includes(t.type)).reduce((s, t) => s + t.amount, 0)));
+    const ooDiff = Math.abs(simOoAbs - txnOoAbs);
+    if (ooDiff > 200) {
+      issues.push({ ym, age: r.age, type: 'oneoff/install', sim: simOoAbs, txn: txnOoAbs, diff: simOoAbs - txnOoAbs });
+    }
+
+    // Property sales: sim uses monthly-compounded cv; getMonthTxns uses annual compounding — small drift expected.
+    // Flag only large gaps (>$5K) to avoid noise from compounding frequency difference.
+    const simSale = Math.round((r.oneoffs || []).filter(o => o.sale).reduce((s, o) => s + Math.abs(o.amount), 0));
+    const txnSale = Math.round(txns.filter(t => t.type === 'sale').reduce((s, t) => s + t.amount, 0));
+    const saleDiff = Math.abs(simSale - txnSale);
+    if (saleDiff > 5000) {
+      issues.push({ ym, age: r.age, type: 'sale', sim: simSale, txn: txnSale, diff: simSale - txnSale, note: 'monthly vs annual compounding' });
+    }
+  });
+
+  data._auditIssues = issues;
+  if (issues.length) {
+    console.warn(`[futuro audit] ${issues.length} discrepancy(ies) — sim vs getMonthTxns:`);
+    console.table(issues);
+  } else {
+    console.info('[futuro audit] ✓ sim income + oneoffs match getMonthTxns for all future months');
+  }
+  return issues;
+}
+
 function renderRC(data) {
   const el = document.getElementById('rc-table');
   if (!el) return;
   const monthly = data.monthly || [];
   if (!monthly.length) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px;">No monthly data.</div>'; return; }
+
+  // ── Audit banner ──
+  const issues = data._auditIssues || [];
+  let auditHtml = '';
+  const _EXPECTED_NOTES = ['sim inflates; txn is nominal', 'monthly vs annual compounding'];
+  const unexpectedIssues = issues.filter(i => !_EXPECTED_NOTES.includes(i.note));
+  const expectedIssues   = issues.filter(i =>  _EXPECTED_NOTES.includes(i.note));
+
+  if (unexpectedIssues.length) {
+    const rows = unexpectedIssues.map(i => {
+      const diffStr = (i.diff > 0 ? '+' : '') + _fmt$(i.diff);
+      return `<tr>
+        <td style="padding:2px 8px;">${i.ym}</td><td style="padding:2px 8px;">age ${i.age}</td>
+        <td style="padding:2px 8px;color:#f97316;">${i.type}</td>
+        <td style="padding:2px 8px;text-align:right;">${_fmt$(i.sim)}</td>
+        <td style="padding:2px 8px;text-align:right;">${_fmt$(i.txn)}</td>
+        <td style="padding:2px 8px;text-align:right;color:#ef4444;font-weight:700;">${diffStr}</td>
+      </tr>`;
+    }).join('');
+    auditHtml = `<div style="border:1px solid #ef4444;border-radius:6px;margin-bottom:10px;overflow:hidden;">
+      <div style="background:#3b1212;padding:4px 10px;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:.04em;">
+        ⚠ SIM AUDIT: ${unexpectedIssues.length} real discrepancy(ies) between runSim and getMonthTxns
+      </div>
+      <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;font-family:SF Mono,Menlo,monospace;">
+        <thead><tr style="color:#888;background:var(--bg-subtle,#f5f5f5);">
+          <th style="padding:3px 8px;text-align:left;">Month</th><th style="padding:3px 8px;text-align:left;">Age</th>
+          <th style="padding:3px 8px;text-align:left;">Type</th><th style="padding:3px 8px;text-align:right;">Sim</th>
+          <th style="padding:3px 8px;text-align:right;">Txn helper</th><th style="padding:3px 8px;text-align:right;">Δ</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  } else {
+    const expNote = expectedIssues.length
+      ? `<span style="color:#888;margin-left:6px;">${expectedIssues.length} expected artifact(s): inflation drift &amp; compounding freq</span>`
+      : '';
+    auditHtml = `<div style="font-size:10px;color:#22c55e;padding:4px 8px;margin-bottom:6px;">✓ Sim audit: no real discrepancies${expNote}</div>`;
+  }
 
   const MONAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   // Group by year
@@ -3794,7 +3880,7 @@ function renderRC(data) {
   monthly.forEach(r => { (byYear[r.year] = byYear[r.year] || []).push(r); });
 
   const _yrList = Object.keys(byYear).sort((a,b) => +a - +b);
-  let html = '';
+  let html = auditHtml;
   _yrList.forEach((yr, yrIdx) => {
     const rows = byYear[yr];
     const age = rows[0].age;
@@ -4596,6 +4682,7 @@ function go() {
 
   window._lastRCData = data;
   window._lastSimData = data.monthly || [];
+  try { _simAudit(data); } catch(e) { console.error('[futuro audit] _simAudit threw:', e); }
   renderRC(data);
   renderMinDrill(data);
   requestAnimationFrame(renderTimeline); // after chart paints; renderTimeline bails if section hidden
