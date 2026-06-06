@@ -1401,10 +1401,7 @@ const EMPTY = {
   monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
   expMultiplier: 1,
   yieldCurve: {},
-  crises: [
-    { id: 1, name: 'Correction', drop: 20, age: 58, enabled: true },
-    { id: 2, name: 'Correction', drop: 30, age: 62, enabled: true }
-  ],
+  crises: [],
   incomes: [
     { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
     { id: 4, name: 'Dorado',    monthly: 5000, from: 58, to: 62, enabled: true }
@@ -5323,6 +5320,7 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
 
 function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
+function rmCrisis(id) { S.crises=S.crises.filter(c=>c.id!==id); markDirty(); go(); renderTimeline(); }
 function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
 function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); }
@@ -6814,6 +6812,7 @@ function buildPopoverForm(ev, type) {
       <div><label>${ageLbl}</label>${ageIn('age', ev.age)}</div>
       <div><label>Drop %</label>${numIn('drop', ev.drop, '%')}</div>
       <div class="tl-pop-full">${enChk}</div>
+      <div class="tl-pop-full"><button onclick="rmCrisis(${id})" style="margin-top:4px;padding:2px 10px;font-size:10px;color:#ef4444;background:none;border:1px solid #ef4444;border-radius:3px;cursor:pointer;">Delete</button></div>
     </div>`;
   }
   return '';
