@@ -4259,9 +4259,10 @@ function _updateVig() {
   _vigSeed = 0x9e3779b9;
   ctx.globalAlpha = _VIG_OPACITY;
   const COUNT = 480;
-  const _vigW = W - _rScaleW - 4;
+  const _lScaleW = 44;
+  const _vigW = W - _rScaleW - _lScaleW - 4;
   for (let i = 0; i < COUNT; i++) {
-    const vx = _vigRand() * _vigW, vy = _vigRand() * H, sz = 16 + _vigRand() * 18;
+    const vx = _lScaleW + _vigRand() * _vigW, vy = _vigRand() * H, sz = 16 + _vigRand() * 18;
     const speed = (0.12 + (i % 7) * 0.04) * 4;
     const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
     const oPhase = (i * 2.39996) % (Math.PI * 2);
