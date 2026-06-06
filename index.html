@@ -558,6 +558,8 @@ body:not([data-theme="graphite"]) #txn-edit-modal .em-title { color: #1a1f36; }
 body:not([data-theme="graphite"]) #txn-edit-modal .em-field input,
 body:not([data-theme="graphite"]) #txn-edit-modal .em-field select { background: #f6f9fc; border-color: #e0e6ed; color: #1a1f36; }
 #txn-edit-modal .em-field input:focus, #txn-edit-modal .em-field select:focus { border-color: #60a5fa; }
+#txn-edit-modal .em-field input[type="month"] { color-scheme: dark; }
+body:not([data-theme="graphite"]) #txn-edit-modal .em-field input[type="month"] { color-scheme: light; }
 #txn-edit-modal .em-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #txn-edit-modal .em-actions { display: flex; gap: 6px; margin-top: 14px; }
 #txn-edit-modal .em-save   { flex:1; background:#3b82f6; color:#fff; border:none; border-radius:6px; padding:8px; font-size:12px; font-weight:700; cursor:pointer; }
@@ -5364,7 +5366,14 @@ function openTxnEdit(t) {
     html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start '+ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'properties') {
     html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
-    html += `<div class="em-row">${field('Sale '+ageLbl, ageInp('saleAge', item.saleAge||ea))}${field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'))}</div>`;
+    const sy = S.startYear || 2026, sa2 = S.startAge || 57, ea2 = S.endAge || 87;
+    const rfa = (item.rentFromAge > 2000 ? yearToAge(item.rentFromAge) : item.rentFromAge) ?? sa2;
+    const rfm = item.rentFromMonth || 1;
+    const rfYM = `${ageToYear(rfa)}-${String(rfm).padStart(2,'0')}`;
+    const minYM = `${sy}-01`, maxYM = `${sy + ea2 - sa2}-12`;
+    const monthInp = `<input type="month" value="${rfYM}" min="${minYM}" max="${maxYM}" oninput="_txnRentFromUpd(${item.id},this.value)">`;
+    html += `<div class="em-row">${field('Rent from', monthInp)}${field('Sale '+ageLbl, ageInp('saleAge', item.saleAge||ea))}</div>`;
+    html += field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'));
   }
   fields.innerHTML = html;
   modal.classList.add('open');
@@ -5393,6 +5402,14 @@ function _txnAgeUpd(id, arrName, field, val) {
   if (!item) return;
   const num = parseFloat(val);
   if (!isNaN(num)) { item[field] = readA(num); markDirty(); go(); }
+}
+function _txnRentFromUpd(id, ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const item = S.properties.find(p => p.id === id);
+  if (!item) return;
+  item.rentFromAge   = yearToAge(y);
+  item.rentFromMonth = m;
+  markDirty(); go();
 }
 function saveTxnEdit() { markDirty(); go(); closeTxnEdit(); }
 function deleteTxnEdit() {
