@@ -4326,24 +4326,24 @@ function _updateVig() {
       const liqVal   = m.liq;
       const typ = lwTotalSeries.priceToCoordinate(totalVal);
       const lyp = lwLiqSeries.priceToCoordinate(liqVal);
-      const outlineCol = 'rgba(128,128,128,0.5)';
+      const outlineCol = 'rgba(0,0,0,0.5)';
       // Total label
       if (typ != null && typ > 8 && typ < H - 4) {
-        ctx.font = '700 19px "SF Mono",Menlo,monospace';
+        ctx.font = '700 13px "SF Mono",Menlo,monospace';
         ctx.textAlign = 'center';
-        ctx.lineWidth = 5; ctx.strokeStyle = outlineCol;
-        ctx.strokeText(fmtM(totalVal), xp, typ - 7);
-        ctx.fillStyle = '#1D9E75';
-        ctx.fillText(fmtM(totalVal), xp, typ - 7);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = outlineCol;
+        ctx.strokeText(fmtM(totalVal), xp, typ - 5);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillText(fmtM(totalVal), xp, typ - 5);
       }
       // Liquid label (only if far enough from total to avoid overlap)
-      if (lyp != null && lyp > 8 && lyp < H - 4 && (typ == null || Math.abs(typ - lyp) > 28)) {
-        ctx.font = '600 17px "SF Mono",Menlo,monospace';
+      if (lyp != null && lyp > 8 && lyp < H - 4 && (typ == null || Math.abs(typ - lyp) > 20)) {
+        ctx.font = '600 12px "SF Mono",Menlo,monospace';
         ctx.textAlign = 'center';
-        ctx.lineWidth = 4.5; ctx.strokeStyle = outlineCol;
-        ctx.strokeText(fmtM(liqVal), xp, lyp - 6);
-        ctx.fillStyle = '#378ADD';
-        ctx.fillText(fmtM(liqVal), xp, lyp - 6);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = outlineCol;
+        ctx.strokeText(fmtM(liqVal), xp, lyp - 5);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(fmtM(liqVal), xp, lyp - 5);
       }
     });
     ctx.restore();
