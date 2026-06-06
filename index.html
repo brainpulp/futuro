@@ -5355,11 +5355,15 @@ function showTxnTooltip(dot, cx, cy) {
       badge = t.type;
     }
     const clickable = t.id != null;
-    return `<div class="tt-row" style="${clickable?'':'cursor:default;'}" ${clickable?`onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})"`:''}">
+    const item = t.id != null ? (S[t.arr]||[]).find(x => x.id === t.id) : null;
+    const enabled = item ? item.enabled !== false : true;
+    const togBtn = item ? `<button onclick="event.stopPropagation();_txnToggleEnabled(${t.id},'${t.arr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:${enabled?1:0.4};flex-shrink:0;" title="${enabled?'Disable':'Enable'}">${enabled?'●':'○'}</button>` : '';
+    return `<div class="tt-row" style="${enabled?'':'opacity:0.45;'};${clickable?'':'cursor:default;'}" ${clickable?`onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})"`:''}}>
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
       <div class="tt-amt" style="color:${amtCol}">${sign}${fmtM(Math.abs(t.amount))}</div>
+      ${togBtn}
     </div>`;
   }).join('');
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -5467,6 +5471,15 @@ function _txnAgeUpd(id, arrName, field, val) {
   if (!item) return;
   const num = parseFloat(val);
   if (!isNaN(num)) { item[field] = readA(num); markDirty(); go(); }
+}
+function _txnToggleEnabled(id, arr) {
+  const item = (S[arr]||[]).find(x => x.id === id);
+  if (!item) return;
+  item.enabled = item.enabled === false ? true : false;
+  markDirty(); go();
+  if (arr === 'incomes') renderInc();
+  else if (arr === 'expenses') renderExp();
+  else if (arr === 'properties') renderProps();
 }
 function _txnInstallStartUpd(id, ym) {
   const [y, m] = ym.split('-').map(Number);
