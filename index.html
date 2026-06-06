@@ -3314,8 +3314,12 @@ function getMonthTxns(age, mo) {
   // Property sales
   (S.properties || []).filter(p => p.enabled !== false && !p.hold).forEach(prop => {
     if (prop.saleAge === age && (prop.saleMonth || 6) === mo) {
-      const yrs = age - ((prop.acquireAge !== undefined ? prop.acquireAge : sa));
-      const val = (prop.value || 0) * Math.pow(1 + ((prop.appRate !== undefined ? prop.appRate : S.assetAppreciation) || 3) / 100, yrs);
+      const acquireAge = prop.acquireAge !== undefined ? prop.acquireAge : sa;
+      // sim appreciates from sa+1 (no appreciation in partial year at sa); acquireAge>sa starts at mo=1
+      const months = acquireAge <= sa
+        ? (age - sa - 1) * 12 + mo
+        : (age - acquireAge) * 12 + mo;
+      const val = (prop.value || 0) * Math.pow(1 + ((prop.appRate !== undefined ? prop.appRate : S.assetAppreciation) || 3) / 100, months / 12);
       txns.push({ id: prop.id, arr: 'properties', name: prop.name + ' sold', amount: val, type: 'sale' });
     }
   });
