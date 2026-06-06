@@ -4154,7 +4154,7 @@ function _buildLwMarkers(data) {
   if (dense) {
     // Monthly dots (1y) or quarterly dots (5y)
     sim.forEach(m => {
-      if (_chartZoom === 5 && ![1, 4, 7, 10].includes(m.mo)) return;
+      if (_chartZoom === 5 && ![1, 4, 7, 10].includes(m.mo) && !getMonthTxns(m.age, m.mo).some(t => t.type === 'sale')) return;
       const txns = getMonthTxns(m.age, m.mo);
       if (!txns.length) return;
       const income = txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
@@ -4263,7 +4263,7 @@ function _updateVig() {
     const xp = lwChart.timeScale().timeToCoordinate(_mt(m.year, m.mo));
     const yp = lwLiqSeries.priceToCoordinate(m.liq);
     if (xp == null || yp == null) return;
-    if (!started) { ctx.moveTo(xp, yp + 28); started = true; } else ctx.lineTo(xp, yp + 28);
+    if (!started) { ctx.moveTo(xp, yp + 10); started = true; } else ctx.lineTo(xp, yp + 10);
     lastX = xp;
   });
   if (started) { ctx.lineTo(lastX, H + 4); ctx.lineTo(0, H + 4); ctx.closePath(); ctx.clip(); }
@@ -5338,7 +5338,9 @@ function hideTxnTooltip() {
 // ── Transaction edit modal ────────────────────────────────────
 function openTxnEdit(t) {
   _txnEditItem = t;
-  hideTxnTooltip();
+  clearTimeout(_tipHideTimer);
+  const _tt = document.getElementById('txn-tip');
+  if (_tt) { _tt.style.display = 'none'; _tt.style.pointerEvents = 'none'; }
   const modal = document.getElementById('txn-edit-backdrop');
   const title = document.getElementById('txn-edit-title');
   const fields = document.getElementById('txn-edit-fields');
