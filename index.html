@@ -4056,21 +4056,30 @@ function _initLwChart() {
     const rect = el.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
-    const txnHit = _txnDots.reduce((best, d) => {
-      const dx = Math.abs(d.xp - mx);
-      return dx < 30 && dx < best.dist ? { d, dist: dx } : best;
-    }, { d: null, dist: 99 }).d;
-    if (txnHit) { showTxnTooltip(txnHit, e.clientX, e.clientY); el.style.cursor = 'pointer'; }
-    else { hideTxnTooltip(); el.style.cursor = ''; }
+    const hoverTime = lwChart.timeScale().coordinateToTime(mx);
+    if (hoverTime && _txnDots.length) {
+      const hMs = new Date(hoverTime).getTime();
+      const THRESH = 55 * 24 * 60 * 60 * 1000; // 55 days
+      const txnHit = _txnDots.reduce((best, d) => {
+        const diff = Math.abs(new Date(d.time).getTime() - hMs);
+        return diff < THRESH && diff < best.dist ? { d, dist: diff } : best;
+      }, { d: null, dist: Infinity }).d;
+      if (txnHit) { showTxnTooltip(txnHit, e.clientX, e.clientY); el.style.cursor = 'pointer'; return; }
+    }
+    hideTxnTooltip(); el.style.cursor = '';
   });
   el.addEventListener('mouseleave', () => hideTxnTooltip());
   el.addEventListener('click', e => {
     const rect = el.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const mx = e.clientX - rect.left;
+    const hoverTime = lwChart.timeScale().coordinateToTime(mx);
+    if (!hoverTime || !_txnDots.length) return;
+    const hMs = new Date(hoverTime).getTime();
+    const THRESH = 55 * 24 * 60 * 60 * 1000;
     const hit = _txnDots.reduce((best, d) => {
-      const dx = Math.abs(d.xp - mx);
-      return dx < 30 && dx < best.dist ? { d, dist: dx } : best;
-    }, { d: null, dist: 99 }).d;
+      const diff = Math.abs(new Date(d.time).getTime() - hMs);
+      return diff < THRESH && diff < best.dist ? { d, dist: diff } : best;
+    }, { d: null, dist: Infinity }).d;
     if (hit) openTxnEditForDot(hit);
   });
 
@@ -4177,19 +4186,10 @@ function _buildLwMarkers(data) {
     });
   }
 
-  // Compute pixel positions after a frame (LW needs to render first)
-  requestAnimationFrame(() => {
-    if (!lwChart || !lwLiqSeries) return;
-    dotMeta.forEach(d => {
-      const xp = lwChart.timeScale().timeToCoordinate(d.time);
-      const idx = (window._lastSimData||[]).findIndex(m => m.year===d.year && m.mo===d.mo);
-      const liqVal = idx >= 0 ? (window._lastSimData[idx]?.liq ?? 0) : 0;
-      const yp = lwLiqSeries.priceToCoordinate(liqVal);
-      if (xp != null && yp != null) {
-        _txnDots.push({ xp, yp: d.isSale ? yp - 6 : yp, hitR: d.isSale ? 14 : 10,
-          age: d.age, mo: d.mo, year: d.year, txns: d.txns, net: d.net, isYearly: d.isYearly, isSale: d.isSale });
-      }
-    });
+  // Store time-keyed dots only — pixel positions computed live in handlers/_updateVig
+  dotMeta.forEach(d => {
+    _txnDots.push({ time: d.time, age: d.age, mo: d.mo, year: d.year,
+      txns: d.txns, net: d.net, isYearly: d.isYearly, isSale: d.isSale });
   });
 
   return markers.sort((a, b) => a.time < b.time ? -1 : 1);
@@ -4334,10 +4334,13 @@ function _updateVig() {
     ctx.restore();
   }
 
-  // House icon for RE sale dots (canvas-drawn — no emoji font dependency)
+  // House icon for RE sale dots — compute coords fresh each frame (no stale pixel state)
   _txnDots.forEach(d => {
     if (!d.isSale) return;
-    const x = d.xp, y = d.yp;
+    const x = lwChart.timeScale().timeToCoordinate(d.time);
+    const simRow = (window._lastSimData||[]).find(m => m.year === d.year && m.mo === d.mo);
+    const y = simRow != null ? lwLiqSeries.priceToCoordinate(simRow.liq) : null;
+    if (x == null || y == null || x < -20 || x > W + 20) return;
     ctx.save();
     // Shadow for legibility
     ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 4;
