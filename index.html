@@ -5482,9 +5482,8 @@ function _txnToggleEnabled(id, arr) {
   if (arr === 'incomes') renderInc();
   else if (arr === 'expenses') renderExp();
   else if (arr === 'properties') renderProps();
-  // Refresh tooltip with updated sim data
-  const newDot = _currentTipDot && _txnDots.find(d => d.time === _currentTipDot.time);
-  if (newDot) showTxnTooltip(newDot, _currentTipX, _currentTipY);
+  // Re-render tooltip in-place: same txns, fresh enabled lookup from S
+  if (_currentTipDot) showTxnTooltip(_currentTipDot, _currentTipX, _currentTipY);
 }
 function _txnInstallStartUpd(id, ym) {
   const [y, m] = ym.split('-').map(Number);
