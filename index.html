@@ -1333,7 +1333,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
           <button onclick="closeCurve()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
-      <svg id="curve-svg" style="width:100%;display:block;border:0.5px solid #e0dfd8;border-radius:4px;background:#fff;" viewBox="0 0 820 326" preserveAspectRatio="none"></svg>
+      <svg id="curve-svg" style="width:100%;display:block;border:0.5px solid #e0dfd8;border-radius:4px;background:#fff;" viewBox="0 0 820 336" preserveAspectRatio="none"></svg>
       <div id="curve-tip-bar" style="height:20px;text-align:center;font-size:13px;font-weight:700;color:#1a1a1a;margin-top:6px;"></div>
     </div>
   </div>
@@ -4427,7 +4427,7 @@ function exH(name, nc, id, rmFn, rf, enFn, en) {
 
 // ── SPY Yield Curve Editor ──
 const CURVE_YMIN = -50, CURVE_YMAX = 40, CURVE_YRANGE = 90;
-const CVW = 820, CVH = 300, CPL = 38, CPR = 28, CPT = 14, CPB = 26;
+const CVW = 820, CVH = 310, CPL = 38, CPR = 28, CPT = 24, CPB = 26;
 const CPW = CVW - CPL - CPR, CPH = CVH - CPT - CPB;
 let curveOpen = false;
 let _drag = null;
@@ -4484,10 +4484,6 @@ function drawCurve() {
     .map(p=>`<text x="${cxOf(p.age).toFixed(1)}" y="${CVH-6}" text-anchor="middle" font-size="11" fill="#aaa">${p.age}</text>`);
 
   const dotR = 7;
-  const dots = pts.map(p => {
-    const fill = !p.custom ? '#d0d0d0' : p.v >= 0 ? '#1A8C5F' : '#C03030';
-    return `<circle class="curve-dot" cx="${cxOf(p.age).toFixed(1)}" cy="${cyOf(p.v).toFixed(1)}" r="${dotR}" fill="${fill}" stroke="#fff" stroke-width="2" data-age="${p.age}" style="cursor:ns-resize;"/>`;
-  }).join('');
 
   // Wider invisible hit targets on top of dots for easier grabbing
   const hitTargets = pts.map(p =>
@@ -4503,9 +4499,21 @@ function drawCurve() {
     return `<text x="${midX}" y="318" text-anchor="middle" font-size="17" style="user-select:none;">${icon}</text>`;
   }).join('');
 
+  // Separate dots and labels so labels render on top
+  const dotCircles = pts.map(p => {
+    const fill = !p.custom ? '#d0d0d0' : p.v >= 0 ? '#1A8C5F' : '#C03030';
+    return `<circle class="curve-dot" cx="${cxOf(p.age).toFixed(1)}" cy="${cyOf(p.v).toFixed(1)}" r="${dotR}" fill="${fill}" stroke="#fff" stroke-width="2" data-age="${p.age}" style="cursor:ns-resize;"/>`;
+  }).join('');
+  const dotLabels = pts.map(p => {
+    const labelColor = !p.custom ? '#bbb' : p.v >= 0 ? '#1A8C5F' : '#C03030';
+    const labelY = (cyOf(p.v) - dotR - 3).toFixed(1);
+    const label = `${p.v > 0 ? '+' : ''}${p.v}%`;
+    return `<text class="curve-label" x="${cxOf(p.age).toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="9" font-weight="700" fill="${labelColor}" data-age="${p.age}" style="pointer-events:none;user-select:none;">${label}</text>`;
+  }).join('');
+
   svg.innerHTML = `${grid}${baseLine}
 <polyline id="curve-poly" points="${poly}" fill="none" stroke="#378ADD" stroke-width="2" stroke-linejoin="round"/>
-${dots}${hitTargets}${xLabels.join('')}${animalIcons}`;
+${dotCircles}${hitTargets}${dotLabels}${xLabels.join('')}${animalIcons}`;
 }
 
 // Update only the moved dot + polyline — no full redraw during drag
@@ -4520,6 +4528,13 @@ function _curvePatchDot(age, v) {
   // Update fill of visible dot (r=7)
   const vis = [...svg.querySelectorAll(`.curve-dot[data-age="${age}"]`)].find(c=>+c.getAttribute('r')===7);
   if (vis) vis.setAttribute('fill', v >= 0 ? '#1A8C5F' : '#C03030');
+  // Update value label
+  const lbl = svg.querySelector(`.curve-label[data-age="${age}"]`);
+  if (lbl) {
+    lbl.setAttribute('y', (cyOf(v) - 10).toFixed(1));
+    lbl.textContent = `${v > 0 ? '+' : ''}${v}%`;
+    lbl.setAttribute('fill', v >= 0 ? '#1A8C5F' : '#C03030');
+  }
   // Rebuild polyline
   const poly = document.getElementById('curve-poly');
   if (poly) {
