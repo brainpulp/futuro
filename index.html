@@ -1121,7 +1121,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
     <!-- Transaction hover tooltip -->
-    <div id="txn-tip"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to edit</div></div>
+    <div id="txn-tip" onmouseleave="hideTxnTooltip()"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to edit</div></div>
     <!-- Transaction edit modal -->
     <div id="txn-edit-backdrop" onclick="if(event.target===this)closeTxnEdit()">
       <div id="txn-edit-modal">
@@ -1848,6 +1848,7 @@ let _yearMode = false;
 let _gastosActuals  = {}; // { "2026-01": 4320.50, ... } — actual USD spend per month from gastos
 let _projectActuals = {}; // { "delta": { byMonth: { "2026-01": 12000 } }, ... } — per-Gastos-cat actuals
 let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
+let _tipHideTimer = null;
 let _pillsExpanded = localStorage.getItem('futuro-pills-expanded') === '1';
 let _mcRunning  = false;
 let _mcAutoTimer = null; // debounce handle for auto-rerun
@@ -3917,7 +3918,7 @@ function setChartZoom(y) {
   _chartZoom = y;
   localStorage.setItem('futuro-chart-zoom', y);
   renderZoomButtons();
-  _setLwZoom(y); // instant — no full re-render needed
+  _animateLwZoom(y);
   go();
   lsSave();
 }
@@ -4005,7 +4006,7 @@ function _initLwChart() {
   lwChart = LightweightCharts.createChart(el, {
     autoSize: true,
     layout: { background: { color: 'transparent' }, textColor: dark ? '#6e7681' : '#999', fontSize: 10 },
-    grid: { vertLines: { color: gc(0.06) }, horzLines: { color: gc(0.06) } },
+    grid: { vertLines: { color: gc(0.13) }, horzLines: { color: gc(0.10) } },
     crosshair: { mode: LightweightCharts.CrosshairMode.Magnet },
     timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: false, timeVisible: false },
     rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.08, bottom: 0.05 } },
@@ -4149,19 +4150,20 @@ function _buildLwMarkers(data) {
   const sim = data.monthly || [];
 
   if (dense) {
-    // Monthly dots: one per month that has transactions
+    // Monthly dots (1y) or quarterly dots (5y)
     sim.forEach(m => {
+      if (_chartZoom === 5 && ![1, 4, 7, 10].includes(m.mo)) return;
       const txns = getMonthTxns(m.age, m.mo);
       if (!txns.length) return;
       const income = txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
       const expenses = txns.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
       const hasSale = txns.some(t => t.type === 'sale');
       const net = income - expenses;
-      const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
+      const col = hasSale ? 'rgba(0,0,0,0)' : (net >= 0 ? '#22c55e' : '#f87171');
       const time = _mt(m.year, m.mo);
       markers.push({ time, position: 'inBar', color: col,
-        shape: hasSale ? 'square' : 'circle',
-        text: hasSale ? '🏠' : '', size: hasSale ? 2 : (_chartZoom <= 1 ? 0.5 : 0.8) });
+        shape: 'circle',
+        text: '', size: hasSale ? 0.1 : (_chartZoom <= 1 ? 0.5 : 0.8) });
       dotMeta.push({ time, age: m.age, mo: m.mo, year: m.year, txns, net, isSale: hasSale, isYearly: false });
     });
   } else {
@@ -4181,10 +4183,9 @@ function _buildLwMarkers(data) {
       const hasSale = allTxns.some(t => t.type === 'sale');
       const year = age - sa + sy;
       const time = _mt(year, 7);
-      const col = hasSale ? '#fbbf24' : (net >= 0 ? '#22c55e' : '#f87171');
+      const col = hasSale ? 'rgba(0,0,0,0)' : (net >= 0 ? '#22c55e' : '#f87171');
       markers.push({ time, position: 'inBar', color: col,
-        shape: hasSale ? 'square' : 'circle',
-        text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1.2 });
+        shape: 'circle', text: '', size: hasSale ? 0.1 : 1.2 });
       // Group installments so tooltip doesn't list every payment
       const groupedTxns = _groupTxnsForYearly(allTxns);
       dotMeta.push({ time, age, mo: 7, year, txns: groupedTxns, net, isSale: hasSale, isYearly: true });
@@ -4216,6 +4217,28 @@ function _setLwZoom(years) {
   const fromTime = _mt(sy, curMo);
   const toTime   = _mt(sy + years, curMo);
   lwChart.timeScale().setVisibleRange({ from: fromTime, to: toTime });
+}
+
+function _animateLwZoom(years) {
+  if (!lwChart) return;
+  const sy = S.startYear || 2026;
+  const curMo = new Date().getMonth() + 1;
+  const toF = new Date(`${sy}-${String(curMo).padStart(2,'0')}-01`).getTime() / 1000;
+  const toT = new Date(`${sy + years}-${String(curMo).padStart(2,'0')}-01`).getTime() / 1000;
+  const ts = lwChart.timeScale();
+  const cur = ts.getVisibleRange();
+  if (!cur) { _setLwZoom(years); return; }
+  const fromF = new Date(cur.from).getTime() / 1000;
+  const fromT = new Date(cur.to).getTime()   / 1000;
+  const DURATION = 320, start = performance.now();
+  const toDate = s => new Date(s * 1000).toISOString().slice(0, 10);
+  function frame(now) {
+    const t = Math.min(1, (now - start) / DURATION);
+    const e = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    ts.setVisibleRange({ from: toDate(fromF + (toF - fromF) * e), to: toDate(fromT + (toT - fromT) * e) });
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
 function _updateVig() {
@@ -4273,6 +4296,67 @@ function _updateVig() {
     const midTime = _mt(year + 5, 1);
     const xp = lwChart.timeScale().timeToCoordinate(midTime);
     if (xp != null) ctx.fillText(decade + 's', xp, H * 0.6 + 38);
+  }
+
+  // Value labels on Total + Liquid curves
+  const _vigSim = window._lastSimData || [];
+  if (_vigSim.length && lwTotalSeries && lwLiqSeries) {
+    // Determine which months to label
+    const labelSet = new Set();
+    _vigSim.forEach(m => {
+      if (_chartZoom <= 1) {
+        labelSet.add(`${m.year}-${m.mo}`);
+      } else if (_chartZoom <= 5) {
+        if ([1, 4, 7, 10].includes(m.mo)) labelSet.add(`${m.year}-${m.mo}`);
+      } else {
+        const step = _chartZoom >= 30 ? 3 : _chartZoom >= 20 ? 2 : 1;
+        if (m.mo === 7 && ((m.year - (_vigSim[0]?.year || m.year)) % step === 0))
+          labelSet.add(`${m.year}-${m.mo}`);
+      }
+    });
+    ctx.save();
+    ctx.textBaseline = 'bottom';
+    _vigSim.forEach(m => {
+      if (!labelSet.has(`${m.year}-${m.mo}`)) return;
+      const xp = lwChart.timeScale().timeToCoordinate(_mt(m.year, m.mo));
+      if (xp == null || xp < 0 || xp > W) return;
+      const totalVal = m.liq + (m.iliq || 0);
+      const liqVal   = m.liq;
+      const typ = lwTotalSeries.priceToCoordinate(totalVal);
+      const lyp = lwLiqSeries.priceToCoordinate(liqVal);
+      const outlineCol = dark ? 'rgba(10,14,22,0.88)' : 'rgba(255,255,255,0.92)';
+      // Total label
+      if (typ != null && typ > 8 && typ < H - 4) {
+        ctx.font = '700 9.5px "SF Mono",Menlo,monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3.5; ctx.strokeStyle = outlineCol;
+        ctx.strokeText(fmtM(totalVal), xp, typ - 5);
+        ctx.fillStyle = '#1D9E75';
+        ctx.fillText(fmtM(totalVal), xp, typ - 5);
+      }
+      // Liquid label (only if far enough from total to avoid overlap)
+      if (lyp != null && lyp > 8 && lyp < H - 4 && (typ == null || Math.abs(typ - lyp) > 16)) {
+        ctx.font = '600 8.5px "SF Mono",Menlo,monospace';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3; ctx.strokeStyle = outlineCol;
+        ctx.strokeText(fmtM(liqVal), xp, lyp - 4);
+        ctx.fillStyle = '#378ADD';
+        ctx.fillText(fmtM(liqVal), xp, lyp - 4);
+      }
+    });
+    ctx.restore();
+  }
+
+  // House emoji for RE sale dots
+  if (_txnDots.length) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '18px serif';
+    _txnDots.forEach(d => {
+      if (d.isSale) ctx.fillText('🏠', d.xp, d.yp);
+    });
+    ctx.restore();
   }
 }
 
@@ -5201,6 +5285,7 @@ function toggleSettings() {
 // ── Transaction tooltip ───────────────────────────────────────
 const _MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function showTxnTooltip(dot, cx, cy) {
+  clearTimeout(_tipHideTimer);
   const tip = document.getElementById('txn-tip');
   const mLbl = document.getElementById('txn-tip-month');
   const rows = document.getElementById('txn-tip-rows');
@@ -5239,8 +5324,11 @@ function showTxnTooltip(dot, cx, cy) {
   tip.style.pointerEvents = 'auto';
 }
 function hideTxnTooltip() {
-  const tip = document.getElementById('txn-tip');
-  if (tip && !tip.matches(':hover')) { tip.style.display = 'none'; tip.style.pointerEvents = 'none'; }
+  clearTimeout(_tipHideTimer);
+  _tipHideTimer = setTimeout(() => {
+    const tip = document.getElementById('txn-tip');
+    if (tip && !tip.matches(':hover')) { tip.style.display = 'none'; tip.style.pointerEvents = 'none'; }
+  }, 180);
 }
 
 // ── Transaction edit modal ────────────────────────────────────
