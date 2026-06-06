@@ -4101,14 +4101,20 @@ function _updateLwChart(data) {
 function _groupTxnsForYearly(txns) {
   const byKey = {}, result = [];
   txns.forEach(t => {
-    // Key by name+type so "Delta rent" and "Delta sale" stay separate
     const key = t.name + '||' + t.type;
     if (!byKey[key]) {
-      byKey[key] = { ...t, _count: 1, amount: t.amount, installNum: null, installTotal: null };
+      byKey[key] = { ...t, _count: 1, amount: t.amount,
+        installNumFirst: t.installNum ?? null, installNumLast: t.installNum ?? null };
       result.push(byKey[key]);
     } else {
       byKey[key]._count++;
       byKey[key].amount += t.amount;
+      if (t.installNum != null) {
+        if (byKey[key].installNumFirst == null || t.installNum < byKey[key].installNumFirst)
+          byKey[key].installNumFirst = t.installNum;
+        if (byKey[key].installNumLast == null || t.installNum > byKey[key].installNumLast)
+          byKey[key].installNumLast = t.installNum;
+      }
     }
   });
   return result;
@@ -5293,7 +5299,11 @@ function showTxnTooltip(dot, cx, cy) {
     const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
     // Badge: grouped recurring shows "×N/yr", single installment shows "X/Y", else type name
     let badge;
-    if (t._count > 1) {
+    if (t._count > 1 && t.type === 'installment' && t.installNumFirst != null) {
+      badge = t.installNumFirst === t.installNumLast
+        ? `${t.installNumFirst}/${t.installTotal}`
+        : `${t.installNumFirst}–${t.installNumLast}/${t.installTotal}`;
+    } else if (t._count > 1) {
       badge = `×${t._count}/yr`;
     } else if (t.type === 'installment' && t.installNum != null) {
       badge = `${t.installNum}/${t.installTotal}`;
