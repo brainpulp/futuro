@@ -5392,6 +5392,14 @@ function _txnRentFromUpd(id, ym) {
   item.rentFromMonth = m;
   markDirty(); go();
 }
+function _tlRentFromUpd(id, ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const item = S.properties.find(p => p.id === id);
+  if (!item) return;
+  item.rentFromAge   = yearToAge(y);
+  item.rentFromMonth = m;
+  markDirty(); go(); renderTimeline();
+}
 function saveTxnEdit() { markDirty(); go(); closeTxnEdit(); }
 function deleteTxnEdit() {
   if (!_txnEditItem) return;
@@ -6729,6 +6737,13 @@ function buildPopoverForm(ev, type) {
   }
 
   if (type === 'property') {
+    const _rfa = (ev.rentFromAge > 2000 ? yearToAge(ev.rentFromAge) : ev.rentFromAge) ?? (S.startAge||57);
+    const _rfm = ev.rentFromMonth || 1;
+    const _rfYM = `${ageToYear(_rfa)}-${String(_rfm).padStart(2,'0')}`;
+    const _sy = S.startYear||2026, _sa2 = S.startAge||57, _ea2 = S.endAge||87;
+    const _rentFromInp = `<input type="month" value="${_rfYM}" min="${_sy}-01" max="${_sy+_ea2-_sa2}-12"
+      style="color-scheme:dark;width:100%;"
+      oninput="_tlRentFromUpd(${id},this.value)">`;
     return `${hdr}<div class="tl-pop-grid">
       <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
       <div><label>Value</label>${numIn('value', ev.value, '$')}</div>
@@ -6736,7 +6751,7 @@ function buildPopoverForm(ev, type) {
       <div><label>Acquire ${ageLbl}</label>${ageIn('acquireAge', ev.acquireAge)}</div>
       <div><label>Sale ${ageLbl}</label>${ageIn('saleAge', ev.saleAge)}</div>
       <div><label>Rent /mo</label>${numIn('monthlyRent', ev.monthlyRent, '$')}</div>
-      <div><label>Rent from ${ageLbl}</label>${ageIn('rentFromAge', ev.rentFromAge)}</div>
+      <div class="tl-pop-full"><label>Rent from</label>${_rentFromInp}</div>
       <div class="tl-pop-full">${chk('hold', ev.hold, 'Hold forever (no sale)')}</div>
       <div class="tl-pop-full">${enChk}</div>
     </div>`;
