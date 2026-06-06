@@ -2721,7 +2721,7 @@ function runSim(monthlyOverride) {
             const _ppy = {monthly:12,quarterly:4,semester:2,annual:1}[e.installFreq||'monthly'];
             const paid = Math.floor(moFromStart / (12/_ppy));
             _itemizedExp += _effInstall[e.id].perPayment;
-            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: paid+1, installTotal: e.installN||1 });
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _effInstall[e.id].paidSoFar + paid + 1, installTotal: e.installN||1 });
           }
         }
       });
@@ -2837,7 +2837,7 @@ function runSim(monthlyOverride) {
             const _ppy = {monthly:12,quarterly:4,semester:2,annual:1}[e.installFreq||'monthly'];
             const paid = Math.floor(moFromStart / (12/_ppy));
             exp += _effInstall[e.id].perPayment;
-            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: paid+1, installTotal: e.installN||1 });
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _effInstall[e.id].paidSoFar + paid + 1, installTotal: e.installN||1 });
           }
         }
       });
