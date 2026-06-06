@@ -5364,7 +5364,7 @@ function openTxnEdit(t) {
   } else if (t.arr === 'expenses' && item.type === 'oneoff') {
     html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field(ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'expenses' && item.type === 'installments') {
-    html += `<div class="em-row">${field('Total amount', inp('installTotal', item.installTotal||0,'number'))}${field('# payments', inp('installN', item.installN||1,'number'))}</div>`;
+    html += `<div class="em-row">${field('Total amount', inp('installTotal', item.installTotal||item.budget||item.amount||0,'number'))}${field('# payments', inp('installN', item.installN||1,'number'))}</div>`;
     html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start '+ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'properties') {
     html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
