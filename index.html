@@ -3290,14 +3290,16 @@ function getMonthTxns(age, mo) {
     } else if (exp.type === 'installments') {
       const ppy = { monthly:12, quarterly:4, semester:2, annual:1 }[exp.installFreq || 'monthly'];
       const start = exp.atAge || exp.from || sa;
-      const totalMo = (age - start) * 12 + (mo - 1);
+      // Match runSim: subtract atMonth offset so slot 0 = first payment month
+      const moFromStart = (age - start) * 12 + (mo - 1) - ((exp.atMonth || 1) - 1);
       const moPerInst = 12 / ppy;
-      if (totalMo >= 0 && age >= start && totalMo % moPerInst === 0) {
-        const paid = Math.floor(totalMo / moPerInst);
+      if (moFromStart >= 0 && age >= start && moFromStart % moPerInst === 0) {
+        const paid = Math.floor(moFromStart / moPerInst);
         const remain = (exp.installN || 1) - paid;
-        if (remain > 0)
+        const perPayment = (exp.installTotal || exp.amount || 0) / (exp.installN || 1);
+        if (remain > 0 && perPayment > 0)
           txns.push({ id: exp.id, arr: 'expenses', name: exp.name,
-            amount: -((exp.installTotal || exp.amount || 0) / (exp.installN || 1)),
+            amount: -perPayment,
             type: 'installment', installNum: paid + 1, installTotal: exp.installN || 1 });
       }
     }
@@ -6335,6 +6337,11 @@ function openSec(key) {
 }
 function expTypeChanged(id, value) {
   upE(id, 'type', value);
+  // When switching to installments, seed installTotal from amount if not already set
+  if (value === 'installments') {
+    const e = S.expenses.find(x => x.id === id);
+    if (e && !e.installTotal && e.amount) { e.installTotal = e.amount; e.installN = e.installN || 12; }
+  }
   // Always open the outgoing parent + the correct sub-section so item never vanishes
   openSec('outgoing');
   if (value === 'annual') openSec('exp-yearly');
