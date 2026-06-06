@@ -1007,8 +1007,8 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       </span>
       <span style="margin-left:auto;display:flex;gap:14px;align-items:center;color:#999;font-weight:400;">
         <span style="display:flex;align-items:center;gap:4px;">
-          <span style="width:12px;height:0;border-top:2px dashed rgba(55,138,221,0.6);display:inline-block;"></span>
-          Market bands
+          <span style="width:12px;height:0;border-top:2px solid rgba(55,138,221,0.6);display:inline-block;"></span>
+          Yield curve
         </span>
         <span style="display:flex;align-items:center;gap:4px;">
           <span style="width:12px;height:0;border-top:2px dashed rgba(140,80,200,0.7);display:inline-block;"></span>
@@ -1038,28 +1038,20 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <div class="main-section-title" onclick="toggleSec('chart-market')">Market Projection &amp; Monthly Burn<span id="sec-arr-chart-market" class="sec-chevron">▾</span></div>
     <div id="sec-body-chart-market">
 
-    <!-- Market bands selector -->
-    <div class="market-bands-bar">
-      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Return bands</span>
-      <div class="market-band-item" style="color:#C03030;">
-        <span>Bear</span>
-        <input type="number" id="band-pessimistic" min="-10" max="20" step="0.5"
-          oninput="updateMarketBand('pessimistic',this.value)" title="Pessimistic annual return %">
-        <span>%</span>
-      </div>
+    <!-- Market curve bar -->
+    <div class="market-bands-bar" style="flex-wrap:wrap;gap:8px;">
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Base return</span>
       <div class="market-band-item" style="color:#1A8C5F;">
-        <span>Base</span>
-        <input type="number" id="band-base" min="-10" max="30" step="0.5"
-          oninput="updateMarketBand('base',this.value)" title="Base annual return %">
-        <span>%</span>
+        <input type="number" id="yield-rate-input" min="-10" max="40" step="0.5"
+          oninput="S.yieldRate=parseFloat(this.value)||7;renderCurve();go();" title="Default annual return % (drag curve dots to override per age)">
+        <span>% / yr</span>
       </div>
-      <div class="market-band-item" style="color:#378ADD;">
-        <span>Bull</span>
-        <input type="number" id="band-optimistic" min="-10" max="40" step="0.5"
-          oninput="updateMarketBand('optimistic',this.value)" title="Optimistic annual return %">
-        <span>%</span>
+      <button onclick="toggleCurve()" style="font-size:11px;font-weight:700;padding:3px 10px;border:1px solid #e6ebf1;border-radius:4px;background:#fff;cursor:pointer;color:#378ADD;" title="Edit per-age return curve">Edit curve</button>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap;" id="saved-curves-bar">
+        <span style="font-size:10px;color:#999;font-weight:600;">Saved curves:</span>
+        <span id="saved-curves-list" style="display:flex;gap:5px;flex-wrap:wrap;"></span>
+        <button onclick="saveCurve()" style="font-size:10px;font-weight:700;padding:2px 8px;border:1px solid #e6ebf1;border-radius:4px;background:#f0f9f0;cursor:pointer;color:#1A8C5F;" title="Save current curve">+ Save</button>
       </div>
-      <span id="band-hint" style="font-size:10px;color:#999;flex:1;text-align:right;">Fan ribbon shown on chart</span>
     </div>
 
     <!-- Expense sub-chart (merged into market section) -->
@@ -1412,7 +1404,6 @@ const EMPTY = {
   ],
   expensePhases: [], marketPhases: [],
   expenseCurve: {},
-  marketBands: { pessimistic: 3, base: 7, optimistic: 11 },
   monthlyBreakdown: [
     { id: 9001, name: 'Food',                   amount: 800,  enabled: true },
     { id: 9002, name: 'Dining out',              amount: 400,  enabled: true },
@@ -1627,11 +1618,6 @@ async function sbLoad() {
   return null;
 }
 
-// ── Market projection bands (Pessimistic / Base / Optimistic) ─
-// Three flat annual return rates used to run parallel simulations and draw a fan ribbon.
-// Stored in S.marketBands = { pessimistic, base, optimistic } (% per year, nominal).
-const MARKET_BAND_DEFAULTS = { pessimistic: 3, base: 7, optimistic: 11 };
-
 let SCENARIOS = [];
 let activeScenarioId = null;
 let S = deepCopy(EMPTY);
@@ -1643,7 +1629,6 @@ let _danceT = 0, _danceRaf = null;
 // ── LightweightCharts globals ────────────────────────────────
 let lwChart = null, lwLiqSeries = null, lwReSeries = null;
 let lwTotalSeries = null, lwRealSeries = null;
-let lwFanHighSeries = null, lwFanLowSeries = null;
 let lwVigCanvas = null;
 
 function _mt(year, mo) { return `${year}-${String(mo).padStart(2,'0')}-01`; }
@@ -1966,19 +1951,52 @@ function applyMonthlyBaseSlider(val) {
 }
 
 function syncMarketBandInputs() {
-  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
-  ['pessimistic', 'base', 'optimistic'].forEach(k => {
-    const el = document.getElementById('band-' + k);
-    if (el) el.value = bands[k] ?? MARKET_BAND_DEFAULTS[k];
-  });
+  const el = document.getElementById('yield-rate-input');
+  if (el && document.activeElement !== el) el.value = S.yieldRate ?? 7;
 }
 
-function updateMarketBand(key, rawVal) {
-  const v = parseFloat(rawVal);
-  if (isNaN(v)) return;
-  if (!S.marketBands) S.marketBands = { ...MARKET_BAND_DEFAULTS };
-  S.marketBands[key] = v;
+// ── Saved market curves ──────────────────────────────────────
+const _CURVE_STORE_KEY = 'futuro-saved-curves';
+
+function _loadSavedCurves() {
+  try { return JSON.parse(localStorage.getItem(_CURVE_STORE_KEY) || '[]'); } catch { return []; }
+}
+
+function saveCurve() {
+  const name = prompt('Name for this curve:', 'Curve ' + (new Date().toLocaleDateString('es-AR')));
+  if (!name) return;
+  const curves = _loadSavedCurves();
+  curves.push({ name, yieldRate: S.yieldRate, yieldCurve: { ...(S.yieldCurve || {}) } });
+  localStorage.setItem(_CURVE_STORE_KEY, JSON.stringify(curves));
+  renderSavedCurves();
+}
+
+function loadCurve(idx) {
+  const curves = _loadSavedCurves();
+  const c = curves[idx];
+  if (!c) return;
+  S.yieldRate = c.yieldRate;
+  S.yieldCurve = { ...c.yieldCurve };
+  syncMarketBandInputs();
+  renderCurve();
   go();
+}
+
+function deleteCurve(idx) {
+  const curves = _loadSavedCurves();
+  curves.splice(idx, 1);
+  localStorage.setItem(_CURVE_STORE_KEY, JSON.stringify(curves));
+  renderSavedCurves();
+}
+
+function renderSavedCurves() {
+  const el = document.getElementById('saved-curves-list');
+  if (!el) return;
+  const curves = _loadSavedCurves();
+  if (!curves.length) { el.innerHTML = '<span style="font-size:10px;color:#ccc;">none</span>'; return; }
+  el.innerHTML = curves.map((c, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0f4ff;border:1px solid #c7d2fe;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:#3730a3;cursor:pointer;" onclick="loadCurve(${i})" title="Load: ${c.name}">${c.name}<span onclick="event.stopPropagation();deleteCurve(${i})" style="margin-left:3px;color:#999;cursor:pointer;font-size:11px;line-height:1;">×</span></span>`
+  ).join('');
 }
 
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
@@ -1993,7 +2011,6 @@ function ensureFields() {
   if (!S.yieldCurve)    S.yieldCurve    = {};
   if (!S.expenseCurve)  S.expenseCurve  = {};
   if (S.expMultiplier == null) S.expMultiplier = 1;
-  if (!S.marketBands) S.marketBands = { ...MARKET_BAND_DEFAULTS };
   if (!S.monthlyBreakdown || !Array.isArray(S.monthlyBreakdown) || S.monthlyBreakdown.length === 0) S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
   if (!S.startYear) S.startYear = new Date().getFullYear();
@@ -2123,6 +2140,7 @@ function _applyScenarios(saved) {
   syncInputs();
   renderScenarioBar();
   syncMarketBandInputs();
+  renderSavedCurves();
   renderAll();
   go();
   badge('saved', 'ok');
@@ -2254,8 +2272,7 @@ function compareScenarioSections(prev, next) {
   if (prev.startAge !== next.startAge || prev.endAge !== next.endAge ||
       prev.liquidBase !== next.liquidBase || prev.inflationRate !== next.inflationRate ||
       prev.yieldRate !== next.yieldRate || prev.monthlyExpenses !== next.monthlyExpenses ||
-      JSON.stringify(prev.yieldCurve) !== JSON.stringify(next.yieldCurve) ||
-      JSON.stringify(prev.marketBands) !== JSON.stringify(next.marketBands))
+      JSON.stringify(prev.yieldCurve) !== JSON.stringify(next.yieldCurve))
     changed.add('settings');
   return changed;
 }
@@ -2295,7 +2312,7 @@ function switchScenario(id) {
   activeScenarioId = id;
   S = deepCopy(SCENARIOS.find(s => s.id === id)?.data || EMPTY);
   ensureFields();
-  syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); go();
+  syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); renderSavedCurves(); go();
   const changed = compareScenarioSections(prevS, S);
   if (changed.size > 0) highlightChangedSections(changed);
 }
@@ -2671,12 +2688,10 @@ function calcMaxMonthly(target) {
 //  MONTE CARLO
 // ══════════════════════════════════════════════════════════════
 
-// Distribution parameters for MC — use base band mean, spread = half the pessimistic→optimistic range.
+// Distribution parameters for MC — use S.yieldRate as mean, fixed historical vol.
 function _mcParams() {
-  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
-  const mean = bands.base ?? 7;
-  const spread = ((bands.optimistic ?? 11) - (bands.pessimistic ?? 3)) / 2;
-  const std = Math.max(4, spread * 1.2); // at least 4% std
+  const mean = S.yieldRate ?? 7;
+  const std = 15; // ~historical S&P annual std dev
   return { mean, std };
 }
 
@@ -3746,7 +3761,7 @@ function _buildChartView(data) {
 function _initLwChart() {
   const el = document.getElementById('nwChart');
   if (!el || !window.LightweightCharts) return;
-  if (lwChart) { lwChart.remove(); lwChart = null; lwFanHighSeries = null; lwFanLowSeries = null; }
+  if (lwChart) { lwChart.remove(); lwChart = null; }
 
   const dark = document.body.dataset.theme === 'graphite';
   const gc = v => dark ? `rgba(255,255,255,${v})` : `rgba(128,128,128,${v})`;
@@ -3760,19 +3775,6 @@ function _initLwChart() {
     rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.08, bottom: 0.05 } },
     handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
     handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: false },
-  });
-
-  // Fan ribbon (pessimistic/optimistic) — drawn first, behind everything
-  lwFanHighSeries = lwChart.addAreaSeries({
-    lineColor: 'rgba(55,138,221,0.0)', topColor: 'rgba(55,138,221,0.12)', bottomColor: 'rgba(55,138,221,0.04)',
-    lineWidth: 0, priceLineVisible: false, lastValueVisible: false,
-    priceFormat: { type: 'custom', formatter: fmtM },
-  });
-  lwFanLowSeries = lwChart.addAreaSeries({
-    lineColor: 'rgba(192,48,48,0.22)', topColor: 'rgba(192,48,48,0.0)', bottomColor: 'rgba(192,48,48,0.0)',
-    lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
-    priceLineVisible: false, lastValueVisible: false,
-    priceFormat: { type: 'custom', formatter: fmtM },
   });
 
   // RE (orange) — drawn first so liquid renders on top
@@ -3845,21 +3847,13 @@ function _initLwChart() {
   _startDanceLoop();
 }
 
-function _updateLwChart(data, dataPess, dataOptim) {
+function _updateLwChart(data) {
   if (!lwChart || !lwLiqSeries) return;
   const sim = data.monthly || [];
   if (!sim.length) return;
   window._lastSimData = sim;
 
   const inf = (S.inflationRate || 2.5) / 100;
-
-  // Fan ribbon — optimistic (high) and pessimistic (low) liquid curves
-  if (lwFanHighSeries && dataOptim?.monthly?.length) {
-    lwFanHighSeries.setData(dataOptim.monthly.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
-  }
-  if (lwFanLowSeries && dataPess?.monthly?.length) {
-    lwFanLowSeries.setData(dataPess.monthly.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
-  }
 
   lwReSeries.setData(  sim.map(m => ({ time: _mt(m.year, m.mo), value: m.iliq || 0 })));
   lwLiqSeries.setData( sim.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
@@ -4257,16 +4251,11 @@ function go() {
   document.getElementById('metrics').style.gridTemplateColumns = '';
   document.getElementById('metrics').innerHTML = segs.join('');
 
-  // ── Fan ribbon: run pessimistic + optimistic sims for LW chart band ──
-  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
-  const dataPess  = runSim(undefined, bands.pessimistic ?? 3);
-  const dataOptim = runSim(undefined, bands.optimistic  ?? 11);
-
   renderZoomButtons();
 
   // ── Main NW chart — LightweightCharts ──────────────────────
   if (!lwChart) { _initLwChart(); }
-  _updateLwChart(data, dataPess, dataOptim);
+  _updateLwChart(data);
 
   // ── Sub-chart data: zoom-filtered to match main chart period ──
   const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5719,7 +5708,7 @@ function applyAiScenario(jsonStr) {
     SCENARIOS.push({ id, name, data: deepCopy(merged), source: 'ai' });
     activeScenarioId = id;
     S = deepCopy(merged);
-    ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); go();
+    ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); renderSavedCurves(); go();
     saveActive();
     // Re-render chat to show updated button state
     renderChat();
