@@ -4326,23 +4326,25 @@ function _updateVig() {
       const liqVal   = m.liq;
       const typ = lwTotalSeries.priceToCoordinate(totalVal);
       const lyp = lwLiqSeries.priceToCoordinate(liqVal);
-      const outlineCol = 'rgba(0,0,0,0.5)';
+      const outlineCol = dark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)';
+      const totalColor = dark ? '#4ade80' : '#15803d';
+      const liqColor   = dark ? '#7dd3fc' : '#1d4ed8';
       // Total label
       if (typ != null && typ > 8 && typ < H - 4) {
         ctx.font = '700 13px "SF Mono",Menlo,monospace';
         ctx.textAlign = 'center';
-        ctx.lineWidth = 2.5; ctx.strokeStyle = outlineCol;
+        ctx.lineWidth = 3; ctx.strokeStyle = outlineCol;
         ctx.strokeText(fmtM(totalVal), xp, typ - 5);
-        ctx.fillStyle = '#22c55e';
+        ctx.fillStyle = totalColor;
         ctx.fillText(fmtM(totalVal), xp, typ - 5);
       }
       // Liquid label (only if far enough from total to avoid overlap)
       if (lyp != null && lyp > 8 && lyp < H - 4 && (typ == null || Math.abs(typ - lyp) > 20)) {
         ctx.font = '600 12px "SF Mono",Menlo,monospace';
         ctx.textAlign = 'center';
-        ctx.lineWidth = 2.5; ctx.strokeStyle = outlineCol;
+        ctx.lineWidth = 3; ctx.strokeStyle = outlineCol;
         ctx.strokeText(fmtM(liqVal), xp, lyp - 5);
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = liqColor;
         ctx.fillText(fmtM(liqVal), xp, lyp - 5);
       }
     });
