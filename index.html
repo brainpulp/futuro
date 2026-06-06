@@ -1401,7 +1401,6 @@ const EMPTY = {
   monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
   expMultiplier: 1,
   yieldCurve: {},
-  crises: [],
   incomes: [
     { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
     { id: 4, name: 'Dorado',    monthly: 5000, from: 58, to: 62, enabled: true }
@@ -2239,7 +2238,7 @@ function ensureFields() {
   if (!S.monthlyBreakdown || !Array.isArray(S.monthlyBreakdown) || S.monthlyBreakdown.length === 0) S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
   if (!S.startYear) S.startYear = new Date().getFullYear();
-  ['crises','expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
+  ['expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
   S.properties = (S.properties || []).map(p => {
     const sa0 = S.startAge || 57;
     const acquireAge = p.acquireAge || ((p.rentFromAge && p.rentFromAge > sa0) ? p.rentFromAge : sa0);
@@ -2247,7 +2246,7 @@ function ensureFields() {
   });
   S.expenses = S.expenses.map(x => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   S.incomes  = S.incomes.map(x  => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
-  ['crises','expensePhases','marketPhases'].forEach(k => {
+  ['expensePhases','marketPhases'].forEach(k => {
     S[k] = S[k].map(x => ({ enabled: true, ...x }));
   });
   if (!S.startAge) S.startAge = 57;
@@ -2306,7 +2305,7 @@ function _applyScenarios(saved) {
   // Reseed nextId above all existing item IDs to prevent collisions
   const _allIds = SCENARIOS.flatMap(sc => [
     ...(sc.data.expenses || []), ...(sc.data.incomes || []),
-    ...(sc.data.properties || []), ...(sc.data.crises || []),
+    ...(sc.data.properties || []),
     ...(sc.data.expensePhases || []), ...(sc.data.monthlyBreakdown || []),
   ]).map(x => x.id || 0).filter(Number.isFinite);
   if (_allIds.length) nextId = Math.max(nextId, ..._allIds);
@@ -2742,16 +2741,7 @@ function runSim(monthlyOverride) {
   for (let age = sa + 1; age <= ea; age++) {
     const yld = getYield(age);
     const mYld = Math.pow(1 + yld, 1/12) - 1;
-    const crash = (S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0)
-      || (S.crises || []).some(c => c.enabled !== false && c.age === age && (c.drop || 0) > 0);
-
-    // ── Apply crisis drops (portfolio corrections) at start of year ──
-    const _crisisItems = []; // collected here, pushed into month-1 _oo below
-    (S.crises || []).filter(c => c.enabled !== false && c.age === age).forEach(c => {
-      const dropAmt = Math.round(liq * (c.drop || 0) / 100);
-      liq *= (1 - (c.drop || 0) / 100);
-      _crisisItems.push({ name: `${c.name||'Crisis'} (−${c.drop}%)`, amount: dropAmt, crisis: true });
-    });
+    const crash = (S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0);
 
     let lastInflM = 0;
     let yearMinLiq = liq;
@@ -2806,8 +2796,6 @@ function runSim(monthlyOverride) {
       const _oo = [];
       // Add property sales that occurred this month (tracked above, before _oo was declared)
       _soldThisMo.forEach(s => _oo.push({ name: s.name + ' sold', amount: -Math.round(s.cv), sale: true }));
-      // Add crisis drops to month 1 so they're visible in the reality check table
-      if (mo === 1) _crisisItems.forEach(c => _oo.push(c));
 
       // Itemised expenses
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
@@ -3814,7 +3802,7 @@ function _simAudit(data) {
     }
 
     // Oneoffs / installments: use absolute values — sim stores as positive cost, getMonthTxns as negative.
-    const simOoAbs = Math.round(Math.abs((r.oneoffs || []).filter(o => !o.crisis && !o.sale).reduce((s, o) => s + o.amount, 0)));
+    const simOoAbs = Math.round(Math.abs((r.oneoffs || []).filter(o => !o.sale).reduce((s, o) => s + o.amount, 0)));
     const txnOoAbs = Math.round(Math.abs(txns.filter(t => ['oneoff', 'installment'].includes(t.type)).reduce((s, t) => s + t.amount, 0)));
     const ooDiff = Math.abs(simOoAbs - txnOoAbs);
     if (ooDiff > 200) {
@@ -3925,11 +3913,10 @@ function renderRC(data) {
       rows.forEach((r, i) => {
         const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
-        // Oneoffs from sim (crisis drops, property sales, one-time expenses)
+        // Oneoffs from sim (property sales, one-time expenses)
         const ooSpans = (r.oneoffs || []).map(o => {
-          const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#c07030';
-          const sign = o.sale ? '+' : o.crisis ? '−' : '−';
-          return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+          const col = o.sale ? '#16a34a' : '#c07030';
+          return `<span style="color:${col};">${o.name} ${o.sale ? '+' : '−'}${_fmt$(Math.abs(o.amount))}</span>`;
         });
         // Installments and annual expenses from getMonthTxns (invisible in sim monthly data)
         try {
@@ -4029,9 +4016,8 @@ function renderMinDrill(data) {
       const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
       const ooHtml = (r.oneoffs||[]).length
         ? r.oneoffs.map(o => {
-            const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#e9972a';
-            const sign = o.sale ? '+' : o.crisis ? '−' : '';
-            return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name}&nbsp;${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+            const col = o.sale ? '#16a34a' : '#e9972a';
+            return `<span style="color:${col};">${o.name}&nbsp;${o.sale ? '+' : ''}${_fmt$(Math.abs(o.amount))}</span>`;
           }).join(' ')
         : '<span style="color:rgba(255,255,255,0.18);">—</span>';
       const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
@@ -5320,7 +5306,6 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
 
 function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
-function rmCrisis(id) { S.crises=S.crises.filter(c=>c.id!==id); markDirty(); go(); renderTimeline(); }
 function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
 function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); }
@@ -6528,12 +6513,6 @@ function _renderTimelineInner() {
   if (!(S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).length)
     allRows.push({ isHeader: false, empty: true, label: '—' });
 
-  // Events section
-  addSec('Events', '#f59e0b');
-  (S.crises || []).forEach(cr => {
-    addItem(cr, 'crisis', cr.age || sa, null, '#f59e0b');
-  });
-  if (!(S.crises || []).length) allRows.push({ isHeader: false, empty: true, label: '—' });
 
   // Compute total height
   let totalH = PAD_TOP + PAD_BOT;
@@ -6639,7 +6618,6 @@ function _renderTimelineInner() {
     if (type === 'income')   tip = `${item.name}: $${(item.monthly||item.amount||0).toLocaleString()}${a1?`/mo · age ${a0}–${a1}`:''}`;
     if (type === 'expense')  tip = `${item.name}: $${(item.amount||0).toLocaleString()}${isBar?`/mo · age ${a0}–${a1}`:' (one-off)'}`;
     if (type === 'property') tip = `${item.name}: $${(item.value||0).toLocaleString()} · ${item.hold?'hold':('sell '+a1)}${item.monthlyRent>0?` · $${item.monthlyRent.toLocaleString()}/mo rent`:''}`;
-    if (type === 'crisis')   tip = `${item.name||'Crisis'}: −${item.drop||0}% at age ${a0}`;
 
     if (isBar && rentSplit) {
       // Two segments: pre-rent (light) + renting (saturated)
@@ -6689,7 +6667,7 @@ function closeTimelinePopover() {
 const _TL_AGE_FIELDS = new Set(['atAge','from','to','acquireAge','saleAge','rentFromAge','age']);
 
 function _tlUpd(id, type, field, val) {
-  const arr = { income: S.incomes, expense: S.expenses, property: S.properties, crisis: S.crises }[type];
+  const arr = { income: S.incomes, expense: S.expenses, property: S.properties }[type];
   if (!arr) return;
   const item = arr.find(x => x.id === id);
   if (!item) return;
@@ -6705,7 +6683,7 @@ function _tlUpd(id, type, field, val) {
 }
 
 function _tlToggle(id, type) {
-  const arr = { income: S.incomes, expense: S.expenses, property: S.properties, crisis: S.crises }[type];
+  const arr = { income: S.incomes, expense: S.expenses, property: S.properties }[type];
   if (!arr) return;
   const item = arr.find(x => x.id === id);
   if (!item) return;
@@ -6742,8 +6720,8 @@ function buildPopoverForm(ev, type) {
   const enChk = `<label style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.55);font-size:11px;">
     <input type="checkbox" ${enabled?'checked':''} onchange="_tlToggle(${id},'${type}')"> Enabled</label>`;
 
-  const typeColors = { income:'#3a8f5e', expense:'#8f3a3a', property:'#3a5a8f', crisis:'#8f7a2a' };
-  const typeLabel  = { income:'INCOME', expense:'EXPENSE', property:'PROPERTY', crisis:'CRISIS' };
+  const typeColors = { income:'#3a8f5e', expense:'#8f3a3a', property:'#3a5a8f' };
+  const typeLabel  = { income:'INCOME', expense:'EXPENSE', property:'PROPERTY' };
   const hdr = `<div class="tl-pop-title" style="color:${typeColors[type]}">${typeLabel[type]}</div>`;
 
   if (type === 'income') {
@@ -6806,15 +6784,6 @@ function buildPopoverForm(ev, type) {
     </div>`;
   }
 
-  if (type === 'crisis') {
-    return `${hdr}<div class="tl-pop-grid">
-      <div class="tl-pop-full"><label>Name</label>${txtIn('name', ev.name)}</div>
-      <div><label>${ageLbl}</label>${ageIn('age', ev.age)}</div>
-      <div><label>Drop %</label>${numIn('drop', ev.drop, '%')}</div>
-      <div class="tl-pop-full">${enChk}</div>
-      <div class="tl-pop-full"><button onclick="rmCrisis(${id})" style="margin-top:4px;padding:2px 10px;font-size:10px;color:#ef4444;background:none;border:1px solid #ef4444;border-radius:3px;cursor:pointer;">Delete</button></div>
-    </div>`;
-  }
   return '';
 }
 
