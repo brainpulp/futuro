@@ -4328,17 +4328,28 @@ function _updateVig() {
     ctx.restore();
   }
 
-  // House emoji for RE sale dots
-  if (_txnDots.length) {
+  // House icon for RE sale dots (canvas-drawn — no emoji font dependency)
+  _txnDots.forEach(d => {
+    if (!d.isSale) return;
+    const x = d.xp, y = d.yp;
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '18px serif';
-    _txnDots.forEach(d => {
-      if (d.isSale) ctx.fillText('🏠', d.xp, d.yp);
-    });
+    // Shadow for legibility
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 4;
+    // Roof (triangle)
+    ctx.beginPath();
+    ctx.moveTo(x, y - 11);
+    ctx.lineTo(x + 10, y - 2);
+    ctx.lineTo(x - 10, y - 2);
+    ctx.closePath();
+    ctx.fillStyle = '#ef4444'; ctx.fill();
+    // Body
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(x - 7, y - 2, 14, 10);
+    // Door
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(x - 2.5, y + 2, 5, 6);
     ctx.restore();
-  }
+  });
 }
 
 function go() {
