@@ -2690,48 +2690,61 @@ function runSim(monthlyOverride) {
       liq *= (1 + _saMYld);
       const _f = Math.pow(1 + inf, (mo - _curMo) / 12);
       const _baseExp = getMonthly(sa) * _f * (S.expMultiplier || 1) + (S.winterTrip + S.summerTrip) / 12;
-      const _oo = [];
+      const _txns = [];
+      let _itemizedExp = 0;
+      // Expenses — single pass builds both _itemizedExp and _txns
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
         if (e.type === 'oneoff' && e.atAge === sa && (e.atMonth || 1) === mo) {
-          _oo.push({ name: e.name || '?', amount: e.amount });
-        }
-      });
-      const _ooAmt = _oo.reduce((s, o) => s + o.amount, 0);
-      let _itemizedExp = 0;
-      S.expenses.filter(e => e.enabled !== false).forEach(e => {
-        if (e.type === 'monthly') {
+          _itemizedExp += e.amount;
+          _txns.push({ id: e.id, arr: 'expenses', name: e.name || '?', amount: -(e.amount), type: 'oneoff' });
+        } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
-          const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
-          const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += e.amount;
+          if (sa > from || (sa === from && mo >= (e.fromMonth || 1)))
+            if (sa < to   || (sa === to   && mo <= (e.toMonth || 12))) {
+              _itemizedExp += e.amount;
+              _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -e.amount, type: 'expense' });
+            }
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
-          const startOk = sa > from || (sa === from && mo >= (e.fromMonth || 1));
-          const endOk   = sa < to   || (sa === to   && mo <= (e.toMonth || 12));
-          if (startOk && endOk) _itemizedExp += e.amount / 12;
+          if (sa > from || (sa === from && mo >= (e.fromMonth || 1)))
+            if (sa < to   || (sa === to   && mo <= (e.toMonth || 12))) {
+              _itemizedExp += e.amount / 12;
+              _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(e.amount / 12), type: 'annual' });
+            }
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
           const moFromStart = (sa - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
-          if (_installFires(e, moFromStart)) _itemizedExp += _effInstall[e.id].perPayment;
+          if (_installFires(e, moFromStart)) {
+            const _ppy = {monthly:12,quarterly:4,semester:2,annual:1}[e.installFreq||'monthly'];
+            const paid = Math.floor(moFromStart / (12/_ppy));
+            _itemizedExp += _effInstall[e.id].perPayment;
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: paid+1, installTotal: e.installN||1 });
+          }
         }
       });
       let inc = 0;
+      // Incomes — record into _txns with exact inflated amounts
       props.filter(p => !p.sold && p.monthlyRent > 0 && sa >= (p.rentFromAge || sa))
-        .forEach(p => { if (mo >= (p.rentFromMonth || 1)) inc += p.monthlyRent; });
+        .forEach(p => { if (mo >= (p.rentFromMonth || 1)) { inc += p.monthlyRent; _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' }); } });
       S.incomes.filter(i => i.enabled !== false).forEach(i => {
         const from = i.from || sa, to = i.to || ea;
         const startOk = sa > from || (sa === from && mo >= (i.fromMonth || 1));
         const endOk   = sa < to   || (sa === to   && mo <= (i.toMonth || 12));
         if (i.type === 'oneoff') {
-          if (sa === (i.atAge || i.from) && mo === (i.atMonth || 1)) inc += i.amount || 0;
+          if (sa === (i.atAge || i.from) && mo === (i.atMonth || 1)) {
+            inc += i.amount || 0;
+            _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(i.amount || 0), type: 'income' });
+          }
         } else if (startOk && endOk) {
-          inc += i.type === 'annual' ? (i.amount || i.monthly || 0) * _f / 12 : (i.monthly || 0) * _f;
+          const amt = i.type === 'annual' ? (i.amount || i.monthly || 0) * _f / 12 : (i.monthly || 0) * _f;
+          inc += amt;
+          _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(amt), type: 'income' });
         }
       });
-      liq += inc - _baseExp - _ooAmt - _itemizedExp;
-      _saNetBurn += _baseExp + _ooAmt + _itemizedExp - inc;
+      liq += inc - _baseExp - _itemizedExp;
+      _saNetBurn += _baseExp + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; _simMinMo = mo; }
-      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), totalExp: Math.round(_baseExp + _ooAmt + _itemizedExp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), totalExp: Math.round(_baseExp + _itemizedExp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
     // Annualise partial-year burn so pill shows a full-year equivalent
     const _saMonths = 13 - _curMo;
@@ -2772,7 +2785,7 @@ function runSim(monthlyOverride) {
       const _soldThisMo = [];
       props = props.map(p => {
         if (!p.sold && !p.hold && p.saleAge === age && (p.saleMonth || 6) === mo) {
-          _soldThisMo.push({ name: p.name, cv: p.cv });
+          _soldThisMo.push({ id: p.id, name: p.name, cv: p.cv });
           liq += p.cv; return { ...p, sold: true };
         }
         return p;
@@ -2793,60 +2806,68 @@ function runSim(monthlyOverride) {
       lastInflM = _gastos !== undefined ? _gastos : inflM;
 
       let exp = _gastos !== undefined ? _gastos : inflM + (S.winterTrip + S.summerTrip) / 12;
-      const _oo = [];
-      // Add property sales that occurred this month (tracked above, before _oo was declared)
-      _soldThisMo.forEach(s => _oo.push({ name: s.name + ' sold', amount: -Math.round(s.cv), sale: true }));
+      const _txns = [];
+      // Property sales — positive amount (money coming in)
+      _soldThisMo.forEach(s => _txns.push({ id: s.id, arr: 'properties', name: s.name + ' sold', amount: Math.round(s.cv), type: 'sale' }));
 
-      // Itemised expenses
+      // Itemised expenses — single pass
       S.expenses.filter(e => e.enabled !== false).forEach(e => {
-        if (e.type === 'oneoff') {
-          if (e.atAge === age && (e.atMonth || 1) === mo) {
-            exp += e.amount; _oo.push({ name: e.name || '?', amount: e.amount });
-          }
+        if (e.type === 'oneoff' && e.atAge === age && (e.atMonth || 1) === mo) {
+          exp += e.amount;
+          _txns.push({ id: e.id, arr: 'expenses', name: e.name || '?', amount: -(e.amount), type: 'oneoff' });
         } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
-          const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
-          const startOk = age > from || (age === from && mo >= fromMonth);
-          const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += e.amount;
+          if ((age > from || (age === from && mo >= (e.fromMonth||1))) && (age < to || (age === to && mo <= (e.toMonth||12)))) {
+            exp += e.amount;
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -e.amount, type: 'expense' });
+          }
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
-          const fromMonth = e.fromMonth || 1, toMonth = e.toMonth || 12;
-          const startOk = age > from || (age === from && mo >= fromMonth);
-          const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) exp += e.amount / 12;
+          if ((age > from || (age === from && mo >= (e.fromMonth||1))) && (age < to || (age === to && mo <= (e.toMonth||12)))) {
+            exp += e.amount / 12;
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(e.amount / 12), type: 'annual' });
+          }
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
-          const moFromStart = (age - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
-          if (_installFires(e, moFromStart)) exp += _effInstall[e.id].perPayment;
+          const moFromStart = (age - start) * 12 + (mo - 1) - ((e.atAge||e.from||sa) === sa ? 0 : 0) - ((e.atMonth || 1) - 1);
+          if (_installFires(e, moFromStart)) {
+            const _ppy = {monthly:12,quarterly:4,semester:2,annual:1}[e.installFreq||'monthly'];
+            const paid = Math.floor(moFromStart / (12/_ppy));
+            exp += _effInstall[e.id].perPayment;
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: paid+1, installTotal: e.installN||1 });
+          }
         }
       });
 
       // Income this month
       let inc = 0;
-
-      // Rental income (no inflation)
       props.filter(p => !p.sold && p.monthlyRent > 0 && age >= (p.rentFromAge || sa))
         .forEach(p => {
-          if (mo >= (p.rentFromMonth || 1)) inc += p.monthlyRent;
+          if (mo >= (p.rentFromMonth || 1)) {
+            inc += p.monthlyRent;
+            _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' });
+          }
         });
-
-      // Other incomes
       S.incomes.filter(i => i.enabled !== false).forEach(i => {
         if (i.type === 'oneoff') {
-          if (age === (i.atAge || i.from) && mo === (i.atMonth || 1)) inc += i.amount || 0;
+          if (age === (i.atAge || i.from) && mo === (i.atMonth || 1)) {
+            inc += i.amount || 0;
+            _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(i.amount || 0), type: 'income' });
+          }
         } else if (i.type === 'annual') {
           const from = i.from || sa, to = i.to || ea;
-          const fromMonth = i.fromMonth || 1, toMonth = i.toMonth || 12;
-          const startOk = age > from || (age === from && mo >= fromMonth);
-          const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) inc += (i.amount || i.monthly || 0) * f / 12;
+          if ((age > from || (age === from && mo >= (i.fromMonth||1))) && (age < to || (age === to && mo <= (i.toMonth||12)))) {
+            const amt = (i.amount || i.monthly || 0) * f / 12;
+            inc += amt;
+            _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(amt), type: 'income' });
+          }
         } else {
           const from = i.from || sa, to = i.to || ea;
-          const fromMonth = i.fromMonth || 1, toMonth = i.toMonth || 12;
-          const startOk = age > from || (age === from && mo >= fromMonth);
-          const endOk   = age < to   || (age === to   && mo <= toMonth);
-          if (startOk && endOk) inc += (i.monthly || 0) * f;
+          if ((age > from || (age === from && mo >= (i.fromMonth||1))) && (age < to || (age === to && mo <= (i.toMonth||12)))) {
+            const amt = (i.monthly || 0) * f;
+            inc += amt;
+            _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(amt), type: 'income' });
+          }
         }
       });
 
@@ -2854,7 +2875,7 @@ function runSim(monthlyOverride) {
       yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
-      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), oneoffs: _oo, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
     }
 
     out.push({
@@ -3244,88 +3265,12 @@ function _drawHouse(ctx, cx, cy, size, color) {
 const _TXN_COLORS = { income:'#22c55e', expense:'#f87171', oneoff:'#a78bfa',
   installment:'#a78bfa', annual:'#fb923c', rent:'#38bdf8', sale:'#fbbf24' };
 
+// Single source of truth: read txns recorded by runSim.
+// runSim stores the exact inflated/compounded amounts it used — no recomputation here.
 function getMonthTxns(age, mo) {
-  const sa = S.startAge || 57, ea = S.endAge || 87;
-  const inf = (S.inflationRate || 0) / 100;
-  const _curMo = new Date().getMonth() + 1;
-  const _partFrac = (12 - _curMo) / 12;
-  // Inflation factor matching runSim so income amounts match what the sim actually used
-  const f = age === sa
-    ? Math.pow(1 + inf, (mo - _curMo) / 12)
-    : Math.pow(1 + inf, _partFrac + (age - sa - 1) + mo / 12);
-
-  const txns = [];
-  // Incomes — apply same inflation factor as runSim
-  (S.incomes || []).filter(i => i.enabled !== false).forEach(inc => {
-    if (inc.type === 'oneoff') {
-      if ((inc.atAge || inc.from) === age && (inc.atMonth || 1) === mo)
-        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: inc.amount || inc.monthly || 0, type: 'income' });
-    } else if (inc.type === 'annual') {
-      const from = inc.from || sa, to = inc.to || ea;
-      if ((age > from || (age === from && mo >= (inc.fromMonth || 1))) &&
-          (age < to   || (age === to   && mo <= (inc.toMonth || 12))))
-        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: (inc.amount || inc.monthly || 0) * f / 12, type: 'income' });
-    } else {
-      const from = inc.from || sa, to = inc.to || ea;
-      if ((age > from || (age === from && mo >= (inc.fromMonth || 1))) &&
-          (age < to   || (age === to   && mo <= (inc.toMonth || 12))))
-        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: (inc.monthly || 0) * f, type: 'income' });
-    }
-  });
-  // Expenses
-  (S.expenses || []).filter(e => e.enabled !== false).forEach(exp => {
-    if (exp.type === 'oneoff') {
-      if (exp.atAge === age && (exp.atMonth || 1) === mo)
-        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0), type: 'oneoff' });
-    } else if (exp.type === 'monthly') {
-      const from = exp.from || sa, to = exp.to || ea;
-      if ((age > from || (age === from && mo >= (exp.fromMonth || 1))) &&
-          (age < to   || (age === to   && mo <= (exp.toMonth || 12))))
-        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0), type: 'expense' });
-    } else if (exp.type === 'annual') {
-      const from = exp.from || sa, to = exp.to || ea;
-      if ((age > from || (age === from && mo >= (exp.fromMonth || 1))) &&
-          (age < to   || (age === to   && mo <= (exp.toMonth || 12))))
-        txns.push({ id: exp.id, arr: 'expenses', name: exp.name, amount: -(exp.amount || 0) / 12, type: 'annual' });
-    } else if (exp.type === 'installments') {
-      const ppy = { monthly:12, quarterly:4, semester:2, annual:1 }[exp.installFreq || 'monthly'];
-      const start = exp.atAge || exp.from || sa;
-      // Match runSim: subtract atMonth offset so slot 0 = first payment month
-      const moFromStart = (age - start) * 12 + (mo - 1) - ((exp.atMonth || 1) - 1);
-      const moPerInst = 12 / ppy;
-      if (moFromStart >= 0 && age >= start && moFromStart % moPerInst === 0) {
-        const paid = Math.floor(moFromStart / moPerInst);
-        const remain = (exp.installN || 1) - paid;
-        const perPayment = (exp.installTotal || exp.amount || 0) / (exp.installN || 1);
-        if (remain > 0 && perPayment > 0)
-          txns.push({ id: exp.id, arr: 'expenses', name: exp.name,
-            amount: -perPayment,
-            type: 'installment', installNum: paid + 1, installTotal: exp.installN || 1 });
-      }
-    }
-  });
-  // Rental income from properties
-  (S.properties || []).filter(p => p.enabled !== false && p.monthlyRent > 0).forEach(prop => {
-    let ra = prop.rentFromAge !== undefined ? prop.rentFromAge : (prop.acquireAge || sa);
-    if (ra > 2000) ra = yearToAge(ra); // guard: rentFromAge may have been saved as a calendar year
-    const sellAge = prop.hold ? ea + 1 : (prop.saleAge || ea);
-    const sellMo  = prop.hold ? 13 : (prop.saleMonth || 6);
-    if (age >= ra && (age < sellAge || (age === sellAge && mo < sellMo)))
-      txns.push({ id: prop.id, arr: 'properties', name: prop.name + ' rent', amount: prop.monthlyRent, type: 'rent' });
-  });
-  // Property sales
-  (S.properties || []).filter(p => p.enabled !== false && !p.hold).forEach(prop => {
-    if (prop.saleAge === age && (prop.saleMonth || 6) === mo) {
-      const acquireAge = prop.acquireAge !== undefined ? prop.acquireAge : sa;
-      // sim appreciates from sa+1 (no appreciation in partial year at sa); acquireAge>sa starts at mo=1
-      const months = acquireAge <= sa
-        ? (age - sa - 1) * 12 + mo
-        : (age - acquireAge) * 12 + mo;
-      const val = (prop.value || 0) * Math.pow(1 + ((prop.appRate !== undefined ? prop.appRate : S.assetAppreciation) || 3) / 100, months / 12);
-      txns.push({ id: prop.id, arr: 'properties', name: prop.name + ' sold', amount: val, type: 'sale' });
-    }
-  });
-  return txns;
+  const sim = window._lastSimData || [];
+  const row = sim.find(r => r.age === age && r.mo === mo);
+  return row ? (row.txns || []) : [];
 }
 
 let _txnEditItem = null; // { id, arr, type } — currently editing
@@ -3786,53 +3731,13 @@ try {
 
 // ── Reality Check Table ──────────────────────────────────────
 let _rcOpen = {};
-// ── Sim audit: compare runSim monthly data vs getMonthTxns (two independent code paths) ──
+// getMonthTxns now reads directly from runSim's txns — no independent recomputation.
 function _simAudit(data) {
   const m = data.monthly;
-  if (!m || !m.length) return [];
-  const issues = [];
-
-  m.forEach(r => {
-    const ym = `${r.year}-${String(r.mo).padStart(2,'0')}`;
-    const isFuture = ym >= _currentYM;
-    if (!isFuture) return; // past months use gastos actuals, skip income check
-
-    const txns = getMonthTxns(r.age, r.mo);
-
-    // Income: only count income/rent types — NOT sales (which are also positive in getMonthTxns).
-    // Sim inflates income over time; getMonthTxns returns nominal. Flag gaps > 5% & > $200.
-    const txnInc = Math.round(txns.filter(t => t.type === 'income' || t.type === 'rent').reduce((s, t) => s + t.amount, 0));
-    const incDiff = Math.abs(r.inc - txnInc);
-    if (incDiff > 200 && incDiff / Math.max(r.inc, txnInc, 1) > 0.10) {
-      issues.push({ ym, age: r.age, type: 'income', sim: r.inc, txn: txnInc, diff: r.inc - txnInc, note: 'sim inflates; txn is nominal' });
-    }
-
-    // Oneoffs / installments: use absolute values — sim stores as positive cost, getMonthTxns as negative.
-    const simOoAbs = Math.round(Math.abs((r.oneoffs || []).filter(o => !o.sale).reduce((s, o) => s + o.amount, 0)));
-    const txnOoAbs = Math.round(Math.abs(txns.filter(t => ['oneoff', 'installment'].includes(t.type)).reduce((s, t) => s + t.amount, 0)));
-    const ooDiff = Math.abs(simOoAbs - txnOoAbs);
-    if (ooDiff > 200) {
-      issues.push({ ym, age: r.age, type: 'oneoff/install', sim: simOoAbs, txn: txnOoAbs, diff: simOoAbs - txnOoAbs });
-    }
-
-    // Property sales: sim uses monthly-compounded cv; getMonthTxns uses annual compounding — small drift expected.
-    // Flag only large gaps (>$5K) to avoid noise from compounding frequency difference.
-    const simSale = Math.round((r.oneoffs || []).filter(o => o.sale).reduce((s, o) => s + Math.abs(o.amount), 0));
-    const txnSale = Math.round(txns.filter(t => t.type === 'sale').reduce((s, t) => s + t.amount, 0));
-    const saleDiff = Math.abs(simSale - txnSale);
-    if (saleDiff > 5000) {
-      issues.push({ ym, age: r.age, type: 'sale', sim: simSale, txn: txnSale, diff: simSale - txnSale, note: 'monthly vs annual compounding' });
-    }
-  });
-
-  data._auditIssues = issues;
-  if (issues.length) {
-    console.warn(`[futuro audit] ${issues.length} discrepancy(ies) — sim vs getMonthTxns:`);
-    console.table(issues);
-  } else {
-    console.info('[futuro audit] ✓ sim income + oneoffs match getMonthTxns for all future months');
-  }
-  return issues;
+  if (!m || !m.length) return;
+  const missing = m.filter(r => !r.txns).length;
+  if (missing) console.warn(`[futuro audit] ${missing} monthly rows missing txns`);
+  data._auditIssues = [];
 }
 
 function renderRC(data) {
@@ -3841,42 +3746,7 @@ function renderRC(data) {
   const monthly = data.monthly || [];
   if (!monthly.length) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px;">No monthly data.</div>'; return; }
 
-  // ── Audit banner ──
-  const issues = data._auditIssues || [];
-  let auditHtml = '';
-  const _EXPECTED_NOTES = ['sim inflates; txn is nominal', 'monthly vs annual compounding'];
-  const unexpectedIssues = issues.filter(i => !_EXPECTED_NOTES.includes(i.note));
-  const expectedIssues   = issues.filter(i =>  _EXPECTED_NOTES.includes(i.note));
-
-  if (unexpectedIssues.length) {
-    const rows = unexpectedIssues.map(i => {
-      const diffStr = (i.diff > 0 ? '+' : '') + _fmt$(i.diff);
-      return `<tr>
-        <td style="padding:2px 8px;">${i.ym}</td><td style="padding:2px 8px;">age ${i.age}</td>
-        <td style="padding:2px 8px;color:#f97316;">${i.type}</td>
-        <td style="padding:2px 8px;text-align:right;">${_fmt$(i.sim)}</td>
-        <td style="padding:2px 8px;text-align:right;">${_fmt$(i.txn)}</td>
-        <td style="padding:2px 8px;text-align:right;color:#ef4444;font-weight:700;">${diffStr}</td>
-      </tr>`;
-    }).join('');
-    auditHtml = `<div style="border:1px solid #ef4444;border-radius:6px;margin-bottom:10px;overflow:hidden;">
-      <div style="background:#3b1212;padding:4px 10px;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:.04em;">
-        ⚠ SIM AUDIT: ${unexpectedIssues.length} real discrepancy(ies) between runSim and getMonthTxns
-      </div>
-      <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;font-family:SF Mono,Menlo,monospace;">
-        <thead><tr style="color:#888;background:var(--bg-subtle,#f5f5f5);">
-          <th style="padding:3px 8px;text-align:left;">Month</th><th style="padding:3px 8px;text-align:left;">Age</th>
-          <th style="padding:3px 8px;text-align:left;">Type</th><th style="padding:3px 8px;text-align:right;">Sim</th>
-          <th style="padding:3px 8px;text-align:right;">Txn helper</th><th style="padding:3px 8px;text-align:right;">Δ</th>
-        </tr></thead><tbody>${rows}</tbody>
-      </table></div>
-    </div>`;
-  } else {
-    const expNote = expectedIssues.length
-      ? `<span style="color:#888;margin-left:6px;">${expectedIssues.length} expected artifact(s): inflation drift &amp; compounding freq</span>`
-      : '';
-    auditHtml = `<div style="font-size:10px;color:#22c55e;padding:4px 8px;margin-bottom:6px;">✓ Sim audit: no real discrepancies${expNote}</div>`;
-  }
+  const auditHtml = '<div style="font-size:10px;color:#22c55e;padding:4px 8px;margin-bottom:6px;">✓ Single source of truth — chart, tooltips, and table all read from the same sim data</div>';
 
   const MONAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   // Group by year
@@ -3919,22 +3789,12 @@ function renderRC(data) {
       rows.forEach((r, i) => {
         const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
-        // Oneoffs from sim (property sales, one-time expenses)
-        const ooSpans = (r.oneoffs || []).map(o => {
-          const col = o.sale ? '#16a34a' : '#c07030';
-          return `<span style="color:${col};">${o.name} ${o.sale ? '+' : '−'}${_fmt$(Math.abs(o.amount))}</span>`;
+        const ooSpans = (r.txns || []).filter(t => t.amount < 0 || t.type === 'sale').map(t => {
+          const col = t.type === 'sale' ? '#16a34a' : t.type === 'installment' ? '#94a3b8' : '#c07030';
+          const sign = t.type === 'sale' ? '+' : '−';
+          const label = t.type === 'installment' ? `${t.name} ${t.installNum}/${t.installTotal}` : t.name;
+          return `<span style="color:${col};">${label} ${sign}${_fmt$(Math.abs(t.amount))}</span>`;
         });
-        // Installments and annual expenses from getMonthTxns (invisible in sim monthly data)
-        try {
-          getMonthTxns(r.age, r.mo)
-            .filter(t => t.type === 'installment' || t.type === 'annual' || t.type === 'expense')
-            .forEach(t => {
-              const label = t.type === 'installment'
-                ? `${t.name} ${t.installNum}/${t.installTotal}`
-                : t.name;
-              ooSpans.push(`<span style="color:#94a3b8;">${label} −${_fmt$(Math.abs(t.amount))}</span>`);
-            });
-        } catch(e) { /* ignore */ }
         const ooHtml = ooSpans.length ? ooSpans.join(', ') : '<span style="color:#ccc;">—</span>';
         html += `<tr style="${bg}">
           <td style="padding:3px 8px;">${MONAMES[r.mo-1]}</td>
@@ -3996,7 +3856,7 @@ function renderMinDrill(data) {
     const from = Math.max(0, minIdx - 14);
     const to   = Math.min(monthly.length - 1, minIdx + 2);
     const rows = monthly.slice(from, to + 1);
-    const nets = rows.map(r => r.inc - r.baseExp - (r.oneoffs||[]).reduce((s,o) => s + Math.abs(o.amount), 0));
+    const nets = rows.map(r => r.inc - r.baseExp - (r.txns||[]).filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0));
     const maxAbs = Math.max(...nets.map(Math.abs), 1);
 
     html += `<div style="border-top:1px solid rgba(195,50,50,0.22);overflow-x:auto;">
@@ -4020,10 +3880,11 @@ function renderMinDrill(data) {
       const barCol = net >= 0 ? '#1A8C5F' : '#C03030';
       const liqCol = r.liq < 0 ? '#f87171' : r.liq < 200_000 ? '#e9972a' : 'rgba(255,255,255,0.75)';
       const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
-      const ooHtml = (r.oneoffs||[]).length
-        ? r.oneoffs.map(o => {
-            const col = o.sale ? '#16a34a' : '#e9972a';
-            return `<span style="color:${col};">${o.name}&nbsp;${o.sale ? '+' : ''}${_fmt$(Math.abs(o.amount))}</span>`;
+      const ooHtml = (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale').length
+        ? (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale').map(t => {
+            const col = t.type === 'sale' ? '#16a34a' : '#e9972a';
+            const label = t.type === 'installment' ? `${t.name} ${t.installNum}/${t.installTotal}` : t.name;
+            return `<span style="color:${col};">${label}&nbsp;${t.type === 'sale' ? '+' : '−'}${_fmt$(Math.abs(t.amount))}</span>`;
           }).join(' ')
         : '<span style="color:rgba(255,255,255,0.18);">—</span>';
       const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
