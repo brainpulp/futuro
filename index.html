@@ -4041,30 +4041,8 @@ function _initLwChart() {
     priceFormat: { type: 'custom', formatter: fmtM },
   });
 
-  // Crosshair: show liq + total values
   lwChart.subscribeCrosshairMove(param => {
-    if (!param.point || !param.time) { hideTxnTooltip(); return; }
-    const lv = param.seriesData?.get(lwLiqSeries)?.value;
-    const tv = param.seriesData?.get(lwTotalSeries)?.value;
-    if (lv == null) return;
-    const liqCol = lv >= 0 ? '#5DC49A' : '#f87171';
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + (param.point.x || 0);
-    const cy = rect.top  + (param.point.y || 0);
-    // Reuse txn-tip as crosshair tooltip when no dot is hovered
-    const tt = document.getElementById('txn-tip');
-    if (tt && tt.style.display === 'none') {
-      tt.style.display = 'block';
-      tt.style.pointerEvents = 'none';
-      tt.style.left = (cx + 14) + 'px';
-      tt.style.top  = (cy - 10) + 'px';
-      document.getElementById('txn-tip-month').textContent = param.time;
-      document.getElementById('txn-tip-rows').innerHTML =
-        `<div style="font-size:12px;font-family:'SF Mono',Menlo,monospace;">
-          <span style="color:${liqCol}">${fmtM(lv)}</span> liq &nbsp;·&nbsp;
-          <span style="color:#1D9E75">${fmtM(tv||0)}</span> total
-         </div>`;
-    }
+    if (!param.point || !param.time) hideTxnTooltip();
   });
 
   // Init overlay canvas for emoji vignette
@@ -4079,9 +4057,8 @@ function _initLwChart() {
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     window._lastMouseX = e.clientX; window._lastMouseY = e.clientY;
     const txnHit = _txnDots.reduce((best, d) => {
-      const dist = Math.hypot(d.xp - mx, d.yp - my);
-      const r = d.hitR || 10;
-      return dist < r && dist < best.dist ? { d, dist } : best;
+      const dx = Math.abs(d.xp - mx);
+      return dx < 30 && dx < best.dist ? { d, dist: dx } : best;
     }, { d: null, dist: 99 }).d;
     if (txnHit) { showTxnTooltip(txnHit, e.clientX, e.clientY); el.style.cursor = 'pointer'; }
     else { hideTxnTooltip(); el.style.cursor = ''; }
@@ -4091,8 +4068,8 @@ function _initLwChart() {
     const rect = el.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const hit = _txnDots.reduce((best, d) => {
-      const dist = Math.hypot(d.xp - mx, d.yp - my);
-      return dist < (d.hitR||10) && dist < best.dist ? { d, dist } : best;
+      const dx = Math.abs(d.xp - mx);
+      return dx < 30 && dx < best.dist ? { d, dist: dx } : best;
     }, { d: null, dist: 99 }).d;
     if (hit) openTxnEditForDot(hit);
   });
