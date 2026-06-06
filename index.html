@@ -4251,12 +4251,17 @@ function _updateVig() {
   });
   if (started) { ctx.lineTo(lastX, H + 4); ctx.lineTo(0, H + 4); ctx.closePath(); ctx.clip(); }
 
-  // Emoji vignette (same logic as before)
+  // Right price scale width — keep emojis clear of it
+  let _rScaleW = 62;
+  try { _rScaleW = lwChart.priceScale('right').width() || 62; } catch(e) {}
+
+  // Emoji vignette — limit x to chart area (exclude right scale)
   _vigSeed = 0x9e3779b9;
   ctx.globalAlpha = _VIG_OPACITY;
   const COUNT = 480;
+  const _vigW = W - _rScaleW - 4;
   for (let i = 0; i < COUNT; i++) {
-    const vx = _vigRand() * W, vy = _vigRand() * H, sz = 16 + _vigRand() * 18;
+    const vx = _vigRand() * _vigW, vy = _vigRand() * H, sz = 16 + _vigRand() * 18;
     const speed = (0.12 + (i % 7) * 0.04) * 4;
     const rot = (_danceT * 0.001) * speed * (i % 3 === 0 ? -1 : 1);
     const oPhase = (i * 2.39996) % (Math.PI * 2);
@@ -4281,6 +4286,41 @@ function _updateVig() {
     const midTime = _mt(year + 5, 1);
     const xp = lwChart.timeScale().timeToCoordinate(midTime);
     if (xp != null) ctx.fillText(decade + 's', xp, H * 0.6 + 38);
+  }
+
+  // Year labels along top edge
+  {
+    const _ySim = window._lastSimData || [];
+    const _step = _chartZoom >= 30 ? 5 : _chartZoom >= 20 ? 3 : _chartZoom >= 10 ? 2 : 1;
+    const _startYr = _ySim[0]?.year || (S.startYear||2026);
+    ctx.font = '600 10px "SF Mono",Menlo,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.28)';
+    const _seenYr = new Set();
+    _ySim.forEach(m => {
+      if (m.mo !== 1) return;
+      if ((m.year - _startYr) % _step !== 0) return;
+      if (_seenYr.has(m.year)) return;
+      _seenYr.add(m.year);
+      const xp = lwChart.timeScale().timeToCoordinate(_mt(m.year, 1));
+      if (xp == null || xp < 18 || xp > W - _rScaleW - 10) return;
+      ctx.fillText(String(m.year), xp, 13);
+    });
+  }
+
+  // Left Y axis mirror
+  if (lwLiqSeries) {
+    ctx.save();
+    ctx.font = '500 10px "SF Mono",Menlo,monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
+    for (let frac = 0.08; frac < 0.98; frac += 0.18) {
+      const yp = H * frac;
+      const val = lwLiqSeries.coordinateToPrice(yp);
+      if (val == null) continue;
+      ctx.fillText(fmtM(Math.round(val)), 4, yp + 4);
+    }
+    ctx.restore();
   }
 
   // Value labels on Total + Liquid curves
