@@ -4294,7 +4294,7 @@ function _buildLwMarkers(data) {
       const time = _mt(m.year, m.mo);
       markers.push({ time, position: 'inBar', color: col,
         shape: hasSale ? 'square' : 'circle',
-        text: hasSale ? '🏠' : '', size: hasSale ? 2 : 1 });
+        text: hasSale ? '🏠' : '', size: hasSale ? 2 : (_chartZoom <= 1 ? 0.5 : 0.8) });
       dotMeta.push({ time, age: m.age, mo: m.mo, year: m.year, txns, net, isSale: hasSale, isYearly: false });
     });
   } else {
@@ -4371,7 +4371,7 @@ function _updateVig() {
     const xp = lwChart.timeScale().timeToCoordinate(_mt(m.year, m.mo));
     const yp = lwLiqSeries.priceToCoordinate(m.liq);
     if (xp == null || yp == null) return;
-    if (!started) { ctx.moveTo(xp, yp); started = true; } else ctx.lineTo(xp, yp);
+    if (!started) { ctx.moveTo(xp, yp + 2); started = true; } else ctx.lineTo(xp, yp + 2);
     lastX = xp;
   });
   if (started) { ctx.lineTo(lastX, H + 4); ctx.lineTo(0, H + 4); ctx.closePath(); ctx.clip(); }
