@@ -5367,8 +5367,23 @@ function openTxnEdit(t) {
   } else if (t.arr === 'expenses' && item.type === 'oneoff') {
     html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field(ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
   } else if (t.arr === 'expenses' && item.type === 'installments') {
-    html += `<div class="em-row">${field('Total amount', inp('installTotal', item.installTotal||item.budget||item.amount||0,'number'))}${field('# payments', inp('installN', item.installN||1,'number'))}</div>`;
-    html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start '+ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
+    const _iTotal = item.installTotal || item.budget || item.amount || 0;
+    const _iN     = item.installN || 1;
+    const _iPer   = _iN > 0 ? _iTotal / _iN : 0;
+    const _igc    = item.gastosCategory && item.gastosCategory.trim().toLowerCase();
+    const _ispent = _igc ? _projActual(_igc) : 0;
+    const _ipaid  = _iPer > 0 ? Math.min(Math.floor(_ispent / _iPer), _iN) : 0;
+    const _irem   = _iN - _ipaid;
+    const _sy2 = S.startYear||2026, _sa3 = S.startAge||57, _ea3 = S.endAge||87;
+    const _iYM = `${ageToYear(item.atAge||_sa3)}-${String(item.atMonth||1).padStart(2,'0')}`;
+    const _iMin = `${_sy2}-01`, _iMax = `${_sy2+_ea3-_sa3}-12`;
+    const _startInp = `<input type="month" value="${_iYM}" min="${_iMin}" max="${_iMax}" oninput="_txnInstallStartUpd(${item.id},this.value)">`;
+    html += `<div class="em-row">${field('Total amount', inp('installTotal', _iTotal,'number'))}${field('# payments', inp('installN', _iN,'number'))}</div>`;
+    html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start', _startInp)}</div>`;
+    const _sumParts = [`<b>${fmtM(_iPer)}</b>/payment`];
+    if (_igc && _ispent > 0) _sumParts.push(`Gastos paid: ${fmtM(_ispent)} (${_ipaid} payments)`);
+    _sumParts.push(`Remaining: <b>${_irem} × ${fmtM(_iPer)} = ${fmtM(_irem * _iPer)}</b>`);
+    html += `<div style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.8;">${_sumParts.join(' &nbsp;·&nbsp; ')}</div>`;
   } else if (t.arr === 'properties') {
     html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
     const sy = S.startYear || 2026, sa2 = S.startAge || 57, ea2 = S.endAge || 87;
@@ -5411,6 +5426,14 @@ function _txnAgeUpd(id, arrName, field, val) {
   if (!item) return;
   const num = parseFloat(val);
   if (!isNaN(num)) { item[field] = readA(num); markDirty(); go(); }
+}
+function _txnInstallStartUpd(id, ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const item = S.expenses.find(e => e.id === id);
+  if (!item) return;
+  item.atAge   = yearToAge(y);
+  item.atMonth = m;
+  markDirty(); go();
 }
 function _txnRentFromUpd(id, ym) {
   const [y, m] = ym.split('-').map(Number);
