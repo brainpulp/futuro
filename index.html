@@ -5377,7 +5377,11 @@ function openTxnEdit(t) {
     const rfYM = `${ageToYear(rfa)}-${String(rfm).padStart(2,'0')}`;
     const minYM = `${sy}-01`, maxYM = `${sy + ea2 - sa2}-12`;
     const monthInp = `<input type="month" value="${rfYM}" min="${minYM}" max="${maxYM}" oninput="_txnRentFromUpd(${item.id},this.value)">`;
-    html += `<div class="em-row">${field('Rent from', monthInp)}${field('Sale '+ageLbl, ageInp('saleAge', item.saleAge||ea))}</div>`;
+    const saleAge = item.saleAge || ea2;
+    const saleMo  = item.saleMonth || 6;
+    const saleYM  = `${ageToYear(saleAge)}-${String(saleMo).padStart(2,'0')}`;
+    const saleInp = `<input type="month" value="${saleYM}" min="${minYM}" max="${maxYM}" oninput="_txnSaleFromUpd(${item.id},this.value)">`;
+    html += `<div class="em-row">${field('Rent from', monthInp)}${field('Sale', saleInp)}</div>`;
     html += field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'));
   }
   fields.innerHTML = html;
@@ -5414,6 +5418,15 @@ function _txnRentFromUpd(id, ym) {
   if (!item) return;
   item.rentFromAge   = yearToAge(y);
   item.rentFromMonth = m;
+  markDirty(); go();
+}
+function _txnSaleFromUpd(id, ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const item = S.properties.find(p => p.id === id);
+  if (!item) return;
+  item.saleAge   = yearToAge(y);
+  item.saleMonth = m;
+  item.hold      = false;
   markDirty(); go();
 }
 function _tlRentFromUpd(id, ym) {
