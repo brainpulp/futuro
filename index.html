@@ -3261,17 +3261,30 @@ const _TXN_COLORS = { income:'#22c55e', expense:'#f87171', oneoff:'#a78bfa',
 
 function getMonthTxns(age, mo) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
+  const inf = (S.inflationRate || 0) / 100;
+  const _curMo = new Date().getMonth() + 1;
+  const _partFrac = (12 - _curMo) / 12;
+  // Inflation factor matching runSim so income amounts match what the sim actually used
+  const f = age === sa
+    ? Math.pow(1 + inf, (mo - _curMo) / 12)
+    : Math.pow(1 + inf, _partFrac + (age - sa - 1) + mo / 12);
+
   const txns = [];
-  // Incomes
+  // Incomes — apply same inflation factor as runSim
   (S.incomes || []).filter(i => i.enabled !== false).forEach(inc => {
     if (inc.type === 'oneoff') {
       if ((inc.atAge || inc.from) === age && (inc.atMonth || 1) === mo)
         txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: inc.amount || inc.monthly || 0, type: 'income' });
+    } else if (inc.type === 'annual') {
+      const from = inc.from || sa, to = inc.to || ea;
+      if ((age > from || (age === from && mo >= (inc.fromMonth || 1))) &&
+          (age < to   || (age === to   && mo <= (inc.toMonth || 12))))
+        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: (inc.amount || inc.monthly || 0) * f / 12, type: 'income' });
     } else {
       const from = inc.from || sa, to = inc.to || ea;
       if ((age > from || (age === from && mo >= (inc.fromMonth || 1))) &&
           (age < to   || (age === to   && mo <= (inc.toMonth || 12))))
-        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: inc.monthly || 0, type: 'income' });
+        txns.push({ id: inc.id, arr: 'incomes', name: inc.name, amount: (inc.monthly || 0) * f, type: 'income' });
     }
   });
   // Expenses
@@ -3915,13 +3928,24 @@ function renderRC(data) {
       rows.forEach((r, i) => {
         const bg = i % 2 === 0 ? '' : 'background:var(--bg-row-alt,rgba(0,0,0,0.02));';
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
-        const ooHtml = r.oneoffs && r.oneoffs.length
-          ? r.oneoffs.map(o => {
-              const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#c07030';
-              const sign = o.sale ? '+' : o.crisis ? '−' : '';
-              return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
-            }).join(', ')
-          : '<span style="color:#ccc;">—</span>';
+        // Oneoffs from sim (crisis drops, property sales, one-time expenses)
+        const ooSpans = (r.oneoffs || []).map(o => {
+          const col = o.crisis ? '#ef4444' : o.sale ? '#16a34a' : '#c07030';
+          const sign = o.sale ? '+' : o.crisis ? '−' : '−';
+          return `<span style="color:${col};font-weight:${o.crisis?'700':'400'};">${o.name} ${sign}${_fmt$(Math.abs(o.amount))}</span>`;
+        });
+        // Installments and annual expenses from getMonthTxns (invisible in sim monthly data)
+        try {
+          getMonthTxns(r.age, r.mo)
+            .filter(t => t.type === 'installment' || t.type === 'annual' || t.type === 'expense')
+            .forEach(t => {
+              const label = t.type === 'installment'
+                ? `${t.name} ${t.installNum}/${t.installTotal}`
+                : t.name;
+              ooSpans.push(`<span style="color:#94a3b8;">${label} −${_fmt$(Math.abs(t.amount))}</span>`);
+            });
+        } catch(e) { /* ignore */ }
+        const ooHtml = ooSpans.length ? ooSpans.join(', ') : '<span style="color:#ccc;">—</span>';
         html += `<tr style="${bg}">
           <td style="padding:3px 8px;">${MONAMES[r.mo-1]}</td>
           <td style="padding:3px 8px;text-align:right;color:#1A8C5F;">${r.inc ? '+'+_fmt$(r.inc) : '—'}</td>
