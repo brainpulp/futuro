@@ -1851,6 +1851,7 @@ let _gastosActuals  = {}; // { "2026-01": 4320.50, ... } — actual USD spend pe
 let _projectActuals = {}; // { "delta": { byMonth: { "2026-01": 12000 } }, ... } — per-Gastos-cat actuals
 let _mcResult   = null;  // last Monte Carlo result; null = not run, .stale = outdated
 let _tipHideTimer = null;
+let _currentTipDot = null, _currentTipX = 0, _currentTipY = 0;
 let _pillsExpanded = localStorage.getItem('futuro-pills-expanded') === '1';
 let _mcRunning  = false;
 let _mcAutoTimer = null; // debounce handle for auto-rerun
@@ -5328,6 +5329,7 @@ function toggleSettings() {
 const _MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function showTxnTooltip(dot, cx, cy) {
   clearTimeout(_tipHideTimer);
+  _currentTipDot = dot; _currentTipX = cx; _currentTipY = cy;
   const tip = document.getElementById('txn-tip');
   const mLbl = document.getElementById('txn-tip-month');
   const rows = document.getElementById('txn-tip-rows');
@@ -5480,6 +5482,9 @@ function _txnToggleEnabled(id, arr) {
   if (arr === 'incomes') renderInc();
   else if (arr === 'expenses') renderExp();
   else if (arr === 'properties') renderProps();
+  // Refresh tooltip with updated sim data
+  const newDot = _currentTipDot && _txnDots.find(d => d.time === _currentTipDot.time);
+  if (newDot) showTxnTooltip(newDot, _currentTipX, _currentTipY);
 }
 function _txnInstallStartUpd(id, ym) {
   const [y, m] = ym.split('-').map(Number);
