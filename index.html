@@ -627,15 +627,19 @@ textarea.desc:focus { outline:none; border-color:#635bff; box-shadow:0 0 0 3px r
 .sec-band.def { background:#e0e7ff; color:#312e81; border-left:4px solid #818cf8; }
 .sec-band.spy { background:#fffbeb; color:#92400e; border-left:4px solid #f59e0b; }
 
-/* ── SPY PRESET BAR ────────────────────────────────────── */
-.spy-preset-bar {
-  display:flex; align-items:center; gap:8px;
-  padding:6px 10px; background:#fafafa; border:1px solid #e6ebf1;
-  border-radius:6px; margin-bottom:6px;
+/* ── MARKET BANDS BAR ──────────────────────────────────── */
+.market-bands-bar {
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; background:#fafafa; border:1px solid #e6ebf1;
+  border-radius:6px; margin-bottom:6px; flex-wrap:wrap;
 }
-select.spy-preset-sel {
-  width:auto!important; flex:1; height:26px!important; padding:0 6px!important;
-  font-size:11px!important; border:1px solid #e6ebf1; border-radius:4px;
+.market-band-item {
+  display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+}
+.market-band-item input[type=number] {
+  width:46px; height:24px; padding:0 5px; font-size:11px; font-weight:700;
+  border:1px solid #e6ebf1; border-radius:4px; text-align:center;
+  font-family:'SF Mono',Menlo,monospace;
 }
 
 /* ── SCENARIO DIFF HIGHLIGHT ──────────────────────────── */
@@ -702,9 +706,6 @@ select.spy-preset-sel {
   .pill-val { font-size:14px; }
   input[type=text].iname { max-width:90px!important; }
   .sc-bar { flex-wrap:wrap; }
-  .spy-preset-bar { flex-wrap:wrap; row-gap:4px; }
-  select.spy-preset-sel { max-width:none!important; flex:1 1 100%; }
-  #spy-preset-desc { flex:1 1 100%; }
   #ai-oneliner-bar { flex-wrap:wrap; row-gap:4px; }
 }
 
@@ -746,10 +747,6 @@ select.spy-preset-sel {
 
   /* Section bands */
   .sec-band { font-size:10px; padding:6px 10px; }
-
-  /* SPY preset bar */
-  select.spy-preset-sel { max-width:none!important; flex:1 1 100%; width:100%!important; }
-  #spy-preset-desc { flex:1 1 100%; white-space:normal!important; }
 
   /* Bigger touch targets for circle buttons */
   .btn-add { width:28px!important; height:28px!important; font-size:20px!important; }
@@ -820,14 +817,6 @@ body[data-theme="graphite"] .freq-title:hover { background: rgba(255,255,255,0.0
   display: flex; align-items: center; padding: 3px 8px;
   border-radius: 6px; margin-bottom: 2px; background: #fff; gap: 8px;
   min-height: 26px; box-shadow: 0 1px 2px rgba(50,50,93,.06);
-}
-/* ── SPY NUDGE WHEEL ────────────────────────────────────── */
-#spy-nudge-wheel {
-  width: 38px; flex-shrink: 0; display: flex; flex-direction: column;
-  align-items: stretch; cursor: ns-resize; user-select: none;
-  border: 1px solid rgba(160,100,0,0.22); border-right: none;
-  border-radius: 4px 0 0 4px; overflow: hidden; position: relative;
-  background: #fffbeb;
 }
 
 /* ── GRAPHITE THEME ─────────────────────────────────────── */
@@ -910,15 +899,14 @@ body[data-theme="graphite"] .sec-band.grn { background: #0d1c0d; color: #56d364;
 body[data-theme="graphite"] .sec-band.ora { background: #2d1e00; color: #e3b341; border-color: #f59e0b; }
 body[data-theme="graphite"] .sec-band.def { background: #1a1400; color: #e3b341; border-color: #f0883e; }
 body[data-theme="graphite"] .sec-band.spy { background: #1a1000; color: #d97706; border-color: #b45309; }
-body[data-theme="graphite"] .spy-preset-bar { background: #161b22; border-color: #30363d; }
-body[data-theme="graphite"] select.spy-preset-sel { border-color: #30363d; }
+body[data-theme="graphite"] .market-bands-bar { background: #161b22; border-color: #30363d; }
+body[data-theme="graphite"] .market-band-item input[type=number] { background:#1a1a2e; border-color:#30363d; color:#e6edf3; }
 body[data-theme="graphite"] .secondary-sliders { border-color: #21262d; }
 body[data-theme="graphite"] .freq-title { color: #c9d1d9; }
 body[data-theme="graphite"] .expand-arr { color: #6e7681; }
 body[data-theme="graphite"] .item-row:hover .expand-arr { color: #8b949e; }
 body[data-theme="graphite"] .monthly-base-ctrl { background: #1c1400; border-color: rgba(240,136,62,.2); }
 body[data-theme="graphite"] .rent-row { background: #21262d; box-shadow: none; }
-body[data-theme="graphite"] #spy-nudge-wheel { background: #1a1400; border-color: rgba(240,136,62,.25); }
 body[data-theme="graphite"] #sage-popup-body { background: #21262d; border-color: #30363d; }
 body[data-theme="graphite"] .sage-msg.ai { background: #2d333b; color: #e6edf3; border-color: #444c56; }
 body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
@@ -1050,30 +1038,28 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
     <div class="main-section-title" onclick="toggleSec('chart-market')">Market Projection &amp; Monthly Burn<span id="sec-arr-chart-market" class="sec-chevron">▾</span></div>
     <div id="sec-body-chart-market">
 
-    <!-- SPY preset selector -->
-    <div class="spy-preset-bar">
-      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Market Scenario</span>
-      <select class="spy-preset-sel" id="spy-preset-sel" onchange="applySpyPreset(this.value)" style="max-width:170px;flex-shrink:0;">
-        <option value="">— custom / manual —</option>
-      </select>
-      <span id="spy-preset-desc" style="font-size:11px;color:#3c4257;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"></span>
-    </div>
-
-    <!-- SPY sub-chart -->
-    <div style="position:relative;padding-top:18px;margin-bottom:0;">
-      <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(160,100,0,0.5);pointer-events:none;">SPY Returns &nbsp;<span id="spy-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
-      <div style="display:flex;align-items:stretch;gap:0;">
-        <!-- SPY nudge wheel -->
-        <div id="spy-nudge-wheel" title="Scroll or drag to shift all SPY returns up/down">
-          <div style="flex:1;min-height:12px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(160,100,0,0.13) 3px,rgba(160,100,0,0.13) 4px);"></div>
-          <div style="background:rgba(160,100,0,0.09);border-top:1.5px solid rgba(160,100,0,0.28);border-bottom:1.5px solid rgba(160,100,0,0.28);padding:4px 2px;text-align:center;">
-            <span id="spy-nudge-label" style="font-size:10px;font-weight:800;color:rgba(160,100,0,0.82);font-family:'SF Mono',Menlo,monospace;display:block;white-space:nowrap;">+0.0%</span>
-          </div>
-          <div style="flex:1;min-height:12px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(160,100,0,0.13) 3px,rgba(160,100,0,0.13) 4px);"></div>
-          <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 55%,rgba(255,255,255,0.18) 100%);pointer-events:none;"></div>
-        </div>
-        <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-bottom:none;border-radius:0;height:90px;padding:2px 4px 0;"><canvas id="spyChart"></canvas></div>
+    <!-- Market bands selector -->
+    <div class="market-bands-bar">
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Return bands</span>
+      <div class="market-band-item" style="color:#C03030;">
+        <span>Bear</span>
+        <input type="number" id="band-pessimistic" min="-10" max="20" step="0.5"
+          oninput="updateMarketBand('pessimistic',this.value)" title="Pessimistic annual return %">
+        <span>%</span>
       </div>
+      <div class="market-band-item" style="color:#1A8C5F;">
+        <span>Base</span>
+        <input type="number" id="band-base" min="-10" max="30" step="0.5"
+          oninput="updateMarketBand('base',this.value)" title="Base annual return %">
+        <span>%</span>
+      </div>
+      <div class="market-band-item" style="color:#378ADD;">
+        <span>Bull</span>
+        <input type="number" id="band-optimistic" min="-10" max="40" step="0.5"
+          oninput="updateMarketBand('optimistic',this.value)" title="Optimistic annual return %">
+        <span>%</span>
+      </div>
+      <span id="band-hint" style="font-size:10px;color:#999;flex:1;text-align:right;">Fan ribbon shown on chart</span>
     </div>
 
     <!-- Expense sub-chart (merged into market section) -->
@@ -1426,8 +1412,7 @@ const EMPTY = {
   ],
   expensePhases: [], marketPhases: [],
   expenseCurve: {},
-  spyPreset: null,
-  spyNudge: 0,
+  marketBands: { pessimistic: 3, base: 7, optimistic: 11 },
   monthlyBreakdown: [
     { id: 9001, name: 'Food',                   amount: 800,  enabled: true },
     { id: 9002, name: 'Dining out',              amount: 400,  enabled: true },
@@ -1642,185 +1627,15 @@ async function sbLoad() {
   return null;
 }
 
-// ── SPY / Market projection presets ──────────────────────────
-// Actual S&P 500 total-return annual figures 1994–2023 (arithmetic, %)
-// Source: Standard & Poor's / Bloomberg total return index
-const _HIST = [1.3,37.6,23.0,33.4,28.6,21.0,-9.1,-11.9,-22.1,28.7,10.9,4.9,15.8,5.5,
-               -37.0,26.5,15.1,2.1,16.0,32.4,13.7,1.4,12.0,21.8,-4.4,31.5,18.4,28.7,-18.1,26.3];
-const _HIST_MEAN = _HIST.reduce((a,b)=>a+b,0)/_HIST.length; // ≈11.8 arithmetic
-
-const _HIST_STD = Math.sqrt(_HIST.reduce((s,x) => s + (x - _HIST_MEAN) ** 2, 0) / _HIST.length);
-
-// Mulberry32 seeded PRNG — reproducible unique curve per preset
-function _seededRNG(seed) {
-  let s = seed >>> 0;
-  return function() {
-    s += 0x6D2B79F5;
-    let t = Math.imul(s ^ s >>> 15, 1 | s);
-    t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function _randn(rng) {
-  let u = 0; while (u === 0) u = rng();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng());
-}
-
-// Build a year-by-year return sequence.
-// With seed: generates a statistically distinct random sequence (correct mean + std dev).
-// Without seed: cycles the actual historical data (used by the Historical preset only).
-function _buildSpySeq(sa, ea, targetArith, volMult, seed) {
-  const c = {};
-  if (seed == null) {
-    for (let a = sa; a <= ea; a++) {
-      const raw = _HIST[(a - sa) % _HIST.length];
-      c[a] = Math.round(Math.max(-50, Math.min(55, targetArith + (raw - _HIST_MEAN) * volMult)) * 10) / 10;
-    }
-  } else {
-    const rng = _seededRNG(seed);
-    const sd = _HIST_STD * volMult;
-    for (let a = sa; a <= ea; a++) {
-      c[a] = Math.round(Math.max(-50, Math.min(55, targetArith + _randn(rng) * sd)) * 10) / 10;
-    }
-  }
-  return c;
-}
-
-const SPY_PRESETS = [
-  {
-    // Actual 1994-2023 data cycled, unmodified. Arithmetic mean ~11.8%.
-    id: 'historical', name: 'Historical (1994–2023)',
-    desc: '~11.8% arith avg · raw S&P 500 total-return sequence: boom/bust cycles intact',
-    build: (sa, ea) => _buildSpySeq(sa, ea, _HIST_MEAN, 1.0)
-  },
-  {
-    // Vanguard VCMM 2025: US equities 4.2–6.2% geometric (mid 5.2% geo → ~6.7% arith).
-    // VCMM also projects LOWER volatility than history (~14% vs 17%).
-    // → compressed swings: good years less extreme, bad years less severe.
-    id: 'vanguard', name: 'Vanguard VCMM (2025)',
-    desc: '~5.2% geo · VCMM: lower mean AND lower vol — muted peaks, shallower troughs',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 6.7, 0.70, 314)
-  },
-  {
-    // Goldman Sachs Oct 2024 (David Kostin): ~3% annualised geometric over 10 yrs.
-    // Thesis: extreme market concentration (top-10 stocks = 36% of index) suppresses
-    // future returns via mean-reversion. NOT a crash call — a grinding low-return decade.
-    // → heavily compressed vol: no big booms, no -37% crashes; mostly flat-to-modest years.
-    id: 'goldman', name: 'Goldman Sachs (2024)',
-    desc: '~3% geo · GS: concentration & CAPE headwinds → grinding low returns, vol cut ~40%',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 4.5, 0.40, 1618)
-  },
-  {
-    // JPMorgan LTCMA 2025: US Large Cap ~7.0% geometric nominal.
-    // Moderate-confidence forecast; retains most historical vol character.
-    id: 'jpmorgan', name: 'JPMorgan LTCMA (2025)',
-    desc: '~7.0% geo · JPM LTCMA: earnings growth + modest P/E compression; near-historical swings',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 8.4, 0.85, 2718)
-  },
-  {
-    // BlackRock 2025 CMA: US equities ~7.5% geometric.
-    // AI productivity tailwind; retains historical vol shape almost intact.
-    id: 'blackrock', name: 'BlackRock CMA (2025)',
-    desc: '~7.5% geo · BlackRock: AI structural tailwind, valuation drag; near-historical amplitude',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 8.9, 0.90, 5772)
-  },
-  {
-    // Jeremy Siegel (Wharton): ~6.5–7% real long-run → ~9.5% geo nominal → ~11% arith.
-    // His thesis is that history repeats: same volatility, similar mean.
-    id: 'siegel', name: 'Siegel / Wharton',
-    desc: '~9.5% geo · Siegel: history repeats — full historical vol, near-historical mean',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 11.0, 1.0, 9001)
-  },
-  {
-    // Jack Bogle: div yield ~2% + earnings growth ~5% − P/E drag → ~5% geo forward.
-    // Bogle's view was about lower mean, NOT specifically lower vol.
-    // Use mildly compressed vol to reflect subdued speculative component.
-    id: 'bogle', name: 'Bogle framework',
-    desc: '~5% geo · Bogle: div yield + earnings − P/E headwind; modest vol compression',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 6.4, 0.78, 4200)
-  },
-  {
-    // Bridgewater 2024 positioning: Dalio warns of debt/currency cycle risk.
-    // Equities expected to deliver ~4–5% nominal with higher volatility.
-    // Realistic sequence: muted gains with two correction episodes.
-    id: 'bridgewater', name: 'Bridgewater / Dalio',
-    desc: '~4% avg · Dalio debt-cycle thesis: muted returns, twin corrections, currency risk',
-    build: (sa, ea) => {
-      const pat = [5,-14,3,7,2,-11,6,4,3,-9,8,5,2,4,-6,10,3,2,5,-8,7,4,1,3,-5,9,4,2,1,-4];
-      const c={};
-      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
-      return c;
-    }
-  },
-  {
-    // Crash & Recovery: historically-grounded scenario (e.g. 2000–2010 "lost decade"
-    // followed by 2010–2020 bull market). Approx two 10-yr half-cycles.
-    id: 'crash_recover', name: 'Lost Decade → Bull',
-    desc: 'Two-bear then strong bull · mirrors 2000–2010 crash/recovery pattern',
-    build: (sa, ea) => {
-      const pat = [-9,-12,-22,29,11,5,16,6,-37,27,15,2,16,32,14,1,12,22,-4,32,18,29,-18,26,25,18,12,8,10,7];
-      const c={};
-      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
-      return c;
-    }
-  },
-  {
-    // Stagflation: 1970s pattern. Market returned ~7% nominal but ~0% real due to
-    // high inflation. Year-by-year: very choppy, includes two major bear legs.
-    id: 'stagflation', name: 'Stagflation (1970s)',
-    desc: '~7% nominal / ~0% real · mirrors 1972–1982 pattern: oil shocks, rate hikes, choppy recovery',
-    build: (sa, ea) => {
-      const pat = [18,-14,-26,37,24,-7,-11,6,18,32,-5,-17,20,22,-5,4,14,2,-3,26,15,6,10,-8,18,6,12,3,-5,20];
-      const c={};
-      for(let a=sa;a<=ea;a++) c[a]=pat[(a-sa)%pat.length];
-      return c;
-    }
-  },
-  {
-    // Bull case: AI productivity wave. ~13% geometric → ~14.5% arithmetic.
-    // Boom scenario: amplified swings — bigger up years, deeper (but shorter) corrections.
-    id: 'bull', name: 'Bull Case — AI Boom',
-    desc: '~13% geo · AI productivity surge; amplified vol — bigger booms AND sharper dips',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 14.5, 1.15, 7777)
-  },
-  {
-    // Bear case: secular stagnation. ~2% geo → ~3.4% arithmetic.
-    // Compressed vol: no euphoric booms, crashes also shallower (stagnation not panic).
-    id: 'bear', name: 'Bear Case — Stagnation',
-    desc: '~2% geo · debt overhang + demographics; compressed vol — no booms, no crashes',
-    build: (sa, ea) => _buildSpySeq(sa, ea, 3.4, 0.60, 1337)
-  }
-];
-
-function buildSpyPresetOptions() {
-  const sel = document.getElementById('spy-preset-sel');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— custom / manual —</option>' +
-    SPY_PRESETS.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-  sel.value = S.spyPreset || '';
-  const preset = SPY_PRESETS.find(p => p.id === (S.spyPreset || ''));
-  document.getElementById('spy-preset-desc').textContent = preset ? preset.desc : '';
-}
-
-function applySpyPreset(id) {
-  const sa = S.startAge || 57, ea = S.endAge || 87;
-  if (!id) {
-    S.spyPreset = null;
-    S.yieldCurve = {};
-  } else {
-    const preset = SPY_PRESETS.find(p => p.id === id);
-    if (!preset) return;
-    S.spyPreset = id;
-    S.yieldCurve = preset.build(sa, ea);
-    document.getElementById('spy-preset-desc').textContent = preset.desc;
-  }
-  renderCurve(); go();
-}
+// ── Market projection bands (Pessimistic / Base / Optimistic) ─
+// Three flat annual return rates used to run parallel simulations and draw a fan ribbon.
+// Stored in S.marketBands = { pessimistic, base, optimistic } (% per year, nominal).
+const MARKET_BAND_DEFAULTS = { pessimistic: 3, base: 7, optimistic: 11 };
 
 let SCENARIOS = [];
 let activeScenarioId = null;
 let S = deepCopy(EMPTY);
-let nextId = 1000, chart = null, chart2 = null, chart3 = null, openId = null, _maxTimer = null;
+let nextId = 1000, chart = null, chart3 = null, openId = null, _maxTimer = null;
 let _chartZoom = parseInt(localStorage.getItem('futuro-chart-zoom') || '10');
 let _lastMaxMonthly = 0;
 let _danceT = 0, _danceRaf = null;
@@ -1828,6 +1643,7 @@ let _danceT = 0, _danceRaf = null;
 // ── LightweightCharts globals ────────────────────────────────
 let lwChart = null, lwLiqSeries = null, lwReSeries = null;
 let lwTotalSeries = null, lwRealSeries = null;
+let lwFanHighSeries = null, lwFanLowSeries = null;
 let lwVigCanvas = null;
 
 function _mt(year, mo) { return `${year}-${String(mo).padStart(2,'0')}-01`; }
@@ -1946,7 +1762,6 @@ function initSubChartsInteraction() {
     });
   }
 
-  setupCanvas(document.getElementById('spyChart'), () => chart2, 0, 'spy');
   setupCanvas(document.getElementById('expChart'), () => chart3, 0, 'exp');
 
   window.addEventListener('mousemove', e => {
@@ -1959,22 +1774,7 @@ function initSubChartsInteraction() {
     tip.style.top  = (e.clientY - 10) + 'px';
     tip.style.display = 'block';
 
-    if (_chartDrag.type === 'spy') {
-      if (!chart2) return;
-      const ca = chart2.chartArea;
-      const deltaY = e.clientY - _chartDrag.startClientY;
-      const pxPerUnit = (ca.bottom - ca.top) / CURVE_YRANGE;
-      const val = Math.round(_chartDrag.startVal - deltaY / pxPerUnit * 0.35);
-      const clamped = Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, val));
-      if (!S.yieldCurve) S.yieldCurve = {};
-      S.yieldCurve[_chartDrag.age] = clamped;
-      chart2.data.datasets[0].data[_chartDrag.idx] = clamped;
-      // Update point color
-      const spyColors = chart2.data.datasets[0].pointBackgroundColor;
-      if (Array.isArray(spyColors)) spyColors[_chartDrag.idx] = clamped >= 3 ? '#4caf50' : clamped >= 0 ? '#ff9800' : '#f44336';
-      chart2.update('none');
-      tip.textContent = `Age ${_chartDrag.age}  ${clamped >= 0 ? '+' : ''}${parseFloat(clamped).toFixed(1)}%`;
-    } else if (_chartDrag.type === 'exp') {
+    if (_chartDrag.type === 'exp') {
       if (!chart3) return;
       const ca = chart3.chartArea;
       const expMax = chart3.scales.y.max;
@@ -2165,65 +1965,20 @@ function applyMonthlyBaseSlider(val) {
   go();
 }
 
-function updateSpyNudgeLabel() {
-  const lbl = document.getElementById('spy-nudge-label');
-  if (!lbl) return;
-  const n = S.spyNudge || 0;
-  lbl.textContent = (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-  lbl.style.color = n > 0.05 ? 'rgba(26,140,95,0.9)' : n < -0.05 ? 'rgba(192,48,48,0.9)' : 'rgba(160,100,0,0.82)';
+function syncMarketBandInputs() {
+  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
+  ['pessimistic', 'base', 'optimistic'].forEach(k => {
+    const el = document.getElementById('band-' + k);
+    if (el) el.value = bands[k] ?? MARKET_BAND_DEFAULTS[k];
+  });
 }
 
-function initSpyNudgeWheel() {
-  const wheel = document.getElementById('spy-nudge-wheel');
-  if (!wheel) return;
-
-  const badge = document.createElement('div');
-  badge.style.cssText = 'position:fixed;display:none;background:rgba(20,10,5,0.88);color:#fff;font-size:20px;font-weight:800;font-family:"SF Mono",Menlo,monospace;padding:7px 14px;border-radius:8px;pointer-events:none;z-index:2000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.35);letter-spacing:-.02em;transform:translateY(-50%);';
-  document.body.appendChild(badge);
-
-  function showBadge(clientY) {
-    const n = S.spyNudge || 0;
-    badge.textContent = (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-    const rect = wheel.getBoundingClientRect();
-    badge.style.left = (rect.right + 10) + 'px';
-    badge.style.top  = clientY + 'px';
-    badge.style.display = 'block';
-  }
-  function hideBadge() { badge.style.display = 'none'; }
-
-  function applyNudge(newNudge, clientY) {
-    S.spyNudge = Math.round(Math.min(20, Math.max(-20, newNudge)) * 10) / 10;
-    updateSpyNudgeLabel();
-    if (clientY != null) showBadge(clientY);
-  }
-
-  let _sWheelTimer = null, _sBadgeTimer = null;
-  wheel.addEventListener('wheel', e => {
-    e.preventDefault();
-    const ticks = -e.deltaY / (Math.abs(e.deltaY) > 50 ? 200 : 3);
-    applyNudge((S.spyNudge || 0) + ticks * 0.1,
-               wheel.getBoundingClientRect().top + wheel.offsetHeight / 2);
-    clearTimeout(_sWheelTimer); clearTimeout(_sBadgeTimer);
-    _sWheelTimer = setTimeout(go, 120);
-    _sBadgeTimer = setTimeout(hideBadge, 800);
-  }, { passive: false });
-
-  let _sWDrag = null;
-  wheel.addEventListener('mousedown', e => {
-    e.preventDefault();
-    _sWDrag = { startY: e.clientY, startNudge: S.spyNudge || 0 };
-    showBadge(e.clientY);
-  });
-  window.addEventListener('mousemove', e => {
-    if (!_sWDrag) return;
-    const dy = _sWDrag.startY - e.clientY;
-    applyNudge(_sWDrag.startNudge + dy * 0.08, e.clientY);
-  });
-  window.addEventListener('mouseup', () => {
-    if (!_sWDrag) return;
-    _sWDrag = null; hideBadge(); go();
-  });
-  updateSpyNudgeLabel();
+function updateMarketBand(key, rawVal) {
+  const v = parseFloat(rawVal);
+  if (isNaN(v)) return;
+  if (!S.marketBands) S.marketBands = { ...MARKET_BAND_DEFAULTS };
+  S.marketBands[key] = v;
+  go();
 }
 
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
@@ -2238,7 +1993,7 @@ function ensureFields() {
   if (!S.yieldCurve)    S.yieldCurve    = {};
   if (!S.expenseCurve)  S.expenseCurve  = {};
   if (S.expMultiplier == null) S.expMultiplier = 1;
-  if (S.spyNudge == null) S.spyNudge = 0;
+  if (!S.marketBands) S.marketBands = { ...MARKET_BAND_DEFAULTS };
   if (!S.monthlyBreakdown || !Array.isArray(S.monthlyBreakdown) || S.monthlyBreakdown.length === 0) S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
   if (!S.startYear) S.startYear = new Date().getFullYear();
@@ -2367,7 +2122,7 @@ function _applyScenarios(saved) {
   }
   syncInputs();
   renderScenarioBar();
-  buildSpyPresetOptions();
+  syncMarketBandInputs();
   renderAll();
   go();
   badge('saved', 'ok');
@@ -2500,7 +2255,7 @@ function compareScenarioSections(prev, next) {
       prev.liquidBase !== next.liquidBase || prev.inflationRate !== next.inflationRate ||
       prev.yieldRate !== next.yieldRate || prev.monthlyExpenses !== next.monthlyExpenses ||
       JSON.stringify(prev.yieldCurve) !== JSON.stringify(next.yieldCurve) ||
-      prev.spyPreset !== next.spyPreset)
+      JSON.stringify(prev.marketBands) !== JSON.stringify(next.marketBands))
     changed.add('settings');
   return changed;
 }
@@ -2540,7 +2295,7 @@ function switchScenario(id) {
   activeScenarioId = id;
   S = deepCopy(SCENARIOS.find(s => s.id === id)?.data || EMPTY);
   ensureFields();
-  syncInputs(); renderAll(); renderScenarioBar(); buildSpyPresetOptions(); go();
+  syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); go();
   const changed = compareScenarioSections(prevS, S);
   if (changed.size > 0) highlightChangedSections(changed);
 }
@@ -2607,12 +2362,13 @@ function getMonthly(age, override) {
   return b;
 }
 
-function getYield(age) {
+function getYield(age, overrideRate) {
+  if (overrideRate !== undefined) return overrideRate / 100;
   const base = (S.yieldCurve && S.yieldCurve[age] !== undefined) ? S.yieldCurve[age] : S.yieldRate;
-  return (base + (S.spyNudge || 0)) / 100;
+  return base / 100;
 }
 
-function runSim(monthlyOverride) {
+function runSim(monthlyOverride, yieldRateOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
 
   // Precompute installment info per expense.
@@ -2687,7 +2443,7 @@ function runSim(monthlyOverride) {
 
   // ── Partial-year loop for starting year: simulate current month → Dec ──
   {
-    const _saYld = getYield(sa);
+    const _saYld = getYield(sa, yieldRateOverride);
     const _saMYld = Math.pow(1 + _saYld, 1/12) - 1; // getYield already returns decimal — no /100
     let _saNetBurn = 0;
     for (let mo = _curMo; mo <= 12; mo++) {
@@ -2756,9 +2512,9 @@ function runSim(monthlyOverride) {
   }
 
   for (let age = sa + 1; age <= ea; age++) {
-    const yld = getYield(age);
+    const yld = getYield(age, yieldRateOverride);
     const mYld = Math.pow(1 + yld, 1/12) - 1;
-    const crash = (S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0);
+    const crash = (yieldRateOverride === undefined && S.yieldCurve && S.yieldCurve[age] !== undefined && S.yieldCurve[age] < 0);
 
     let lastInflM = 0;
     let yearMinLiq = liq;
@@ -2915,29 +2671,13 @@ function calcMaxMonthly(target) {
 //  MONTE CARLO
 // ══════════════════════════════════════════════════════════════
 
-// Distribution parameters for each preset — (mean%, std%) used to sample
-// independent return sequences for MC runs.
+// Distribution parameters for MC — use base band mean, spread = half the pessimistic→optimistic range.
 function _mcParams() {
-  const id = S.spyPreset;
-  const h  = _HIST_STD;
-  const map = {
-    historical:    [_HIST_MEAN, h * 1.00],
-    vanguard:      [6.7,        h * 0.70],
-    goldman:       [4.5,        h * 0.40],
-    jpmorgan:      [8.4,        h * 0.85],
-    blackrock:     [8.9,        h * 0.90],
-    siegel:        [11.0,       h * 1.00],
-    bogle:         [6.4,        h * 0.78],
-    bridgewater:   [1.4,        h * 0.65],
-    crash_recover: [7.5,        h * 1.10],
-    stagflation:   [7.0,        h * 0.95],
-    bull:          [14.5,       h * 1.15],
-    bear:          [3.4,        h * 0.60],
-  };
-  const p = id && map[id];
-  if (p) return { mean: p[0], std: p[1] };
-  // Custom / manual: use configured rate + full historical vol
-  return { mean: (S.yieldRate || 6) + (S.spyNudge || 0), std: h };
+  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
+  const mean = bands.base ?? 7;
+  const spread = ((bands.optimistic ?? 11) - (bands.pessimistic ?? 3)) / 2;
+  const std = Math.max(4, spread * 1.2); // at least 4% std
+  return { mean, std };
 }
 
 function runMonteCarlo(n) {
@@ -2945,25 +2685,32 @@ function runMonteCarlo(n) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
   const { mean, std } = _mcParams();
 
-  // Seeded with current time → fresh sample set each call
-  const rng = _seededRNG((Date.now() ^ 0x9e3779b9) >>> 0);
 
-  // Save/restore scenario state — we temporarily swap yield curves
-  const savedCurve  = S.yieldCurve ? { ...S.yieldCurve } : null;
-  const savedPreset = S.spyPreset;
-  const savedNudge  = S.spyNudge;
-  S.spyPreset = null;      // force use of yieldCurve directly
-  S.spyNudge  = 0;         // nudge already baked into mean
+  // Save/restore yieldCurve — MC temporarily overrides it for each run
+  const savedCurve = S.yieldCurve ? { ...S.yieldCurve } : null;
+
+  // Seeded PRNG + Box-Muller for reproducible MC sequences
+  let _mcS = ((Date.now() ^ 0x9e3779b9) >>> 0);
+  function _mcRng() {
+    _mcS += 0x6D2B79F5;
+    let t = Math.imul(_mcS ^ _mcS >>> 15, 1 | _mcS);
+    t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+  function _mcRandn() {
+    let u = 0; while (u === 0) u = _mcRng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * _mcRng());
+  }
 
   const allLiqs = [];      // allLiqs[run][ageIdx] = liq value
   let successes = 0;
 
   try {
     for (let r = 0; r < n; r++) {
-      // Random yield curve for this run — independent draw from the preset distribution
+      // Random yield curve for this run — independent draw from the band distribution
       const curve = {};
       for (let age = sa; age <= ea; age++) {
-        curve[age] = Math.max(-50, Math.min(60, mean + _randn(rng) * std));
+        curve[age] = Math.max(-50, Math.min(60, mean + _mcRandn() * std));
       }
       S.yieldCurve = curve;
       const result = runSim();
@@ -2973,8 +2720,6 @@ function runMonteCarlo(n) {
   } finally {
     // Always restore — even if runSim threw
     S.yieldCurve = savedCurve;
-    S.spyPreset  = savedPreset;
-    S.spyNudge   = savedNudge;
   }
 
   // Percentile bands at each age step
@@ -4001,7 +3746,7 @@ function _buildChartView(data) {
 function _initLwChart() {
   const el = document.getElementById('nwChart');
   if (!el || !window.LightweightCharts) return;
-  if (lwChart) { lwChart.remove(); lwChart = null; }
+  if (lwChart) { lwChart.remove(); lwChart = null; lwFanHighSeries = null; lwFanLowSeries = null; }
 
   const dark = document.body.dataset.theme === 'graphite';
   const gc = v => dark ? `rgba(255,255,255,${v})` : `rgba(128,128,128,${v})`;
@@ -4015,6 +3760,19 @@ function _initLwChart() {
     rightPriceScale: { borderVisible: false, autoScale: true, scaleMargins: { top: 0.08, bottom: 0.05 } },
     handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
     handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: false },
+  });
+
+  // Fan ribbon (pessimistic/optimistic) — drawn first, behind everything
+  lwFanHighSeries = lwChart.addAreaSeries({
+    lineColor: 'rgba(55,138,221,0.0)', topColor: 'rgba(55,138,221,0.12)', bottomColor: 'rgba(55,138,221,0.04)',
+    lineWidth: 0, priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
+  });
+  lwFanLowSeries = lwChart.addAreaSeries({
+    lineColor: 'rgba(192,48,48,0.22)', topColor: 'rgba(192,48,48,0.0)', bottomColor: 'rgba(192,48,48,0.0)',
+    lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+    priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'custom', formatter: fmtM },
   });
 
   // RE (orange) — drawn first so liquid renders on top
@@ -4087,13 +3845,22 @@ function _initLwChart() {
   _startDanceLoop();
 }
 
-function _updateLwChart(data) {
+function _updateLwChart(data, dataPess, dataOptim) {
   if (!lwChart || !lwLiqSeries) return;
   const sim = data.monthly || [];
   if (!sim.length) return;
   window._lastSimData = sim;
 
   const inf = (S.inflationRate || 2.5) / 100;
+
+  // Fan ribbon — optimistic (high) and pessimistic (low) liquid curves
+  if (lwFanHighSeries && dataOptim?.monthly?.length) {
+    lwFanHighSeries.setData(dataOptim.monthly.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
+  }
+  if (lwFanLowSeries && dataPess?.monthly?.length) {
+    lwFanLowSeries.setData(dataPess.monthly.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
+  }
+
   lwReSeries.setData(  sim.map(m => ({ time: _mt(m.year, m.mo), value: m.iliq || 0 })));
   lwLiqSeries.setData( sim.map(m => ({ time: _mt(m.year, m.mo), value: m.liq })));
   lwTotalSeries.setData(sim.map(m => ({ time: _mt(m.year, m.mo), value: m.liq + (m.iliq||0) })));
@@ -4410,7 +4177,7 @@ function go() {
 
   // Sync wheel label with actual first-month value from simulation
   if (data.length) setWheelLabel(data[0].monthlyExp);
-  updateSpyNudgeLabel();
+  syncMarketBandInputs();
 
   // ── Footer sassy phrase — update first so chart errors can't block it ──
   try {
@@ -4490,90 +4257,46 @@ function go() {
   document.getElementById('metrics').style.gridTemplateColumns = '';
   document.getElementById('metrics').innerHTML = segs.join('');
 
-  // ── Sub-chart data: zoom-filtered to match main chart period ──
-  const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let labels, yieldData, expData, subAges;
-  if (_chartZoom === 1 || _chartZoom === 5) {
-    const nMo = _chartZoom === 5 ? 60 : 12;
-    const moN = (data.monthly || []).slice(0, nMo);
-    labels    = moN.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
-    subAges   = moN.map(m => m.age);
-    yieldData = moN.map(m => {
-      const base = S.yieldCurve && S.yieldCurve[m.age] !== undefined ? S.yieldCurve[m.age] : S.yieldRate;
-      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
-    });
-    expData   = moN.map(m => m.baseExp);
-  } else {
-    const maxAge     = (S.startAge || 57) + _chartZoom;
-    const filtered   = data.filter(d => d.age <= maxAge);
-    labels    = filtered.map(d => d.age);
-    subAges   = labels;
-    yieldData = filtered.map(d => {
-      const base = S.yieldCurve && S.yieldCurve[d.age] !== undefined ? S.yieldCurve[d.age] : S.yieldRate;
-      return Math.max(CURVE_YMIN, Math.min(CURVE_YMAX, base + (S.spyNudge || 0)));
-    });
-    expData   = filtered.map(d => d.monthlyExp);
-  }
-
-  // SPY avg across visible period
-  const spyAvg = yieldData.reduce((a, b) => a + b, 0) / (yieldData.length || 1);
-  const spyEl = document.getElementById('spy-avg');
-  if (spyEl) spyEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
-  const spyAvgEl = document.getElementById('spy-avg-label');
-  if (spyAvgEl) spyAvgEl.textContent = `avg ${spyAvg >= 0 ? '+' : ''}${spyAvg.toFixed(1)}%`;
-
-  const expAvg = expData.reduce((a,b)=>a+b,0) / (expData.length || 1);
-  const expAvgEl = document.getElementById('exp-avg-label');
-  if (expAvgEl) expAvgEl.textContent = `avg ${fmtM(expAvg)}/mo`;
-  const expMax    = Math.ceil(Math.max(...expData, 1) * 1.5 / 1000) * 1000;
-
-  // SPY dot colors: green positive, red negative, amber near zero
-  const spyColors = yieldData.map(v =>
-    v >= 3  ? 'rgba(26,140,95,0.9)'  :
-    v >= 0  ? 'rgba(200,150,20,0.9)' :
-              'rgba(192,48,48,0.9)'
-  );
+  // ── Fan ribbon: run pessimistic + optimistic sims for LW chart band ──
+  const bands = S.marketBands || MARKET_BAND_DEFAULTS;
+  const dataPess  = runSim(undefined, bands.pessimistic ?? 3);
+  const dataOptim = runSim(undefined, bands.optimistic  ?? 11);
 
   renderZoomButtons();
 
   // ── Main NW chart — LightweightCharts ──────────────────────
   if (!lwChart) { _initLwChart(); }
-  _updateLwChart(data);
+  _updateLwChart(data, dataPess, dataOptim);
 
+  // ── Sub-chart data: zoom-filtered to match main chart period ──
+  const _MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let labels, expData, subAges;
+  if (_chartZoom === 1 || _chartZoom === 5) {
+    const nMo = _chartZoom === 5 ? 60 : 12;
+    const moN = (data.monthly || []).slice(0, nMo);
+    labels  = moN.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
+    subAges = moN.map(m => m.age);
+    expData = moN.map(m => m.baseExp);
+  } else {
+    const maxAge   = (S.startAge || 57) + _chartZoom;
+    const filtered = data.filter(d => d.age <= maxAge);
+    labels  = filtered.map(d => d.age);
+    subAges = labels;
+    expData = filtered.map(d => d.monthlyExp);
+  }
 
-  // ── Sub-chart label plugins ──
+  const expAvg = expData.reduce((a,b)=>a+b,0) / (expData.length || 1);
+  const expAvgEl = document.getElementById('exp-avg-label');
+  if (expAvgEl) expAvgEl.textContent = `avg ${fmtM(expAvg)}/mo`;
+  const expMax = Math.ceil(Math.max(...expData, 1) * 1.5 / 1000) * 1000;
+
+  // ── Expense sub-chart ──
   const fmtShort = v => {
     const abs = Math.abs(v);
     if (abs >= 1_000_000) return (v<0?'-$':'$') + (abs/1_000_000).toFixed(1) + 'M';
     if (abs >= 1_000)     return (v<0?'-$':'$') + (abs/1_000).toFixed(1).replace(/\.0$/,'') + 'K';
     return (v<0?'-$':'$') + Math.round(abs);
   };
-
-  const spyLabelPlugin = {
-    id: 'spyLabels',
-    afterDraw(ch) {
-      const ctx = ch.ctx, ds = ch.data.datasets[0], meta = ch.getDatasetMeta(0);
-      const avg = ds.data.reduce((a,b)=>a+b,0) / ds.data.length;
-      ctx.save();
-      // SPY avg text top-left of chart area
-      ctx.font = '700 10px SF Mono, Menlo, monospace';
-      ctx.fillStyle = avg >= 3 ? 'rgba(26,140,95,0.55)' : avg >= 0 ? 'rgba(180,120,0,0.55)' : 'rgba(192,48,48,0.55)';
-      ctx.textAlign = 'left';
-      ctx.fillText(`avg ${avg>=0?'+':''}${avg.toFixed(1)}%`, ch.chartArea.left + 4, ch.chartArea.top + 12);
-      // Dot value labels
-      ctx.font = '700 10px SF Mono, Menlo, monospace';
-      ctx.textAlign = 'center';
-      meta.data.forEach((pt, i) => {
-        const v = ds.data[i];
-        ctx.fillStyle = v >= 3 ? 'rgba(26,140,95,0.8)' : v >= 0 ? 'rgba(180,120,0,0.8)' : 'rgba(192,48,48,0.8)';
-        const label = (v >= 0 ? '+' : '') + parseFloat(v).toFixed(1) + '%';
-        const yOff = pt.y < ch.chartArea.top + 18 ? 14 : -8;
-        ctx.fillText(label, pt.x, pt.y + yOff);
-      });
-      ctx.restore();
-    }
-  };
-
   const expLabelPlugin = {
     id: 'expLabels',
     afterDraw(ch) {
@@ -4590,52 +4313,6 @@ function go() {
       ctx.restore();
     }
   };
-
-  // ── SPY sub-chart ──
-  // Dynamic Y scale: fit to data with padding, clamped to CURVE_YMIN/MAX
-  const _spyMin = Math.max(CURVE_YMIN, Math.floor(Math.min(...yieldData) - 3));
-  const _spyMax = Math.min(CURVE_YMAX, Math.ceil(Math.max(...yieldData) + 3));
-  const spySubOpts = {
-    responsive: true, maintainAspectRatio: false,
-    layout: { padding: { top: 2, bottom: 2 } },
-    plugins: { legend: { display: false }, tooltip: { enabled: false } },
-    scales: {
-      x: { display: false },
-      y: { min: _spyMin, max: _spyMax,
-           ticks:{ font:{size:9}, color:'rgba(160,100,0,0.8)', callback: v => v+'%' },
-           grid:{ color:'rgba(128,128,128,0.06)' } }
-    }
-  };
-  if (!chart2) {
-    chart2 = new Chart(document.getElementById('spyChart'), {
-      type: 'line',
-      plugins: [spyLabelPlugin],
-      data: { labels, datasets: [
-        { label:'SPY return', data: yieldData, borderColor:'rgba(200,130,20,0.75)', borderDash:[4,3], borderWidth:2,
-          pointRadius:4, pointBackgroundColor: spyColors, fill:false, tension:0.3 }
-      ]},
-      options: spySubOpts
-    });
-    chart2._subAges = subAges;
-    initSubChartsInteraction();
-    initExpMultWheel();
-    initSpyNudgeWheel();
-    // Defer draw — Chart.js's update/render go through an Animator that may not fire
-    // if the page isn't yet composited. chart.draw() is the reliable synchronous fallback.
-    setTimeout(() => { chart2?.draw(); chart3?.draw(); }, 0);
-  } else {
-    chart2.data.labels = labels;
-    chart2.data.datasets[0].data = yieldData;
-    chart2.data.datasets[0].pointBackgroundColor = spyColors;
-    chart2.options.scales.y.min = _spyMin;
-    chart2.options.scales.y.max = _spyMax;
-    chart2._subAges = subAges;
-    // update() processes new data into Chart.js internal state; draw() guarantees paint
-    chart2.update('none');
-    chart2.draw();
-  }
-
-  // ── Expense sub-chart ──
   const expSubOpts = {
     responsive: true, maintainAspectRatio: false,
     layout: { padding: { top: 2, bottom: 2 } },
@@ -4658,6 +4335,9 @@ function go() {
       options: expSubOpts
     });
     chart3._subAges = subAges;
+    initSubChartsInteraction();
+    initExpMultWheel();
+    setTimeout(() => { chart3?.draw(); }, 0);
   } else {
     chart3.data.labels = labels;
     chart3.data.datasets[0].data = expData;
@@ -5595,7 +5275,7 @@ function syncInputs() {
   const wtEl = document.getElementById('winterTrip'); if (wtEl) wtEl.value = fmtInput(S.winterTrip);
   const stEl = document.getElementById('summerTrip'); if (stEl) stEl.value = fmtInput(S.summerTrip);
   updateMonthlyBaseSlider();
-  updateSpyNudgeLabel();
+  syncMarketBandInputs();
   const inflNoteEl = document.getElementById('infl-note');
   if (inflNoteEl) inflNoteEl.innerHTML = inflNote();
   [['inf','inflationRate']].forEach(([id, k]) => {
@@ -6039,7 +5719,7 @@ function applyAiScenario(jsonStr) {
     SCENARIOS.push({ id, name, data: deepCopy(merged), source: 'ai' });
     activeScenarioId = id;
     S = deepCopy(merged);
-    ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); buildSpyPresetOptions(); go();
+    ensureFields(); syncInputs(); renderAll(); renderScenarioBar(); syncMarketBandInputs(); go();
     saveActive();
     // Re-render chat to show updated button state
     renderChat();
