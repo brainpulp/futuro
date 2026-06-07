@@ -2501,7 +2501,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
       });
       let inc = 0;
       // Incomes — record into _txns with exact inflated amounts
-      props.filter(p => !p.sold && p.monthlyRent > 0 && sa >= (p.rentFromAge || sa))
+      props.filter(p => { const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa); return !p.sold && p.monthlyRent > 0 && sa >= rfa; })
         .forEach(p => { if (mo >= (p.rentFromMonth || 1)) { inc += p.monthlyRent; _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' }); } });
       S.incomes.filter(i => i.enabled !== false).forEach(i => {
         const from = i.from || sa, to = i.to || ea;
@@ -2618,7 +2618,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
 
       // Income this month
       let inc = 0;
-      props.filter(p => !p.sold && p.monthlyRent > 0 && age >= (p.rentFromAge || sa))
+      props.filter(p => { const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa); return !p.sold && p.monthlyRent > 0 && age >= rfa; })
         .forEach(p => {
           if (mo >= (p.rentFromMonth || 1)) {
             inc += p.monthlyRent;
