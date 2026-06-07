@@ -1402,7 +1402,7 @@ const EMPTY = {
   liquidBase: 1500000, yieldRate: 7, inflationRate: 3, assetAppreciation: 3,
   monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
   expMultiplier: 1,
-  businessUnits: [],
+  deals: [],
   yieldCurve: {},
   incomes: [
     { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
@@ -2256,7 +2256,7 @@ function ensureFields() {
   });
   if (!S.startAge) S.startAge = 57;
   if (!S.endAge)   S.endAge   = 87;
-  if (!S.businessUnits) S.businessUnits = [];
+  if (!S.deals) S.deals = [];
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3744,18 +3744,19 @@ function _simAudit(data) {
   const missing = m.filter(r => !r.txns).length;
   if (missing) console.warn(`[futuro audit] ${missing} monthly rows missing txns`);
   data._auditIssues = [];
-  // BU consistency: disabled BU items must produce zero txns
-  (S.businessUnits || []).filter(bu => !bu.enabled).forEach(bu => {
+  // Deal consistency: disabled deal items must produce zero txns
+  (S.deals || []).filter(bu => !bu.enabled).forEach(bu => {
     const disabledNames = new Set([
-      ...S.incomes.filter(x => x.buId === bu.id).map(x => x.name),
-      ...S.expenses.filter(x => x.buId === bu.id).map(x => x.name),
-      ...S.properties.filter(x => x.buId === bu.id).map(x => x.name),
+      ...S.incomes.filter(x => x.dealId === bu.id).map(x => x.name),
+      ...S.expenses.filter(x => x.dealId === bu.id).map(x => x.name),
+      ...S.properties.filter(x => x.dealId === bu.id).map(x => x.name),
+      bu.name,
     ]);
     if (!disabledNames.size) return;
     m.forEach(row => {
       (row.txns || []).forEach(t => {
         if (disabledNames.has(t.name)) {
-          const msg = `[futuro audit] BU "${bu.name}" is OFF but txn "${t.name}" appeared in ${row.year}-${row.mo}`;
+          const msg = `[futuro audit] Deal "${bu.name}" is OFF but txn "${t.name}" appeared in ${row.year}-${row.mo}`;
           console.error(msg);
           data._auditIssues.push(msg);
         }
@@ -4744,17 +4745,17 @@ function togItem(arr, id) { return arr.map(x => x.id === id ? { ...x, enabled: x
 function togP(id)  { S.properties   = togItem(S.properties,   id); renderProps();  go(); }
 function togI(id)  { S.incomes      = togItem(S.incomes,      id); renderInc();    go(); }
 function togE(id)  { S.expenses     = togItem(S.expenses,     id); renderExp();    go(); }
-function toggleBU(buId) {
-  const bu = (S.businessUnits || []).find(b => b.id === buId);
+function toggleDeal(dealId) {
+  const bu = (S.deals || []).find(b => b.id === dealId);
   if (!bu) return;
   bu.enabled = !bu.enabled;
   ['incomes','expenses','properties'].forEach(key => {
     S[key] = S[key].map(item => {
-      if (item.buId !== buId) return item;
+      if (item.dealId !== dealId) return item;
       if (bu.enabled) {
-        return { ...item, enabled: item.buEnabled !== false };
+        return { ...item, enabled: item.dealEnabled !== false };
       } else {
-        return { ...item, buEnabled: item.enabled !== false, enabled: false };
+        return { ...item, dealEnabled: item.enabled !== false, enabled: false };
       }
     });
   });
