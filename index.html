@@ -4025,6 +4025,9 @@ function _initLwChart() {
       }, { d: null, dist: Infinity }).d;
       if (txnHit) { showTxnTooltip(txnHit, e.clientX, e.clientY); el.style.cursor = 'pointer'; return; }
     }
+    // Don't hide if cursor is already over the tooltip
+    const _tt = document.getElementById('txn-tip');
+    if (_tt && _tt.matches(':hover')) { el.style.cursor = ''; return; }
     hideTxnTooltip(); el.style.cursor = '';
   });
   el.addEventListener('mouseleave', () => hideTxnTooltip());
@@ -5211,8 +5214,10 @@ function toggleSettings() {
 const _MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function showTxnTooltip(dot, cx, cy) {
   clearTimeout(_tipHideTimer);
-  _currentTipDot = dot; _currentTipX = cx; _currentTipY = cy;
+  // If same dot is already showing, don't reposition — let user move to it
   const tip = document.getElementById('txn-tip');
+  if (_currentTipDot === dot && tip && tip.style.display !== 'none') return;
+  _currentTipDot = dot; _currentTipX = cx; _currentTipY = cy;
   const mLbl = document.getElementById('txn-tip-month');
   const rows = document.getElementById('txn-tip-rows');
   if (!tip) return;
