@@ -5894,14 +5894,14 @@ function renderDeals() {
 
 function upD(id, field, val) {
   S.deals = (S.deals||[]).map(d => d.id===id ? {...d, [field]: val} : d);
-  saveActive(); lsSave(); sbSave();
+  saveActive(); lsSave();
 }
 function upDf(id, block, field, val) {
   S.deals = (S.deals||[]).map(d => {
     if (d.id !== id) return d;
     return {...d, [block]: {...(d[block]||{}), [field]: val}};
   });
-  saveActive(); lsSave(); sbSave();
+  saveActive(); lsSave();
 }
 function rmD(id) {
   S.deals = (S.deals||[]).filter(d => d.id !== id);
