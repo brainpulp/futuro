@@ -1330,7 +1330,8 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div style="font-weight:700;font-size:15px;">Yield Curve (per-age override)</div>
         <div style="display:flex;align-items:center;gap:12px;">
-          <span style="font-size:12px;color:#aaa;">Drag dots &nbsp;·&nbsp; double-click to reset</span>
+          <span style="font-size:12px;color:#aaa;">Drag dots &nbsp;·&nbsp; double-click to reset one</span>
+          <button onclick="flattenCurve()" style="font-size:11px;font-weight:700;padding:3px 10px;border:1px solid #e6ebf1;border-radius:4px;background:#f8f0ff;cursor:pointer;color:#7c3aed;" title="Reset all dots to the base return rate">Flatten</button>
           <button onclick="closeCurve()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
@@ -4671,6 +4672,11 @@ function openCurve() {
   curveOpen = true;
   drawCurve();
   document.getElementById('curve-popup').style.display = 'flex';
+}
+function flattenCurve() {
+  S.yieldCurve = {};
+  drawCurve();
+  go();
 }
 function closeCurve() {
   curveOpen = false;
