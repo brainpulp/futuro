@@ -1402,6 +1402,7 @@ const EMPTY = {
   liquidBase: 1500000, yieldRate: 7, inflationRate: 3, assetAppreciation: 3,
   monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
   expMultiplier: 1,
+  businessUnits: [],
   yieldCurve: {},
   incomes: [
     { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
@@ -2255,6 +2256,7 @@ function ensureFields() {
   });
   if (!S.startAge) S.startAge = 57;
   if (!S.endAge)   S.endAge   = 87;
+  if (!S.businessUnits) S.businessUnits = [];
 }
 
 // ══════════════════════════════════════════════════════════════
