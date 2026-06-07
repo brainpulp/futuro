@@ -1043,7 +1043,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
       <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;white-space:nowrap;">Base return</span>
       <div class="market-band-item" style="color:#1A8C5F;">
         <input type="number" id="yield-rate-input" min="-10" max="40" step="0.5"
-          oninput="S.yieldRate=parseFloat(this.value)||7;renderCurve();go();" title="Default annual return % (drag curve dots to override per age)">
+          oninput="_shiftYieldCurve(parseFloat(this.value));renderCurve();go();" title="Default annual return % (drag curve dots to override per age)">
         <span>% / yr</span>
       </div>
       <button onclick="toggleCurve()" style="font-size:11px;font-weight:700;padding:3px 10px;border:1px solid #e6ebf1;border-radius:4px;background:#fff;cursor:pointer;color:#378ADD;" title="Edit per-age return curve">Edit curve</button>
@@ -1954,6 +1954,20 @@ function applyMonthlyBaseSlider(val) {
 function syncMarketBandInputs() {
   const el = document.getElementById('yield-rate-input');
   if (el && document.activeElement !== el) el.value = S.yieldRate ?? 7;
+}
+
+// Shift all yieldCurve entries by the delta when the base rate changes,
+// so per-age overrides move with the baseline instead of being ignored.
+function _shiftYieldCurve(newRate) {
+  if (isNaN(newRate)) return;
+  const prev = S.yieldRate ?? 7;
+  const delta = newRate - prev;
+  S.yieldRate = newRate;
+  if (delta !== 0 && S.yieldCurve) {
+    Object.keys(S.yieldCurve).forEach(k => {
+      S.yieldCurve[k] = Math.max(-50, Math.min(40, Math.round((S.yieldCurve[k] + delta) * 10) / 10));
+    });
+  }
 }
 
 // ── Saved market curves ──────────────────────────────────────
