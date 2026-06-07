@@ -2511,7 +2511,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
       let inc = 0;
       // Incomes — record into _txns with exact inflated amounts
       props.filter(p => { const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa); return !p.sold && p.monthlyRent > 0 && sa >= rfa; })
-        .forEach(p => { if (mo >= (p.rentFromMonth || 1)) { inc += p.monthlyRent; _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' }); } });
+        .forEach(p => { const rfa2 = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa); if (sa > rfa2 || mo >= (p.rentFromMonth || 1)) { inc += p.monthlyRent; _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' }); } });
       S.incomes.filter(i => i.enabled !== false).forEach(i => {
         const from = i.from || sa, to = i.to || ea;
         const startOk = sa > from || (sa === from && mo >= (i.fromMonth || 1));
@@ -2631,7 +2631,8 @@ function runSim(monthlyOverride, yieldRateOverride) {
       let inc = 0;
       props.filter(p => { const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa); return !p.sold && p.monthlyRent > 0 && age >= rfa; })
         .forEach(p => {
-          if (mo >= (p.rentFromMonth || 1)) {
+          const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa);
+          if (age > rfa || mo >= (p.rentFromMonth || 1)) {
             inc += p.monthlyRent;
             _txns.push({ id: p.id, arr: 'properties', name: p.name + ' rent', amount: p.monthlyRent, type: 'rent' });
           }
@@ -2773,6 +2774,21 @@ window._selfTest = function() {
     assert('T4a calendar-year rent absent at 58', age58inc === 0, `got ${age58inc}`);
     assert('T4b calendar-year rent present at 59', near(age59inc, 300, 1), `got ${age59inc}`);
   } catch(e) { err('T4 calendar-year rentFromAge', e.message); }
+
+  // ── T4c: rentFromMonth only gates the START year — all months rent in subsequent years ──
+  try {
+    const d = simWith({ ...BASE, properties: [
+      { id:94, name:'RentMonthProp', value:0, monthlyRent:400, rentFromAge:57, rentFromMonth:12, saleAge:62, hold:false, enabled:true, acquireAge:57 }
+    ]});
+    const age57dec = d.monthly.find(m => m.age===57 && m.mo===12);
+    const age57nov = d.monthly.find(m => m.age===57 && m.mo===11);
+    const age58jan = d.monthly.find(m => m.age===58 && m.mo===1);
+    const age58jun = d.monthly.find(m => m.age===58 && m.mo===6);
+    assert('T4c rentFromMonth blocks Nov in start year', (age57nov?.inc||0) === 0, `nov inc=${age57nov?.inc}`);
+    assert('T4d rentFromMonth allows Dec in start year', near(age57dec?.inc||0, 400, 1), `dec inc=${age57dec?.inc}`);
+    assert('T4e rentFromMonth does NOT block Jan in next year', near(age58jan?.inc||0, 400, 1), `jan inc=${age58jan?.inc}`);
+    assert('T4f rentFromMonth does NOT block Jun in next year', near(age58jun?.inc||0, 400, 1), `jun inc=${age58jun?.inc}`);
+  } catch(e) { err('T4c rentFromMonth scope', e.message); }
 
   // ── T5: property sale adds liq at correct age/month ──
   try {
