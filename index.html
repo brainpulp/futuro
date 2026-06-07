@@ -3744,6 +3744,24 @@ function _simAudit(data) {
   const missing = m.filter(r => !r.txns).length;
   if (missing) console.warn(`[futuro audit] ${missing} monthly rows missing txns`);
   data._auditIssues = [];
+  // BU consistency: disabled BU items must produce zero txns
+  (S.businessUnits || []).filter(bu => !bu.enabled).forEach(bu => {
+    const disabledNames = new Set([
+      ...S.incomes.filter(x => x.buId === bu.id).map(x => x.name),
+      ...S.expenses.filter(x => x.buId === bu.id).map(x => x.name),
+      ...S.properties.filter(x => x.buId === bu.id).map(x => x.name),
+    ]);
+    if (!disabledNames.size) return;
+    m.forEach(row => {
+      (row.txns || []).forEach(t => {
+        if (disabledNames.has(t.name)) {
+          const msg = `[futuro audit] BU "${bu.name}" is OFF but txn "${t.name}" appeared in ${row.year}-${row.mo}`;
+          console.error(msg);
+          data._auditIssues.push(msg);
+        }
+      });
+    });
+  });
 }
 
 function renderRC(data) {
