@@ -2627,6 +2627,88 @@ function getYield(age) {
   return (base + (S.spyNudge || 0)) / 100;
 }
 
+// ── Deal cashflow helpers ──────────────────────────────────────
+function _dealNetProceeds(deal, exitYear) {
+  const ex  = deal.exit    || {};
+  const cap = deal.capital || {};
+  if (ex.manualPrice != null && ex.manualPrice !== '') {
+    return Number(ex.manualPrice) * (1 - (ex.sellingCosts || 0) / 100);
+  }
+  if (ex.type === 'auto') {
+    const basis   = ex.basis || cap.amount || cap.totalAmount || 0;
+    const capStr  = cap.date || cap.startDate || String(S.startYear || 2026) + '-01';
+    const capYear = parseInt(capStr.split('-')[0], 10);
+    const years   = Math.max(0, exitYear - capYear);
+    const grown   = basis * Math.pow(1 + (ex.rate || 0) / 100, years);
+    return Math.round(grown * (1 - (ex.sellingCosts || 0) / 100));
+  }
+  return 0;
+}
+
+function _dealCashflow(deal, year, mo) {
+  let debit = 0, credit = 0;
+  const txns = [];
+  const cap  = deal.capital || {};
+  const ret  = deal.returns || {};
+  const ex   = deal.exit    || {};
+
+  // ── Capital ──
+  if (cap.type === 'oneoff' && cap.date) {
+    const [cy, cm] = cap.date.split('-').map(Number);
+    if (year === cy && mo === cm) {
+      debit += cap.amount || 0;
+      txns.push({ id: deal.id, arr: 'deals', name: deal.name, amount: -(cap.amount || 0), type: 'deal-capital' });
+    }
+  } else if (cap.type === 'installments' && cap.startDate) {
+    const [sy, sm] = cap.startDate.split('-').map(Number);
+    const moFromStart = (year - sy) * 12 + (mo - sm);
+    const freqMo = { monthly: 1, quarterly: 3, 'semi-annual': 6, annual: 12 }[cap.frequency] || 1;
+    const nPay   = cap.nPayments || 0;
+    const slot   = Math.floor(moFromStart / freqMo);
+    if (moFromStart >= 0 && moFromStart % freqMo === 0 && slot < nPay) {
+      const pp = cap.perPayment || 0;
+      debit += pp;
+      txns.push({ id: deal.id, arr: 'deals', name: deal.name, amount: -Math.round(pp), type: 'deal-installment', installNum: slot + 1, installTotal: nPay });
+    }
+  }
+
+  // ── Returns ──
+  const _retInWindow = (from, to) => {
+    if (!from) return false;
+    const [fy, fm] = from.split('-').map(Number);
+    const toStr    = (ret.untilSale && ex.type !== 'none' && ex.date) ? ex.date : (to || '9999-12');
+    const [ty, tm] = toStr.split('-').map(Number);
+    return (year > fy || (year === fy && mo >= fm)) && (year < ty || (year === ty && mo <= tm));
+  };
+
+  if (ret.type === 'monthly' && _retInWindow(ret.from, ret.to)) {
+    credit += ret.amount || 0;
+    txns.push({ id: deal.id, arr: 'deals', name: deal.name, amount: Math.round(ret.amount || 0), type: 'deal-income' });
+  } else if (ret.type === 'yearly' && _retInWindow(ret.from, ret.to) && mo === (ret.month || 1)) {
+    credit += ret.amount || 0;
+    txns.push({ id: deal.id, arr: 'deals', name: deal.name, amount: Math.round(ret.amount || 0), type: 'deal-income' });
+  } else if (ret.type === 'oneoff' && ret.from) {
+    const [fy, fm] = ret.from.split('-').map(Number);
+    if (year === fy && mo === fm) {
+      credit += ret.amount || 0;
+      txns.push({ id: deal.id, arr: 'deals', name: deal.name, amount: Math.round(ret.amount || 0), type: 'deal-income' });
+    }
+  }
+
+  // ── Exit ──
+  if (ex.type !== 'none' && ex.date) {
+    const [ey, em] = ex.date.split('-').map(Number);
+    if (year === ey && mo === em) {
+      const net = _dealNetProceeds(deal, ey);
+      credit += net;
+      txns.push({ id: deal.id, arr: 'deals', name: deal.name + ' exit', amount: Math.round(net), type: 'deal-exit' });
+    }
+  }
+
+  return { debit, credit, txns };
+}
+// ── End deal helpers ───────────────────────────────────────────
+
 function runSim(monthlyOverride) {
   const sa = S.startAge || 57, ea = S.endAge || 87;
 
