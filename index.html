@@ -5433,9 +5433,9 @@ function renderInc() {
 </div>`;
   }
 
-  const monthly = S.incomes.filter(i => i.type !== 'oneoff' && i.type !== 'annual');
-  const yearly  = S.incomes.filter(i => i.type === 'annual');
-  const oneoff  = S.incomes.filter(i => i.type === 'oneoff');
+  const monthly = S.incomes.filter(i => !i.dealId && i.type !== 'oneoff' && i.type !== 'annual');
+  const yearly  = S.incomes.filter(i => !i.dealId && i.type === 'annual');
+  const oneoff  = S.incomes.filter(i => !i.dealId && i.type === 'oneoff');
 
   let idx = 0;
 
@@ -5657,10 +5657,10 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 }
 
 function renderExp() {
-  const monthly  = S.expenses.filter(e => e.type === 'monthly');
-  const annual   = S.expenses.filter(e => e.type === 'annual');
-  const oneoff   = S.expenses.filter(e => e.type === 'oneoff');
-  const installs = S.expenses.filter(e => e.type === 'installments');
+  const monthly  = S.expenses.filter(e => !e.dealId && e.type === 'monthly');
+  const annual   = S.expenses.filter(e => !e.dealId && e.type === 'annual');
+  const oneoff   = S.expenses.filter(e => !e.dealId && e.type === 'oneoff');
+  const installs = S.expenses.filter(e => !e.dealId && e.type === 'installments');
 
   let idx = 0;
   const monthlyEl  = document.getElementById('exp-monthly-list');
@@ -5894,14 +5894,14 @@ function renderDeals() {
 
 function upD(id, field, val) {
   S.deals = (S.deals||[]).map(d => d.id===id ? {...d, [field]: val} : d);
-  saveActive();
+  saveActive(); lsSave(); sbSave();
 }
 function upDf(id, block, field, val) {
   S.deals = (S.deals||[]).map(d => {
     if (d.id !== id) return d;
     return {...d, [block]: {...(d[block]||{}), [field]: val}};
   });
-  saveActive();
+  saveActive(); lsSave(); sbSave();
 }
 function rmD(id) {
   S.deals = (S.deals||[]).filter(d => d.id !== id);
