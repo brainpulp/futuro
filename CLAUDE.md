@@ -24,6 +24,11 @@
 
 **Note:** Line numbers shift as code changes. Use as starting point, not gospel.
 
+## Self-test (run at session start)
+**ALWAYS run `_selfTest()` in the browser at the start of every session** before making changes.
+Skill: `.claude/skills/selftest/SKILL.md` — uses Chrome MCP, zero tokens, 14 assertions.
+If any fail, fix before proceeding. When fixing a new bug, add a regression test.
+
 ## Code review
 **ALWAYS run the `check-futuro` skill before committing.** It is at `.claude/skills/check-futuro/SKILL.md`.
 Invoke it by reading that file and following every check listed. Fix all 🔴 CRITICAL findings before pushing.

@@ -2696,6 +2696,150 @@ function calcMaxMonthly(target) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  SELF-TEST SUITE  —  window._selfTest()  (zero network, zero tokens)
+// ══════════════════════════════════════════════════════════════
+window._selfTest = function() {
+  const pass = [], fail = [];
+  const ok  = (name) => pass.push(name);
+  const err = (name, msg) => fail.push(`${name}: ${msg}`);
+  const assert = (name, cond, msg) => cond ? ok(name) : err(name, msg || 'false');
+  const near = (a, b, tol=1) => Math.abs(a-b) <= tol;
+
+  // ── helpers: run sim against an isolated scenario, never touching real S ──
+  function simWith(overrides) {
+    const saved = deepCopy(S);
+    Object.assign(S, deepCopy(overrides));
+    ensureFields();
+    const data = runSim();
+    Object.assign(S, saved);
+    ensureFields();
+    return data;
+  }
+
+  const BASE = {
+    startAge: 57, endAge: 62, startYear: 2026,
+    liquidBase: 100000, yieldRate: 0, inflationRate: 0,
+    monthlyExpenses: 1000, expMultiplier: 1,
+    assetAppreciation: 0, summerTrip: 0, winterTrip: 0,
+    expenses: [], incomes: [], expensePhases: [], marketPhases: [],
+    properties: [], yieldCurve: {}, expenseCurve: {},
+    monthlyBreakdown: []
+  };
+
+  // ── T1: flat 0% yield, 0% inflation → liq decreases by exactly $1000/mo ──
+  try {
+    const d = simWith(BASE);
+    const mo = d.monthly;
+    // First full future year (age 58), Jan
+    const age58jan = mo.find(m => m.age === 58 && m.mo === 1);
+    const age58dec = mo.find(m => m.age === 58 && m.mo === 12);
+    assert('T1a flat-yield jan liq',  age58jan, 'no age58 jan row');
+    if (age58jan && age58dec) {
+      const drop = age58jan.liq - age58dec.liq;
+      assert('T1b flat-yield 11mo burn', near(drop, 11000, 50), `expected ~11000 got ${drop}`);
+    }
+    assert('T1c mktGain=0 at 0% yield', age58jan && near(age58jan.mktGain, 0, 2), `mktGain=${age58jan?.mktGain}`);
+  } catch(e) { err('T1 flat-yield', e.message); }
+
+  // ── T2: property rent appears in correct age window ──
+  try {
+    const d = simWith({ ...BASE, properties: [
+      { id:99, name:'TestProp', value:0, monthlyRent:500, rentFromAge:59, saleAge:62, hold:false, enabled:true, acquireAge:57 }
+    ]});
+    const age58inc = d.monthly.find(m => m.age===58 && m.mo===6)?.inc || 0;
+    const age59inc = d.monthly.find(m => m.age===59 && m.mo===6)?.inc || 0;
+    assert('T2a rent absent before rentFromAge', age58inc === 0, `expected 0 got ${age58inc}`);
+    assert('T2b rent present at rentFromAge',    near(age59inc, 500, 1), `expected 500 got ${age59inc}`);
+  } catch(e) { err('T2 rent window', e.message); }
+
+  // ── T3: corrupt rentFromAge (28031) clamped by ensureFields ──
+  try {
+    const d = simWith({ ...BASE, properties: [
+      { id:98, name:'CorruptProp', value:0, monthlyRent:200, rentFromAge:28031, saleAge:62, hold:false, enabled:true, acquireAge:57 }
+    ]});
+    // After ensureFields, rentFromAge should be clamped to startAge (57)
+    const age57inc = d.monthly.find(m => m.age===57 && m.mo===7)?.inc || 0;
+    assert('T3 corrupt rentFromAge clamped → rent starts', age57inc > 0, `expected >0 got ${age57inc}`);
+  } catch(e) { err('T3 corrupt rentFromAge', e.message); }
+
+  // ── T4: calendar-year rentFromAge (2028) converted correctly ──
+  try {
+    const d = simWith({ ...BASE, properties: [
+      { id:97, name:'CalYearProp', value:0, monthlyRent:300, rentFromAge:2028, saleAge:62, hold:false, enabled:true, acquireAge:57 }
+    ]});
+    // 2028 → age 59 (startYear=2026, startAge=57 → age = 2028-2026+57=59)
+    const age58inc = d.monthly.find(m => m.age===58 && m.mo===6)?.inc || 0;
+    const age59inc = d.monthly.find(m => m.age===59 && m.mo===6)?.inc || 0;
+    assert('T4a calendar-year rent absent at 58', age58inc === 0, `got ${age58inc}`);
+    assert('T4b calendar-year rent present at 59', near(age59inc, 300, 1), `got ${age59inc}`);
+  } catch(e) { err('T4 calendar-year rentFromAge', e.message); }
+
+  // ── T5: property sale adds liq at correct age/month ──
+  try {
+    const d = simWith({ ...BASE, properties: [
+      { id:96, name:'SaleProp', value:50000, monthlyRent:0, rentFromAge:57, saleAge:59, saleMonth:6, hold:false, enabled:true, acquireAge:57 }
+    ]});
+    const age59may = d.monthly.find(m => m.age===59 && m.mo===5);
+    const age59jun = d.monthly.find(m => m.age===59 && m.mo===6);
+    const jump = (age59jun?.liq || 0) - (age59may?.liq || 0) - (age59jun?.inc || 0) + (age59jun?.baseExp || 0);
+    assert('T5 property sale jumps liq', jump > 40000, `jump=${Math.round(jump)}`);
+  } catch(e) { err('T5 property sale', e.message); }
+
+  // ── T6: market compounding — ratio between consecutive full years ≈ 1.12 ──
+  try {
+    const d = simWith({ ...BASE, yieldRate: 12, monthlyExpenses: 0 });
+    const age58 = d.find(r => r.age === 58);
+    const age59 = d.find(r => r.age === 59);
+    const ratio = age59 && age58 ? age59.liq / age58.liq : 0;
+    assert('T6 market compounding', near(ratio, 1.12, 0.01), `year-over-year ratio=${ratio.toFixed(4)} expected ~1.12`);
+  } catch(e) { err('T6 market compounding', e.message); }
+
+  // ── T7: inflation scales expenses over time ──
+  try {
+    const d = simWith({ ...BASE, inflationRate: 10, yieldRate: 0 });
+    const age58jan = d.monthly.find(m => m.age===58 && m.mo===1);
+    const age61jan = d.monthly.find(m => m.age===61 && m.mo===1);
+    assert('T7 inflation grows baseExp', (age61jan?.baseExp || 0) > (age58jan?.baseExp || 0) * 1.2,
+      `58jan=${age58jan?.baseExp} 61jan=${age61jan?.baseExp}`);
+  } catch(e) { err('T7 inflation', e.message); }
+
+  // ── T8: one-off expense deducted in correct month ──
+  try {
+    const d = simWith({ ...BASE, expenses: [
+      { id:95, name:'BigBuy', type:'oneoff', atAge:59, atMonth:3, amount:20000, enabled:true }
+    ]});
+    const row = d.monthly.find(m => m.age===59 && m.mo===3);
+    const hasOO = row?.txns?.some(t => t.name==='BigBuy' && t.amount === -20000);
+    assert('T8 one-off expense in correct month', hasOO, `txns=${JSON.stringify(row?.txns)}`);
+  } catch(e) { err('T8 one-off expense', e.message); }
+
+  // ── T9: mktGain consistent — two consecutive months in same year should have similar ratio ──
+  try {
+    const d = simWith({ ...BASE, yieldRate: 12, monthlyExpenses: 0 });
+    const m1 = d.monthly.find(m => m.age===58 && m.mo===1);
+    const m2 = d.monthly.find(m => m.age===58 && m.mo===2);
+    // mktGain should grow slightly each month as liq compounds
+    const mYld = Math.pow(1.12, 1/12) - 1;
+    const expectedRatio = (m1?.liq * mYld) ? (m2?.mktGain / (m1?.liq * mYld)) : 0;
+    assert('T9 mktGain tracks liq*monthlyYield', m1 && m2 && near(expectedRatio, 1, 0.01),
+      `ratio=${expectedRatio?.toFixed(4)}`);
+  } catch(e) { err('T9 mktGain', e.message); }
+
+  // ── T10: ensureFields idempotent (run twice, same result) ──
+  try {
+    const snap1 = JSON.stringify(S.properties.map(p=>({id:p.id,rfa:p.rentFromAge,aca:p.acquireAge})));
+    ensureFields();
+    const snap2 = JSON.stringify(S.properties.map(p=>({id:p.id,rfa:p.rentFromAge,aca:p.acquireAge})));
+    assert('T10 ensureFields idempotent', snap1 === snap2, 'property ages changed on second call');
+  } catch(e) { err('T10 ensureFields idempotent', e.message); }
+
+  const total = pass.length + fail.length;
+  const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
+  console.log(summary);
+  return { passed: pass.length, failed: fail.length, total, failures: fail, passes: pass, summary };
+};
+
+// ══════════════════════════════════════════════════════════════
 //  MONTE CARLO
 // ══════════════════════════════════════════════════════════════
 
