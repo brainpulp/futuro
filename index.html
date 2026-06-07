@@ -910,6 +910,104 @@ body[data-theme="graphite"] .rent-row { background: #21262d; box-shadow: none; }
 body[data-theme="graphite"] #sage-popup-body { background: #21262d; border-color: #30363d; }
 body[data-theme="graphite"] .sage-msg.ai { background: #2d333b; color: #e6edf3; border-color: #444c56; }
 body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
+
+/* ── Deal cards ─────────────────────────────────────────────────── */
+.deal-card {
+  margin: 2px 0 3px;
+  border: 1px solid #e8ecf1;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: opacity .2s, border-color .15s;
+}
+body[data-theme="graphite"] .deal-card { border-color: #30363d; }
+.deal-card:hover { border-color: #a0aec0; }
+.deal-card.deal-off { opacity: .42; }
+
+.deal-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 8px; cursor: pointer; user-select: none;
+  background: #f8f9fb;
+}
+body[data-theme="graphite"] .deal-row { background: #161b22; }
+.deal-row:hover { background: #f0f3f8; }
+body[data-theme="graphite"] .deal-row:hover { background: #21262d; }
+
+.deal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.deal-name-i {
+  font-size: 12px; font-weight: 700; color: inherit;
+  background: none; border: none; outline: none;
+  flex: 1; min-width: 0; font-family: inherit; cursor: pointer;
+}
+.deal-name-i:focus { cursor: text; background: rgba(0,0,0,.04); border-radius: 3px; padding: 0 2px; }
+body[data-theme="graphite"] .deal-name-i:focus { background: rgba(255,255,255,.06); }
+
+.deal-chips { display: flex; gap: 3px; flex-wrap: wrap; flex-shrink: 0; align-items: center; }
+.dchip {
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+  font-family: 'SF Mono', Menlo, monospace; white-space: nowrap;
+}
+.dchip-in   { background: #fee2e2; color: #991b1b; }
+.dchip-ret  { background: #d1fae5; color: #065f46; }
+.dchip-exit { background: #dbeafe; color: #1e40af; }
+body[data-theme="graphite"] .dchip-in   { background: #7f1d1d40; color: #fca5a5; }
+body[data-theme="graphite"] .dchip-ret  { background: #06543040; color: #4ade80; }
+body[data-theme="graphite"] .dchip-exit { background: #1e3a5f40; color: #93c5fd; }
+
+.deal-chev { font-size: 9px; color: #bbb; flex-shrink: 0; transition: transform .15s; }
+.deal-card.deal-open .deal-chev { transform: rotate(90deg); }
+
+.deal-body { border-top: 1px solid #e8ecf1; }
+body[data-theme="graphite"] .deal-body { border-top-color: #30363d; }
+
+.deal-block { padding: 7px 10px; border-bottom: 1px solid #f0f3f8; }
+body[data-theme="graphite"] .deal-block { border-bottom-color: #21262d; }
+.deal-block:last-child { border-bottom: none; }
+
+.deal-blk-title {
+  font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: #b0bec5; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+}
+.deal-blk-title::after { content:''; flex:1; height:1px; background:#eef1f5; }
+body[data-theme="graphite"] .deal-blk-title::after { background:#30363d; }
+
+.deal-type-sel { display: flex; gap: 3px; margin-bottom: 6px; }
+.deal-tbtn {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  border: 1px solid #dde3ec; background: #f4f6fb; color: #8a98b2; cursor: pointer;
+}
+body[data-theme="graphite"] .deal-tbtn { border-color: #30363d; background: #21262d; color: #8b949e; }
+.deal-tbtn.dtact { background: #1a1f36; color: #fff; border-color: #1a1f36; }
+body[data-theme="graphite"] .deal-tbtn.dtact { background: #e6edf3; color: #0d1117; border-color: #e6edf3; }
+
+.deal-frow { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; flex-wrap: wrap; }
+.deal-frow:last-child { margin-bottom: 0; }
+.deal-flbl {
+  font-size: 10px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+  color: #a0aec0; min-width: 64px; flex-shrink: 0;
+}
+.deal-iunit { font-size: 10px; color: #a0aec0; flex-shrink: 0; }
+.deal-isep  { font-size: 10px; color: #c8d0db; flex-shrink: 0; }
+
+.deal-color-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.deal-swatch {
+  width: 16px; height: 16px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: transform .1s, border-color .1s;
+}
+.deal-swatch:hover, .deal-swatch.dsact { transform: scale(1.2); border-color: rgba(0,0,0,.25); }
+
+.deal-actions { display: flex; gap: 5px; padding: 6px 10px; background: #f8f9fb; }
+body[data-theme="graphite"] .deal-actions { background: #161b22; }
+
+.add-deal-btn {
+  display: flex; align-items: center; gap: 5px; margin: 3px 0;
+  padding: 4px 8px; border: 1px dashed #cdd5e0; border-radius: 6px;
+  font-size: 11px; font-weight: 600; color: #a0aec0; cursor: pointer;
+  background: none; width: 100%;
+}
+.add-deal-btn:hover { border-color: #8a98b2; color: #555; background: #f4f6fb; }
+body[data-theme="graphite"] .add-deal-btn { border-color: #30363d; color: #8b949e; }
+body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e6edf3; }
 </style>
 </head>
 <body>
@@ -1244,6 +1342,19 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
         </div>
         <div id="props-list"></div>
         </div><!-- /sec-body-assets -->
+
+        <div class="sep"></div>
+        <div id="sec-band-deals" class="main-section-title" onclick="toggleSec('deals')">
+          Deals
+          <span style="display:flex;align-items:center;gap:8px;">
+            <button class="btn-add" onclick="event.stopPropagation();addD()" title="Add deal" style="width:16px;height:16px;font-size:13px;">+</button>
+            <span id="sec-arr-deals" class="sec-chevron">▾</span>
+          </span>
+        </div>
+        <div id="sec-body-deals">
+          <div id="deals-list"></div>
+        </div><!-- /sec-body-deals -->
+
       </div>
 
     </div><!-- /grid -->
@@ -4833,7 +4944,7 @@ function toggleDeal(dealId) {
       }
     });
   });
-  renderInc(); renderExp(); renderProps(); go();
+  renderInc(); renderExp(); renderProps(); renderDeals(); go();
 }
 function toggle(id){ openId = openId === id ? null : id; }
 function nid()     { return ++nextId; }
@@ -5630,7 +5741,183 @@ function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
 function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
-function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); }
+function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); renderDeals(); }
+
+// ── Deal card open state ──
+let _openDealId = null;
+
+const _DEAL_COLORS = ['#3b82f6','#f97316','#10b981','#8b5cf6','#ec4899','#06b6d4','#eab308','#f43f5e','#14b8a6','#6b7280','#84cc16','#a78bfa'];
+
+function _dealCapChip(d) {
+  // Check tagged expenses for capital (installments + oneoffs)
+  const tagged = (S.expenses||[]).filter(e => e.dealId === d.id && e.enabled !== false);
+  const fromExp = tagged.reduce((s,e) => {
+    if (e.type==='oneoff') return s + (e.amount||0);
+    if (e.type==='installments') return s + (e.budget||e.installTotal||0);
+    return s;
+  }, 0);
+  const cap = d.capital || {};
+  const fromCap = cap.type==='oneoff' ? (cap.amount||0)
+                : cap.type==='installments' ? (cap.totalAmount||cap.perPayment*(cap.nPayments||0)||0)
+                : 0;
+  const total = fromExp + fromCap;
+  return total > 0 ? `<span class="dchip dchip-in">−${fmtK(total)}</span>` : '';
+}
+function _dealRetChip(d) {
+  const tagged = (S.incomes||[]).filter(i => i.dealId === d.id && i.enabled !== false);
+  const fromInc = tagged.reduce((s,i) => s + (i.monthly||0), 0);
+  const ret = d.returns || {};
+  const fromRet = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
+  const mo = fromInc + fromRet;
+  if (mo > 0) return `<span class="dchip dchip-ret">+${fmtK(mo)}/mo</span>`;
+  if (ret.type==='oneoff' && ret.amount > 0) return `<span class="dchip dchip-ret">+${fmtK(ret.amount)}</span>`;
+  return '';
+}
+function _dealExitChip(d) {
+  const ex = d.exit || {};
+  if (ex.type === 'none' || !ex.date) return '';
+  const [ey] = ex.date.split('-').map(Number);
+  const net = _dealNetProceeds(d, ey);
+  return net > 0 ? `<span class="dchip dchip-exit">→${fmtK(net)}</span>` : '';
+}
+function fmtK(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0) + 'k';
+  return '$' + Math.round(v);
+}
+
+function _dealCapBlock(d) {
+  const cap = d.capital || {};
+  const t = cap.type || 'none';
+  return `<div class="deal-block">
+    <div class="deal-blk-title">Capital in</div>
+    <div class="deal-type-sel">
+      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{type:'none'});renderDeals();go()">None</button>
+      <button class="deal-tbtn${t==='oneoff'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).capital,type:'oneoff'});renderDeals();go()">One-off</button>
+      <button class="deal-tbtn${t==='installments'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).capital,type:'installments'});renderDeals();go()">Installments</button>
+    </div>
+    ${t==='oneoff' ? `
+    <div class="deal-frow"><span class="deal-flbl">Amount</span><input type="text" class="iamt" value="${fmtInput(cap.amount||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','capital','amount',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
+    <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${cap.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','capital','date',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
+    ${t==='installments' ? `
+    <div class="deal-frow"><span class="deal-flbl">Total</span><input type="text" class="iamt" value="${fmtInput(cap.totalAmount||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','capital','totalAmount',parseNum(this.value));go()" onclick="event.stopPropagation()"></div>
+    <div class="deal-frow"><span class="deal-flbl">Payments</span><input type="number" class="ifield" value="${cap.nPayments||1}" style="width:44px;" onchange="event.stopPropagation();upDf('${d.id}','capital','nPayments',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">×</span><select style="height:24px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;padding:0 4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','capital','frequency',this.value);go()" onclick="event.stopPropagation()"><option${cap.frequency==='monthly'||!cap.frequency?' selected':''}>monthly</option><option${cap.frequency==='quarterly'?' selected':''}>quarterly</option><option${cap.frequency==='annual'?' selected':''}>annual</option></select></div>
+    <div class="deal-frow"><span class="deal-flbl">Starts</span><input type="month" value="${cap.startDate||cap.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','capital','startDate',this.value);upDf('${d.id}','capital','date',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
+    ${t==='none' ? `<div style="font-size:11px;color:#a0aec0;">No upfront capital.</div>` : ''}
+  </div>`;
+}
+
+function _dealRetBlock(d) {
+  const ret = d.returns || {};
+  const t = ret.type || 'none';
+  return `<div class="deal-block">
+    <div class="deal-blk-title">Returns</div>
+    <div class="deal-type-sel">
+      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{type:'none'});renderDeals();go()">None</button>
+      <button class="deal-tbtn${t==='monthly'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'monthly'});renderDeals();go()">Monthly</button>
+      <button class="deal-tbtn${t==='yearly'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'yearly'});renderDeals();go()">Yearly</button>
+      <button class="deal-tbtn${t==='oneoff'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'oneoff'});renderDeals();go()">One-off</button>
+    </div>
+    ${(t==='monthly'||t==='yearly') ? `
+    <div class="deal-frow"><span class="deal-flbl">Amount</span><input type="text" class="iamt" value="${fmtInput(ret.amount||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','returns','amount',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD / ${t==='yearly'?'yr':'mo'}</span></div>
+    <div class="deal-frow"><span class="deal-flbl">From</span><input type="month" value="${ret.from||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','returns','from',this.value);go()" onclick="event.stopPropagation()"><span class="deal-isep">→</span><input type="month" value="${ret.to||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" placeholder="until sale" onchange="event.stopPropagation();upDf('${d.id}','returns','to',this.value);go()" onclick="event.stopPropagation()"></div>
+    <div class="deal-frow" style="gap:8px;"><label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:11px;color:#a0aec0;cursor:pointer;"><input type="checkbox"${ret.untilSale?' checked':''} onclick="event.stopPropagation()" onchange="event.stopPropagation();upDf('${d.id}','returns','untilSale',this.checked);go()"> until sale</label></div>` : ''}
+    ${t==='oneoff' ? `
+    <div class="deal-frow"><span class="deal-flbl">Amount</span><input type="text" class="iamt" value="${fmtInput(ret.amount||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','returns','amount',parseNum(this.value));go()" onclick="event.stopPropagation()"></div>
+    <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ret.from||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','returns','from',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
+    ${t==='none' ? `<div style="font-size:11px;color:#a0aec0;">No recurring returns.</div>` : ''}
+  </div>`;
+}
+
+function _dealExitBlock(d) {
+  const ex = d.exit || {};
+  const t = ex.type || 'none';
+  const [ey] = (ex.date||'2100-01').split('-').map(Number);
+  const proj = (t==='auto') ? _dealNetProceeds(d, ey) : 0;
+  return `<div class="deal-block">
+    <div class="deal-blk-title">Exit / Sale</div>
+    <div class="deal-type-sel">
+      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{type:'none'});renderDeals();go()">None</button>
+      <button class="deal-tbtn${t==='auto'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto'});renderDeals();go()">Auto</button>
+      <button class="deal-tbtn${t==='manual'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderDeals();go()">Manual price</button>
+    </div>
+    ${t==='auto' ? `
+    <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ex.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','exit','date',this.value);go()" onclick="event.stopPropagation()"></div>
+    <div class="deal-frow"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
+    <div class="deal-frow"><span class="deal-flbl">Rate</span><input type="number" class="ifield" value="${ex.rate||0}" step="0.25" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','rate',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">% / yr</span></div>
+    <div class="deal-frow"><span class="deal-flbl">Costs</span><input type="number" class="ifield" value="${ex.sellingCosts||0}" step="0.5" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','sellingCosts',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">%</span>${proj>0?`<span style="font-size:10px;color:#a0aec0;font-family:'SF Mono',Menlo,monospace;margin-left:4px;">→ ${fmtK(proj)}</span>`:''}</div>` : ''}
+    ${t==='manual' ? `
+    <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ex.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','exit','date',this.value);go()" onclick="event.stopPropagation()"></div>
+    <div class="deal-frow"><span class="deal-flbl">Price</span><input type="text" class="iamt" value="${fmtInput(ex.manualPrice||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','manualPrice',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD gross</span></div>
+    <div class="deal-frow"><span class="deal-flbl">Costs</span><input type="number" class="ifield" value="${ex.sellingCosts||0}" step="0.5" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','sellingCosts',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">%</span></div>` : ''}
+    ${t==='none' ? `<div style="font-size:11px;color:#a0aec0;">No sale planned.</div>` : ''}
+  </div>`;
+}
+
+function renderDeals() {
+  const el = document.getElementById('deals-list');
+  if (!el) return;
+  const deals = S.deals || [];
+  if (!deals.length) {
+    el.innerHTML = `<div style="padding:6px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— no deals —</div>`;
+    return;
+  }
+  el.innerHTML = deals.map(d => {
+    const isOpen = _openDealId === d.id;
+    const isOff  = d.enabled === false;
+    const chips  = _dealCapChip(d) + _dealRetChip(d) + _dealExitChip(d);
+    return `<div class="deal-card${isOff?' deal-off':''}${isOpen?' deal-open':''}" id="dcard-${d.id}">
+  <div class="deal-row" onclick="event.stopPropagation();_openDealId=_openDealId==='${d.id}'?null:'${d.id}';renderDeals()">
+    <div class="deal-dot" style="background:${d.color||'#888'}"></div>
+    <input class="deal-name-i" value="${(d.name||'').replace(/"/g,'&quot;')}" title="${d.name||''}"
+      onclick="event.stopPropagation()"
+      onchange="event.stopPropagation();upD('${d.id}','name',this.value);renderDeals()">
+    <div class="deal-chips">${chips}</div>
+    <span class="deal-chev">▶</span>
+    ${sw(d.enabled, `toggleDeal('${d.id}')`)}
+  </div>
+  ${isOpen ? `<div class="deal-body">
+    ${_dealCapBlock(d)}
+    ${_dealRetBlock(d)}
+    ${_dealExitBlock(d)}
+    <div class="deal-block">
+      <div class="deal-blk-title">Color</div>
+      <div class="deal-color-row">${_DEAL_COLORS.map(c=>`<div class="deal-swatch${d.color===c?' dsact':''}" style="background:${c}" title="${c}" onclick="event.stopPropagation();upD('${d.id}','color','${c}');renderDeals()"></div>`).join('')}</div>
+    </div>
+    <div class="deal-actions">
+      <button class="btn-rm" onclick="event.stopPropagation();rmD('${d.id}')">× delete</button>
+    </div>
+  </div>` : ''}
+</div>`;
+  }).join('') + `<button class="add-deal-btn" onclick="event.stopPropagation();addD()">+ add deal</button>`;
+}
+
+function upD(id, field, val) {
+  S.deals = (S.deals||[]).map(d => d.id===id ? {...d, [field]: val} : d);
+  saveActive();
+}
+function upDf(id, block, field, val) {
+  S.deals = (S.deals||[]).map(d => {
+    if (d.id !== id) return d;
+    return {...d, [block]: {...(d[block]||{}), [field]: val}};
+  });
+  saveActive();
+}
+function rmD(id) {
+  S.deals = (S.deals||[]).filter(d => d.id !== id);
+  if (_openDealId === id) _openDealId = null;
+  renderDeals(); go();
+}
+function addD() {
+  const id = 'deal_' + Date.now();
+  (S.deals = S.deals||[]).push({
+    id, name: 'New Deal', enabled: true,
+    color: _DEAL_COLORS[S.deals.length % _DEAL_COLORS.length],
+    capital: {type:'none'}, returns: {type:'none'}, exit: {type:'none'}
+  });
+  _openDealId = id;
+  renderDeals(); go();
+}
 
 function syncSettingsPanel() {
   const keyEl = document.getElementById('claude-key-input');
