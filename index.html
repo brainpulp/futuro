@@ -4726,6 +4726,22 @@ function togItem(arr, id) { return arr.map(x => x.id === id ? { ...x, enabled: x
 function togP(id)  { S.properties   = togItem(S.properties,   id); renderProps();  go(); }
 function togI(id)  { S.incomes      = togItem(S.incomes,      id); renderInc();    go(); }
 function togE(id)  { S.expenses     = togItem(S.expenses,     id); renderExp();    go(); }
+function toggleBU(buId) {
+  const bu = (S.businessUnits || []).find(b => b.id === buId);
+  if (!bu) return;
+  bu.enabled = !bu.enabled;
+  ['incomes','expenses','properties'].forEach(key => {
+    S[key] = S[key].map(item => {
+      if (item.buId !== buId) return item;
+      if (bu.enabled) {
+        return { ...item, enabled: item.buEnabled !== false };
+      } else {
+        return { ...item, buEnabled: item.enabled !== false, enabled: false };
+      }
+    });
+  });
+  renderInc(); renderExp(); renderProps(); go();
+}
 function toggle(id){ openId = openId === id ? null : id; }
 function nid()     { return ++nextId; }
 
