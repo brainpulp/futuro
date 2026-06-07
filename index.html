@@ -2017,8 +2017,10 @@ function ensureFields() {
   ['expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
   S.properties = (S.properties || []).map(p => {
     const sa0 = S.startAge || 57;
-    const acquireAge = p.acquireAge || ((p.rentFromAge && p.rentFromAge > sa0) ? p.rentFromAge : sa0);
-    return { rentFromAge: sa0, enabled: true, ...p, acquireAge };
+    // Normalize calendar-year fields saved before age-only convention
+    const rfa = p.rentFromAge > 2000 ? yearToAge(p.rentFromAge) : (p.rentFromAge || sa0);
+    const aca = p.acquireAge  > 2000 ? yearToAge(p.acquireAge)  : (p.acquireAge  || (rfa > sa0 ? rfa : sa0));
+    return { rentFromAge: sa0, enabled: true, ...p, rentFromAge: rfa, acquireAge: aca };
   });
   S.expenses = S.expenses.map(x => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
   S.incomes  = S.incomes.map(x  => ({ fromMonth: 1, toMonth: 12, enabled: true, ...x }));
