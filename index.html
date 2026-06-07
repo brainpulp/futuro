@@ -1403,6 +1403,11 @@ const EMPTY = {
   monthlyExpenses: 7000, winterTrip: 5000, summerTrip: 12000,
   expMultiplier: 1,
   deals: [],
+  // Deal shape: { id, name, enabled, color,
+  //   capital: { type:'oneoff'|'installments'|'none', amount, date,
+  //              totalAmount, perPayment, frequency, startDate, nPayments, gastosCategory },
+  //   returns: { type:'monthly'|'yearly'|'oneoff'|'none', amount, from, to, untilSale, month, gastosCategory },
+  //   exit:    { type:'auto'|'manual'|'none', date, basis, rate, sellingCosts, manualPrice } }
   yieldCurve: {},
   incomes: [
     { id: 3, name: 'Canchitas', monthly: 5000, from: 58, to: 62, enabled: true },
@@ -2257,6 +2262,14 @@ function ensureFields() {
   if (!S.startAge) S.startAge = 57;
   if (!S.endAge)   S.endAge   = 87;
   if (!S.deals) S.deals = [];
+  S.deals = S.deals.map(d => ({
+    enabled: true, color: '#8b5cf6',
+    capital: { type: 'none' }, returns: { type: 'none' }, exit: { type: 'none' },
+    ...d,
+    capital: { type: 'none', ...d.capital },
+    returns: { type: 'none', untilSale: false, ...d.returns },
+    exit:    { type: 'none', ...d.exit },
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════
