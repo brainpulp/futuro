@@ -1271,6 +1271,7 @@ body[data-theme="graphite"] #footer-sassy { color: #e6edf3 !important; }
             <div style="display:flex;gap:6px;align-items:center;">
               <input type="text" id="liquidBase" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="S.liquidBase=parseNum(this.value);go()">
               <button class="btn-io" id="ibkr-sync-btn" onclick="ibkrSync({manual:true})" title="Sync Net Liquidation Value from IBKR" style="white-space:nowrap;font-size:11px;padding:0 8px;height:30px;flex-shrink:0;">↓ IBKR</button>
+              <button class="btn-io" id="selftest-btn" onclick="_runSelfTestUI()" title="Run self-test suite" style="white-space:nowrap;font-size:11px;padding:0 8px;height:30px;flex-shrink:0;">🧪</button>
               <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;cursor:pointer;white-space:nowrap;" title="Auto-sync IBKR on page load">
                 <input type="checkbox" id="ibkr-auto-chk" onchange="toggleIbkrAuto(this.checked)" style="margin:0;cursor:pointer;">auto
               </label>
@@ -2853,6 +2854,28 @@ window._selfTest = function() {
   const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
   console.log(summary);
   return { passed: pass.length, failed: fail.length, total, failures: fail, passes: pass, summary };
+};
+
+window._runSelfTestUI = function() {
+  const btn = document.getElementById('selftest-btn');
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  setTimeout(() => {
+    const r = _selfTest();
+    if (btn) {
+      btn.disabled = false;
+      if (r.failed === 0) {
+        btn.textContent = `✅ ${r.passed}/${r.total}`;
+        btn.style.color = '#1A8C5F';
+        setTimeout(() => { btn.textContent = '🧪'; btn.style.color = ''; }, 4000);
+      } else {
+        btn.textContent = `❌ ${r.failed} fail`;
+        btn.style.color = '#e05050';
+        btn.title = r.failures.join('\n');
+        setTimeout(() => { btn.textContent = '🧪'; btn.style.color = ''; btn.title = 'Run self-test suite'; }, 8000);
+      }
+    }
+    if (r.failed > 0) console.error('[selftest]', r.failures.join('\n'));
+  }, 0);
 };
 
 // ══════════════════════════════════════════════════════════════
