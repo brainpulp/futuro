@@ -2472,9 +2472,12 @@ function _dealCashflow(deal, year, mo, da) {
   const _retInWindow = (from, to) => {
     if (!from) return false;
     const [fy, fm] = from.split('-').map(Number);
-    const toStr    = (ret.untilSale && ex.type !== 'none' && ex.date) ? ex.date : (to || '9999-12');
+    const isUS  = ret.untilSale && ex.type !== 'none' && ex.date;
+    const toStr = isUS ? ex.date : (to || '9999-12');
     const [ty, tm] = toStr.split('-').map(Number);
-    return (year > fy || (year === fy && mo >= fm)) && (year < ty || (year === ty && mo <= tm));
+    // untilSale: exclusive end (rent stops the month the asset sells, matching property p.sold behaviour)
+    const endOk = isUS ? (year < ty || (year === ty && mo < tm)) : (year < ty || (year === ty && mo <= tm));
+    return (year > fy || (year === fy && mo >= fm)) && endOk;
   };
 
   if (ret.type === 'monthly' && _retInWindow(ret.from, ret.to)) {
@@ -2499,8 +2502,8 @@ function _dealCashflow(deal, year, mo, da) {
       if (ex.manualPrice != null && ex.manualPrice !== '') {
         net = Number(ex.manualPrice) * (1 - (ex.sellingCosts || 0) / 100);
       } else if (da && da.cv > 0) {
-        // Use monthly-compounded cv (already appreciated this month by caller) — matches property sale behaviour
-        net = Math.round(da.cv * (1 - (ex.sellingCosts || 0) / 100));
+        // Exact float — no rounding — mirrors property liq += p.cv (exact) behaviour
+        net = da.cv * (1 - (ex.sellingCosts || 0) / 100);
       } else {
         net = _dealNetProceeds(deal, ey); // fallback when no _dealAssets entry exists
       }
@@ -2665,7 +2668,8 @@ function runSim(monthlyOverride, yieldRateOverride) {
       // ── Deals (partial-year loop) ──
       (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
         const da = _dealAssets[d.id];
-        if (da && !da.sold && da.cv > 0) da.cv *= Math.pow(1 + da.rate / 100, 1/12); // appreciate first (matches property timing)
+        // NOTE: no appreciation here — properties also don't appreciate in the partial-year loop
+        // (initial cv = current market value; first appreciation step is at age startAge+1, mo 1)
         const { debit, credit, txns: dTxns } = _dealCashflow(d, _startYear, mo, da);
         _itemizedExp += debit;
         inc          += credit;
@@ -2725,6 +2729,42 @@ function runSim(monthlyOverride, yieldRateOverride) {
           liq += p.cv; return { ...p, sold: true };
         }
         return p;
+      });
+
+      // ── Deal assets: appreciate + exits pre-yield (mirrors property timing) ──
+      const _yr = _startYear + (age - sa);
+      const _preYieldExits = {};
+      (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
+        const da = _dealAssets[d.id];
+        // Activate future-acquired deal asset when its capital trigger fires
+        if (da && da.cv === 0 && !da.sold) {
+          const cap = d.capital || {};
+          if (cap.type === 'oneoff' && cap.date) {
+            const [cy, cm] = cap.date.split('-').map(Number);
+            if (_yr === cy && mo === cm) da.cv = (d.exit || {}).basis || cap.amount || 0;
+          }
+        }
+        // Appreciate (same position as property appreciation)
+        if (da && !da.sold && da.cv > 0) da.cv *= Math.pow(1 + da.rate / 100, 1 / 12);
+        // Exit pre-yield (same position as property sale)
+        const ex = d.exit || {};
+        if (ex.type !== 'none' && ex.date) {
+          const [ey, em] = ex.date.split('-').map(Number);
+          if (_yr === ey && mo === em) {
+            let net;
+            if (ex.manualPrice != null && ex.manualPrice !== '') {
+              net = Number(ex.manualPrice) * (1 - (ex.sellingCosts || 0) / 100);
+            } else if (da && da.cv > 0) {
+              // Exact float — no rounding — mirrors property liq += p.cv (exact) behaviour
+              net = da.cv * (1 - (ex.sellingCosts || 0) / 100);
+            } else {
+              net = _dealNetProceeds(d, ey);
+            }
+            liq += net;
+            _preYieldExits[d.id] = net;
+            if (da) da.sold = true;
+          }
+        }
       });
 
       // Compound liquid monthly
@@ -2810,20 +2850,14 @@ function runSim(monthlyOverride, yieldRateOverride) {
         }
       });
 
-      // ── Deals (main loop) ──
-      const _yr = _startYear + (age - sa);
+      // ── Deals (main loop) — appreciation + exit already handled pre-yield above ──
       (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
         const da = _dealAssets[d.id];
-        if (da && !da.sold && da.cv > 0) da.cv *= Math.pow(1 + da.rate / 100, 1/12); // appreciate first (matches property timing)
         const { debit, credit, txns: dTxns } = _dealCashflow(d, _yr, mo, da);
         exp += debit;
-        inc += credit;
+        // Subtract any exit credit already applied to liq pre-yield (avoid double-counting)
+        inc += credit - (_preYieldExits[d.id] || 0);
         dTxns.forEach(t => _txns.push(t));
-        const ex = d.exit || {};
-        if (ex.type !== 'none' && ex.date) {
-          const [ey, em] = ex.date.split('-').map(Number);
-          if (_yr === ey && mo === em && da) da.sold = true;
-        }
       });
       // ── End deals ──
       liq += inc - exp;
@@ -2889,7 +2923,7 @@ window._selfTest = function() {
     monthlyExpenses: 1000, expMultiplier: 1,
     assetAppreciation: 0, summerTrip: 0, winterTrip: 0,
     expenses: [], incomes: [], expensePhases: [], marketPhases: [],
-    properties: [], yieldCurve: {}, expenseCurve: {},
+    properties: [], deals: [], yieldCurve: {}, expenseCurve: {},
     monthlyBreakdown: []
   };
 
@@ -4806,96 +4840,169 @@ function nid()     { return ++nextId; }
 
 // ── One-time migration: convert S.incomes/expenses/properties → S.deals ──────
 // Run from browser console: _migrateToDealModel()
-// Rolls back automatically if sim parity check fails.
+// Rolls back automatically if sim parity check fails (tolerance: $1).
+//
+// Live data layout (as of 2026-06-07):
+//   Properties: 10=Arcos, 11=Mocoretá(stay), 12=Carhué(dis), 13=Delta(hold),
+//               14=Luisma(acquireAge67), 15=RocaSmall(dis), 16=RocaLarge, 17=DeltaNew
+//   Expenses:   5=Canchitas(oneoff,past), 6=Carhué obra(install), 7=Arcos obra(install),
+//               8=NewCar(oneoff,past), 9=DeltaNewObra(oneoff,age58),
+//               9015=DeltaFixes(install), 9016=RocaPayments(install)
+//   Incomes:    3=Canchitas(monthly,infl), 4=Dorado(monthly,infl),
+//               1001=IvánDev(oneoff), 9017=NotasPuente(oneoff)
 function _migrateToDealModel() {
-  // 0. Snapshot
-  const before     = runSim();
-  const liqBefore  = before.monthly.map(m => m.liq);
+  // 0. Snapshot BEFORE state
+  const before    = runSim();
+  const liqBefore = before.monthly.map(m => m.liq);
 
-  // 1. Save originals for rollback
+  // 1. Deep-copy originals for rollback
   const origIncomes    = JSON.parse(JSON.stringify(S.incomes));
   const origExpenses   = JSON.parse(JSON.stringify(S.expenses));
   const origProperties = JSON.parse(JSON.stringify(S.properties));
   const origDeals      = JSON.parse(JSON.stringify(S.deals || []));
 
-  // 2. Build deals
+  // 2. Helpers
   const sa = S.startAge  || 57;
   const sy = S.startYear || 2026;
-  const toYM = (age, mo = 1) => `${sy + (age - sa)}-${String(mo).padStart(2,'0')}`;
 
-  const newDeals = [
-    {
-      id: 'deal_canchitas', name: 'Canchitas', enabled: true, color: '#f97316',
-      capital: { type: 'oneoff', amount: 160000, date: toYM(57, 1) },
-      returns: { type: 'monthly', amount: 5000, from: toYM(58, 1), to: toYM(62, 12) },
-      exit:    { type: 'none' }
-    },
-    {
-      id: 'deal_dorado', name: 'Dorado', enabled: true, color: '#eab308',
-      capital: { type: 'none' },
-      returns: { type: 'monthly', amount: 5000, from: toYM(58, 1), to: toYM(62, 12) },
-      exit:    { type: 'none' }
-    },
-    {
-      id: 'deal_arcos', name: 'Arcos', enabled: true, color: '#3b82f6',
-      capital: { type: 'oneoff', amount: 50000, date: toYM(57, 1) }, // obra only – property was already owned
-      returns: { type: 'none' },
-      exit:    { type: 'auto', date: toYM(70, 6), basis: 600000, rate: 3, sellingCosts: 0 }
-    },
-    {
-      id: 'deal_carhue', name: 'Carhué', enabled: true, color: '#8b5cf6',
-      capital: { type: 'oneoff', amount: 30000, date: toYM(57, 1) }, // obra only
-      returns: { type: 'none' },
-      exit:    { type: 'auto', date: toYM(60, 6), basis: 700000, rate: 3, sellingCosts: 0 }
-    },
-    {
-      id: 'deal_delta', name: 'Delta', enabled: true, color: '#10b981',
-      capital: { type: 'none' },
-      returns: { type: 'monthly', amount: 1000, from: toYM(57, 1), untilSale: true },
-      exit:    { type: 'auto', date: '2100-01', basis: 100000, rate: 3, sellingCosts: 0 } // hold – far-future date never fires within sim range
-    },
-    {
-      id: 'deal_luisma', name: 'Luisma', enabled: true, color: '#06b6d4',
-      capital: { type: 'none' },
-      returns: { type: 'none' },   // monthlyRent=0 in source data; update manually after migration
-      exit:    { type: 'auto', date: toYM(65, 6), basis: 0, rate: 3, sellingCosts: 0 } // basis=0 matches source value=0 for parity
-    },
-    {
-      id: 'deal_roca_s', name: 'Roca S', enabled: true, color: '#ec4899',
-      capital: { type: 'none' },
-      returns: { type: 'monthly', amount: 2000, from: toYM(57, 1), untilSale: true },
-      exit:    { type: 'auto', date: toYM(62, 6), basis: 300000, rate: 3, sellingCosts: 0 }
-    },
-    {
-      id: 'deal_roca_l', name: 'Roca L', enabled: true, color: '#f43f5e',
-      capital: { type: 'none' },
-      returns: { type: 'monthly', amount: 3000, from: toYM(57, 1), untilSale: true },
-      exit:    { type: 'auto', date: toYM(63, 6), basis: 400000, rate: 3, sellingCosts: 0 }
-    },
-    {
-      id: 'deal_delta2', name: 'Delta 2', enabled: true, color: '#14b8a6',
-      capital: { type: 'oneoff', amount: 50000, date: toYM(58, 1) }, // obra at age 58
-      returns: { type: 'monthly', amount: 750, from: toYM(57, 1), untilSale: true },
-      exit:    { type: 'auto', date: toYM(61, 6), basis: 120000, rate: 3, sellingCosts: 0 }
-    },
-    {
-      id: 'deal_car', name: 'New Car', enabled: true, color: '#6b7280',
-      capital: { type: 'oneoff', amount: 70000, date: toYM(57, 1) },
-      returns: { type: 'none' },
-      exit:    { type: 'none' } // add depreciation rate manually after migration
+  function toYM(age, mo = 1) {
+    const a = age > 2000 ? (sa + age - sy) : age;
+    return `${sy + (a - sa)}-${String(mo).padStart(2,'0')}`;
+  }
+  function fixAge(age) { return age > 2000 ? (sa + age - sy) : age; }
+
+  const byId = arr => Object.fromEntries((arr||[]).map(x => [x.id, x]));
+  const PROPS = byId(S.properties);
+
+  // Helper: build a deal entirely from a property's live values.
+  // capitalDate (optional): if provided, treat this as a zero-cost activation trigger for
+  //   future-acquired properties (acquireAge > sa). The amount is 0 so no liq impact.
+  function dealFromProp(dealId, color, p, opts = {}) {
+    if (!p) { console.warn('[migration] missing property for deal', dealId); return null; }
+    const rate    = p.appRate !== undefined ? p.appRate : (S.assetAppreciation || 3);
+    const rentAge = fixAge(p.rentFromAge || sa);
+    const rentMo  = p.rentFromMonth || 1;
+    const returns = (p.monthlyRent > 0)
+      ? { type: 'monthly', amount: p.monthlyRent, from: toYM(rentAge, rentMo), untilSale: true }
+      : { type: 'none' };
+    let exit;
+    if (p.hold) {
+      exit = { type: 'auto', date: '2100-01', basis: p.value || 0, rate, sellingCosts: 0 };
+    } else if (p.saleAge) {
+      exit = { type: 'auto', date: toYM(p.saleAge, p.saleMonth || 6), basis: p.value || 0, rate, sellingCosts: 0 };
+    } else {
+      exit = { type: 'none' };
     }
-  ];
+    // Capital: for future-acquired properties, use a zero-amount oneoff at acquireAge mo=1
+    // so _dealAssets initializes cv=0 and activation code sets cv=basis at the right time.
+    // For already-owned properties, capital.type='none' so _dealAssets uses capStr='YYYY-01'
+    // (defaults to startYear) → cv=basis from sim start.
+    let capital;
+    if (opts.activateAtAge) {
+      capital = { type: 'oneoff', amount: 0, date: toYM(opts.activateAtAge, 1) };
+    } else {
+      capital = { type: 'none' };
+    }
+    return {
+      id: dealId, name: p.name, enabled: p.enabled !== false, color,
+      capital, returns, exit
+    };
+  }
 
-  // 3. Remove migrated items
-  const rmInc  = new Set([3, 4]);
-  const rmExp  = new Set([5, 6, 7, 8, 9]);
-  const rmProp = new Set([10, 12, 13, 14, 15, 16, 17]);
-  S.incomes    = S.incomes.filter(x => !rmInc.has(x.id));
-  S.expenses   = S.expenses.filter(x => !rmExp.has(x.id));
-  S.properties = S.properties.filter(x => !rmProp.has(x.id));
-  S.deals      = [...origDeals, ...newDeals];
+  // 3. Build deal list from live S.* data ─────────────────────────────────
+  const newDeals = [];
 
-  // 4. Parity check
+  // deal_canchitas — no property; expense id:5 STAYS in S.expenses tagged; income id:3 stays tagged
+  {
+    newDeals.push({
+      id: 'deal_canchitas', name: 'Canchitas', enabled: true, color: '#f97316',
+      capital: { type: 'none' },   // expense id:5 stays in S.expenses with dealId tag
+      returns: { type: 'none' },   // income id:3 stays in S.incomes (inflation-adjusted)
+      exit:    { type: 'none' }
+    });
+  }
+
+  // deal_dorado — no property; income id:4 stays in S.incomes (inflation)
+  {
+    const i = (S.incomes||[]).find(x => x.id === 4);
+    newDeals.push({
+      id: 'deal_dorado', name: i?.name || 'Dorado',
+      enabled: (i?.enabled !== false), color: '#eab308',
+      capital: { type: 'none' }, returns: { type: 'none' }, exit: { type: 'none' }
+    });
+  }
+
+  // deal_arcos — property id:10 (already owned, saleAge:70); installment obra id:7 stays tagged
+  const d_arcos = dealFromProp('deal_arcos', '#3b82f6', PROPS[10]);
+  if (d_arcos) newDeals.push(d_arcos);
+
+  // deal_carhue — property id:12 (disabled, saleAge:60, rent:2000 from:59); installment id:6 stays
+  const d_carhue = dealFromProp('deal_carhue', '#8b5cf6', PROPS[12]);
+  if (d_carhue) newDeals.push(d_carhue);
+
+  // deal_delta — property id:13 (hold:true, rent:1000 from:58)
+  const d_delta = dealFromProp('deal_delta', '#10b981', PROPS[13]);
+  if (d_delta) newDeals.push(d_delta);
+
+  // deal_luisma — property id:14 (acquireAge:67 = future!); zero-cost trigger so cv=0 until age 67
+  const d_luisma = dealFromProp('deal_luisma', '#06b6d4', PROPS[14], { activateAtAge: PROPS[14]?.acquireAge || 67 });
+  if (d_luisma) newDeals.push(d_luisma);
+
+  // deal_roca_s — property id:15 (disabled, saleAge:62, rent:1500 from:58)
+  const d_roca_s = dealFromProp('deal_roca_s', '#ec4899', PROPS[15]);
+  if (d_roca_s) newDeals.push(d_roca_s);
+
+  // deal_roca_l — property id:16 (saleAge:63, rent:2500 from:58)
+  const d_roca_l = dealFromProp('deal_roca_l', '#f43f5e', PROPS[16]);
+  if (d_roca_l) newDeals.push(d_roca_l);
+
+  // deal_delta2 (Delta New) — property id:17 (already owned, saleAge:61, rent:750 from:59)
+  // Note: expense id:9 (obra age 58) stays in S.expenses tagged — capital.type='none' keeps
+  // _dealAssets from using capDate='2027-01' which would set cv=0 at start (wrong — already owned)
+  const d_delta2 = dealFromProp('deal_delta2', '#14b8a6', PROPS[17]);
+  if (d_delta2) newDeals.push(d_delta2);
+
+  // deal_car — no property; expense id:8 STAYS in S.expenses tagged; no exit
+  {
+    newDeals.push({
+      id: 'deal_car', name: 'New Car', enabled: true, color: '#6b7280',
+      capital: { type: 'none' },   // expense id:8 stays in S.expenses with dealId tag
+      returns: { type: 'none' }, exit: { type: 'none' }
+    });
+  }
+
+  console.log('[migration] deals to create:', newDeals.map(d => `${d.id}(en:${d.enabled})`).join(', '));
+
+  // 4. Mutate S.* ──────────────────────────────────────────────────────────
+
+  // Tag incomes with dealId — stay in S.incomes so inflation applies automatically
+  S.incomes = S.incomes.map(x => {
+    if (x.id === 3) return { ...x, dealId: 'deal_canchitas' };
+    if (x.id === 4) return { ...x, dealId: 'deal_dorado' };
+    return x;
+  });
+
+  // Tag ALL deal-related expenses with dealId — all stay in S.expenses so cashflows are unchanged
+  S.expenses = S.expenses.map(x => {
+    if (x.id === 5)    return { ...x, dealId: 'deal_canchitas' }; // oneoff Canchitas capital
+    if (x.id === 6)    return { ...x, dealId: 'deal_carhue' };    // installment Carhué obra
+    if (x.id === 7)    return { ...x, dealId: 'deal_arcos' };     // installment Arcos obra
+    if (x.id === 8)    return { ...x, dealId: 'deal_car' };       // oneoff New Car capital
+    if (x.id === 9)    return { ...x, dealId: 'deal_delta2' };    // oneoff Delta New obra (age 58)
+    if (x.id === 9015) return { ...x, dealId: 'deal_delta' };
+    if (x.id === 9016) return { ...x, dealId: 'deal_roca_l' };
+    return x;
+  });
+  // No expenses removed — all stay in S.expenses to preserve exact cashflow timing
+
+  // Remove all migrated properties (keep only Mocoretá id:11)
+  const rmPropIds = new Set([10, 12, 13, 14, 15, 16, 17]);
+  S.properties = S.properties.filter(x => !rmPropIds.has(x.id));
+
+  // Add new deals
+  S.deals = [...origDeals, ...newDeals.filter(Boolean)];
+
+  // 5. Parity check ────────────────────────────────────────────────────────
   const after    = runSim();
   const liqAfter = after.monthly.map(m => m.liq);
   const diffs    = liqBefore.map((b, i) => Math.abs(b - (liqAfter[i] ?? 0)));
@@ -4903,23 +5010,22 @@ function _migrateToDealModel() {
   const failIdx  = diffs.findIndex(d => d > 1);
 
   if (failIdx === -1) {
-    // 5. Commit + save
+    // 6a. Commit + save
     saveActive();
     lsSave();
     console.log('%c✅ MIGRATION SUCCESS', 'color:lime;font-weight:bold;font-size:16px');
-    console.log(`Max liq diff: $${maxDiff}. Deals added: ${newDeals.length}`);
-    console.log('S.deals:', S.deals.map(d => d.name));
-    console.log('S.properties remaining:', S.properties.map(p => p.name));
+    console.log(`Max liq diff: $${maxDiff}. Deals: ${S.deals.map(d=>d.name).join(', ')}`);
+    console.log('Properties remaining:', S.properties.map(p=>p.name).join(', '));
     go();
   } else {
-    // 6. Rollback
+    // 6b. Rollback
     S.incomes    = origIncomes;
     S.expenses   = origExpenses;
     S.properties = origProperties;
     S.deals      = origDeals;
     console.error('%c❌ MIGRATION FAILED — rolled back', 'color:red;font-weight:bold;font-size:16px');
     const bm = before.monthly[failIdx];
-    console.error(`First mismatch: index ${failIdx} age ${bm?.age} mo ${bm?.mo} | before $${liqBefore[failIdx]} after $${liqAfter[failIdx]} diff $${diffs[failIdx]}`);
+    console.error(`First mismatch: idx ${failIdx} | age ${bm?.age} mo ${bm?.mo} | before $${liqBefore[failIdx]} after $${liqAfter[failIdx]} diff $${diffs[failIdx]}`);
     const worst20 = diffs
       .map((d,i) => ({ i, age: before.monthly[i]?.age, mo: before.monthly[i]?.mo, before: liqBefore[i], after: liqAfter[i], diff: d }))
       .filter(r => r.diff > 0)
