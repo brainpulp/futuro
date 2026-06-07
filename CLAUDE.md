@@ -16,11 +16,18 @@
 | `_updateVig` | 4261 | Draw emoji vignette on overlay canvas |
 | `go()` | 4319 | Main render entry point (runs sim + updates chart) |
 | `showTxnTooltip` | 5242 | Render transaction hover tooltip |
-| `ibkrSync` | 6060 | Pull IBKR net liquidation |
+| `syncMarketBandInputs` | ~1997 | Sync band slider inputs from S.marketBands |
+| `updateMarketBand` | ~2005 | Update one band value and re-run go() |
+| `ibkrSync` | ~6060 | Pull IBKR net liquidation |
 | `gastosSync` | 6096 | Pull gastos monthly actuals |
 | `renderTimeline` | 6340 | Render event timeline strip |
 
 **Note:** Line numbers shift as code changes. Use as starting point, not gospel.
+
+## Self-test (run at session start)
+**ALWAYS run `_selfTest()` in the browser at the start of every session** before making changes.
+Skill: `.claude/skills/selftest/SKILL.md` — uses Chrome MCP, zero tokens, 14 assertions.
+If any fail, fix before proceeding. When fixing a new bug, add a regression test.
 
 ## Code review
 **ALWAYS run the `check-futuro` skill before committing.** It is at `.claude/skills/check-futuro/SKILL.md`.
@@ -54,6 +61,7 @@ const SB_URL   = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
 const SB_ANON  = 'eyJ...'; // anon key
 const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
 const GASTOS_ANON = 'eyJ...'; // gastos anon key
+const MARKET_BAND_DEFAULTS = { pessimistic: 3, base: 7, optimistic: 11 }; // % annual
 const IBKR_SYNC_MS = 4 * 60 * 60 * 1000; // 4 hours
 const _currentYM = new Date().toISOString().slice(0, 7); // e.g. "2026-05"
 ```
@@ -62,6 +70,7 @@ const _currentYM = new Date().toISOString().slice(0, 7); // e.g. "2026-05"
 ```js
 let lwChart = null, lwLiqSeries = null, lwReSeries = null;
 let lwTotalSeries = null, lwRealSeries = null;
+let lwFanHighSeries = null, lwFanLowSeries = null; // fan ribbon (optimistic/pessimistic)
 let lwVigCanvas = null;  // overlay canvas for emoji vignette + dot hit detection
 let _txnDots = [];       // [{xp,yp,hitR,age,mo,year,txns,net,isYearly}]
 function _mt(year, mo) { return `${year}-${String(mo).padStart(2,'0')}-01`; }
@@ -103,7 +112,7 @@ let _chartZoom = 10;         // persisted via localStorage 'futuro-chart-zoom'
 - **IBKR verbose errors** — edge fn returns `ibkr_error_code`, `ibkr_status`, `xml_snippet`.
 - **Montecarlo** — 500 runs, amber/gold bands. `_mcResult` global. Not yet on LW chart (sub-chart only).
 - **Emoji vignette** — animated emoji background clipped to liquid curve area, on overlay canvas.
-- **Crisis drops** — applied in sim and visible in reality check table via `_crisisItems`.
+- **Market fan ribbon** — base/pessimistic/optimistic sims run in `go()`, fed to `lwFanHighSeries`/`lwFanLowSeries` behind main liquid line.
 
 ## Pending / deferred
 - Dancing numbers on LW chart (not yet reimplemented after Chart.js migration)
@@ -143,7 +152,5 @@ Always update CLAUDE.md and `memory/project_retiro.md` after significant changes
 | Tooltip lists 12× same rent | Yearly dot collects all 12 months, rent not grouped | `_groupTxnsForYearly` groups by name+type key |
 | Scenario data lost on reload | `sbLoad` was picking newest row only | Now merges ALL rows' scenarios |
 | Chart y-axis squishes liquid line | Chart.js shared y-axis with RE (~$12M) | Resolved: LightweightCharts auto-scales per series |
-| Crisis drops invisible in table | Applied in sim but not in `_oo` | `_crisisItems` array injected into month-1 `_oo` |
 | TDZ crash on property sale | `_oo.push()` before `const _oo = []` | Use `_soldThisMo` intermediate array |
-| "Correction (-X%) -$Y" in table | Expected — market crisis drop from Market Behavior settings | Not a bug |
 | Edge browser timeline won't expand | Title bar click handler issue, Chrome/Mac work | Known deferred |
