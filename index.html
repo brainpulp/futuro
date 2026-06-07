@@ -2898,7 +2898,14 @@ window._runSelfTestUI = function() {
 
 // Distribution parameters for MC — use S.yieldRate as mean, fixed historical vol.
 function _mcParams() {
-  const mean = S.yieldRate ?? 7;
+  // If curve covers all ages, use its average as MC mean — S.yieldRate may be
+  // stale/irrelevant when every age has a custom override.
+  const sa = S.startAge || 57, ea = S.endAge || 87;
+  const curveVals = Object.entries(S.yieldCurve || {})
+    .filter(([k]) => +k >= sa && +k <= ea).map(([, v]) => v);
+  const mean = curveVals.length >= (ea - sa + 1)
+    ? curveVals.reduce((s, v) => s + v, 0) / curveVals.length
+    : (S.yieldRate ?? 7);
   const std = 15; // ~historical S&P annual std dev
   return { mean, std };
 }
