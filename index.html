@@ -2771,6 +2771,20 @@ function runSim(monthlyOverride) {
   let props = S.properties.filter(p => p.enabled !== false)
     .map(p => ({ ...p, cv: (p.acquireAge || sa) <= sa ? p.value : 0, sold: false }));
 
+  // Track illiquid value for deals that have an exit with a basis
+  const _dealAssets = {};
+  const _startYr = S.startYear || new Date().getFullYear();
+  (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
+    const ex  = d.exit    || {};
+    const cap = d.capital || {};
+    if (ex.type === 'none') return;
+    const basis = ex.basis || cap.amount || cap.totalAmount || 0;
+    if (!basis) return;
+    const capStr  = cap.date || cap.startDate || String(_startYr) + '-01';
+    const capYear = parseInt(capStr.split('-')[0], 10);
+    _dealAssets[d.id] = { cv: capYear <= _startYr ? basis : 0, rate: ex.rate || 0, sold: false };
+  });
+
   const out = [{
     age: sa,
     liq: Math.round(liq),
@@ -2842,10 +2856,25 @@ function runSim(monthlyOverride) {
           _txns.push({ id: i.id, arr: 'incomes', name: i.name, amount: Math.round(amt), type: 'income' });
         }
       });
+      // ── Deals (partial-year loop) ──
+      (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
+        const { debit, credit, txns: dTxns } = _dealCashflow(d, _startYear, mo);
+        _itemizedExp += debit;
+        inc          += credit;
+        dTxns.forEach(t => _txns.push(t));
+        const da = _dealAssets[d.id];
+        if (da && !da.sold && da.cv > 0) da.cv *= Math.pow(1 + da.rate / 100, 1/12);
+        const ex = d.exit || {};
+        if (ex.type !== 'none' && ex.date) {
+          const [ey, em] = ex.date.split('-').map(Number);
+          if (_startYear === ey && mo === em && da) da.sold = true;
+        }
+      });
+      // ── End deals ──
       liq += inc - _baseExp - _itemizedExp;
       _saNetBurn += _baseExp + _itemizedExp - inc;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = sa; _simMinMo = mo; }
-      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), totalExp: Math.round(_baseExp + _itemizedExp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age: sa, mo, year: _startYear, inc: Math.round(inc), baseExp: Math.round(_baseExp), totalExp: Math.round(_baseExp + _itemizedExp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0) + Object.values(_dealAssets).filter(da=>!da.sold).reduce((s,da)=>s+da.cv,0)) });
     }
     // Annualise partial-year burn so pill shows a full-year equivalent
     const _saMonths = 13 - _curMo;
@@ -2972,18 +3001,34 @@ function runSim(monthlyOverride) {
         }
       });
 
+      // ── Deals (main loop) ──
+      const _yr = _startYear + (age - sa);
+      (S.deals || []).filter(d => d.enabled !== false).forEach(d => {
+        const { debit, credit, txns: dTxns } = _dealCashflow(d, _yr, mo);
+        exp += debit;
+        inc += credit;
+        dTxns.forEach(t => _txns.push(t));
+        const da = _dealAssets[d.id];
+        if (da && !da.sold && da.cv > 0) da.cv *= Math.pow(1 + da.rate / 100, 1/12);
+        const ex = d.exit || {};
+        if (ex.type !== 'none' && ex.date) {
+          const [ey, em] = ex.date.split('-').map(Number);
+          if (_yr === ey && mo === em && da) da.sold = true;
+        }
+      });
+      // ── End deals ──
       liq += inc - exp;
       yearBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
-      out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0)) });
+      out.monthly.push({ age, mo, year: _yr, inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.reduce((s,p)=>s+p.cv,0) + Object.values(_dealAssets).filter(da=>!da.sold).reduce((s,da)=>s+da.cv,0)) });
     }
 
     out.push({
       age,
       liq:  Math.round(liq),
       minLiq: Math.round(yearMinLiq),
-      iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0)),
+      iliq: Math.round(props.filter(p => !p.sold).reduce((s, p) => s + p.cv, 0) + Object.values(_dealAssets).filter(da=>!da.sold).reduce((s,da)=>s+da.cv,0)),
       crash,
       monthlyExp: Math.round(lastInflM + S.expenses.filter(e => e.enabled !== false && e.type === 'monthly' && age >= (e.from || sa) && age <= (e.to || ea)).reduce((s, e) => s + e.amount, 0)),
       annualNetBurn: Math.round(yearBurn)
