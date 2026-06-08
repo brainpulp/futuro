@@ -6133,10 +6133,13 @@ function _renderDealExpandCard(d) {
     ...taggedExp.map(e => _renderDealSubItem(e, 'expense')),
     ...taggedInc.map(i => _renderDealSubItem(i, 'income'))
   ].join('');
+  // Only show deal blocks if they carry data (not 'none') OR no sub-items cover that role
+  const showCap = (d.capital||{}).type !== 'none' || taggedExp.length === 0;
+  const showRet = (d.returns||{}).type !== 'none' || taggedInc.length === 0;
   return `<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;border-left:3px solid ${d.color||'#8b5cf6'};" onclick="event.stopPropagation()">
   <div class="deal-body" style="padding:0;">
-    ${_dealCapBlock(d)}
-    ${_dealRetBlock(d)}
+    ${showCap ? _dealCapBlock(d) : ''}
+    ${showRet ? _dealRetBlock(d) : ''}
     ${_dealExitBlock(d)}
     <div class="deal-block">
       <div class="deal-blk-title">Color</div>
