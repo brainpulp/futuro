@@ -2671,7 +2671,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
     age: sa,
     liq: Math.round(liq),
     minLiq: Math.round(liq),
-    iliq: Math.round(props.reduce((s, p) => s + p.cv, 0)),
+    iliq: Math.round(props.reduce((s, p) => s + p.cv, 0) + Object.values(_dealAssets).filter(da => !da.sold).reduce((s, da) => s + da.cv, 0)),
     crash: false,
     monthlyExp: Math.round(((S.expenseCurve && S.expenseCurve[sa] !== undefined) ? S.expenseCurve[sa] : S.monthlyExpenses) * (S.expMultiplier || 1))
   }];
