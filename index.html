@@ -5968,7 +5968,11 @@ function _evtPeriod(row) {
 function _normalizeEvents() {
   const sa = S.startAge, ea = S.endAge;
   const rows = [];
+  const deals = S.deals||[];
+  const dealNames = new Set(deals.map(d => (d.name||'').toLowerCase().trim()));
+  const dealPropIds = new Set(deals.map(d => d.id).filter(id => /^deal_prop_/.test(id)).map(id => +id.replace('deal_prop_','')));
   (S.expenses||[]).forEach(e => {
+    if (e.dealId) return; // sub-item of a deal
     let mo = 0, ot = 0;
     if (e.type==='monthly')      mo = -(e.amount||0);
     else if (e.type==='annual')  mo = -(e.amount||0)/12;
@@ -5977,14 +5981,18 @@ function _normalizeEvents() {
     rows.push({...e, _kind:'expense', _mo:mo, _ot:ot, _ps:e.from||e.atAge||sa});
   });
   (S.incomes||[]).forEach(i => {
+    if (i.dealId) return; // sub-item of a deal
     const mo = i.type==='oneoff' ? 0 : (i.monthly||i.amount||0);
     const ot = i.type==='oneoff' ? (i.amount||0) : 0;
     rows.push({...i, _kind:'income', _mo:mo, _ot:ot, _ps:i.from||i.atAge||sa});
   });
   (S.properties||[]).forEach(p => {
+    // skip if a deal shadows this property (by auto-migration id or name match)
+    if (dealPropIds.has(p.id)) return;
+    if (dealNames.has((p.name||'').toLowerCase().trim())) return;
     rows.push({...p, _kind:'property', _mo:p.monthlyRent||0, _ot:-(p.value||0), _ps:p.acquireAge||sa});
   });
-  (S.deals||[]).forEach(d => {
+  deals.forEach(d => {
     const cap = d.capital||{}, ret = d.returns||{};
     const mo = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
     const ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.total||cap.amount||0) : 0;
