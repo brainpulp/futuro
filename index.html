@@ -2240,6 +2240,12 @@ function _applyScenarios(saved) {
   if (_ibkrLiq > 0) {
     S.liquidBase = _ibkrLiq;
   }
+  // Auto-migrate to deal model if needed (runs before saveActive so the migrated state is what gets persisted)
+  // Detection: pre-migration scenarios have >1 property (7 real estate deals were in S.properties)
+  // and no deals. Post-migration: only Mocoretá remains in S.properties.
+  if (!(S.deals||[]).length && (S.properties||[]).length > 1) {
+    try { _migrateToDealModel(); } catch(e) { console.warn('auto-migrate failed', e); }
+  }
   saveActive();
   // Restore cross-device preferences from saved payload
   if (saved?.prefs) {
@@ -2315,9 +2321,6 @@ async function loadScenarios() {
 
   if (best) {
     _applyScenarios(best); // _applyScenarios already calls saveActive() → lsSave() → sbSave()
-    // Auto-migrate: if deals are missing but dealId-tagged items exist, run migration now
-    const _hasTagged = [...(S.incomes||[]), ...(S.expenses||[]), ...(S.properties||[])].some(x => x.dealId);
-    if (_hasTagged && !(S.deals||[]).length) _migrateToDealModel();
     return;
   }
   // Fall back to bundled scenarios.json seed
