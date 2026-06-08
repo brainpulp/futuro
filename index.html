@@ -5672,6 +5672,8 @@ function _dealExitChip(d) {
   const ex = d.exit || {};
   if (ex.type === 'none' || !ex.date) return '';
   const [ey] = ex.date.split('-').map(Number);
+  const simEndYear = (S.startYear||2026) + (S.endAge||87) - (S.startAge||57);
+  if (ey > simEndYear) return ''; // hold forever — no sale within sim, skip chip
   const net = _dealNetProceeds(d, ey);
   return net > 0 ? `<span class="dchip dchip-exit">→${fmtK(net)}</span>` : '';
 }
@@ -5804,16 +5806,22 @@ function _dealRetBlock(d) {
 function _dealExitBlock(d) {
   const ex = d.exit || {};
   const t = ex.type || 'none';
+  const simEndYear = (S.startYear||2026) + (S.endAge||87) - (S.startAge||57);
   const [ey] = (ex.date||'2100-01').split('-').map(Number);
-  const proj = (t==='auto') ? _dealNetProceeds(d, ey) : 0;
+  const isHold = t === 'auto' && ey > simEndYear; // hold = auto with date beyond sim
+  const proj = (t==='auto' && !isHold) ? _dealNetProceeds(d, ey) : 0;
   return `<div class="deal-block">
     <div class="deal-blk-title">Exit / Sale</div>
     <div class="deal-type-sel">
       <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{type:'none'});renderDeals();go()">None</button>
-      <button class="deal-tbtn${t==='auto'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto'});renderDeals();go()">Auto</button>
-      <button class="deal-tbtn${t==='manual'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderDeals();go()">Manual price</button>
+      <button class="deal-tbtn${t==='auto'&&!isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit?.date&&((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date<'2090-01'?((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date:''});renderDeals();go()">Auto</button>
+      <button class="deal-tbtn${isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:'2100-01'});renderDeals();go()">Hold</button>
+      <button class="deal-tbtn${t==='manual'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderDeals();go()">Manual</button>
     </div>
-    ${t==='auto' ? `
+    ${isHold ? `<div style="font-size:11px;color:#a0aec0;">Appreciates at ${ex.rate||0}%/yr · no sale within simulation.</div>
+    <div class="deal-frow" style="margin-top:4px;"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
+    <div class="deal-frow"><span class="deal-flbl">Rate</span><input type="number" class="ifield" value="${ex.rate||0}" step="0.25" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','rate',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">% / yr</span></div>` : ''}
+    ${t==='auto' && !isHold ? `
     <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ex.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','exit','date',this.value);go()" onclick="event.stopPropagation()"></div>
     <div class="deal-frow"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
     <div class="deal-frow"><span class="deal-flbl">Rate</span><input type="number" class="ifield" value="${ex.rate||0}" step="0.25" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','rate',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">% / yr</span></div>
