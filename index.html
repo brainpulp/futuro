@@ -5928,8 +5928,9 @@ function _normalizeEvents() {
   const deals = S.deals||[];
   const dealNames = new Set(deals.map(d => (d.name||'').toLowerCase().trim()));
   const dealPropIds = new Set(deals.map(d => d.id).filter(id => /^deal_prop_/.test(id)).map(id => +id.replace('deal_prop_','')));
+  const dealIds = new Set(deals.map(d => d.id));
   (S.expenses||[]).forEach(e => {
-    if (e.dealId) return; // sub-item of a deal
+    if (e.dealId && dealIds.has(e.dealId)) return; // sub-item of an existing deal
     let mo = 0, ot = 0;
     if (e.type==='monthly')      mo = -(e.amount||0);
     else if (e.type==='annual')  mo = -(e.amount||0)/12;
@@ -5938,7 +5939,7 @@ function _normalizeEvents() {
     rows.push({...e, _kind:'expense', _mo:mo, _ot:ot, _ps:e.from||e.atAge||sa});
   });
   (S.incomes||[]).forEach(i => {
-    if (i.dealId) return; // sub-item of a deal
+    if (i.dealId && dealIds.has(i.dealId)) return; // sub-item of an existing deal
     const mo = i.type==='oneoff' ? 0 : (i.monthly||i.amount||0);
     const ot = i.type==='oneoff' ? (i.amount||0) : 0;
     rows.push({...i, _kind:'income', _mo:mo, _ot:ot, _ps:i.from||i.atAge||sa});
