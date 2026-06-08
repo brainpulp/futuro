@@ -6119,8 +6119,8 @@ function syncInputs() {
   });
   const inflBadge = document.getElementById('infl-badge');
   if (inflBadge && inflBadge.tagName === 'SPAN') inflBadge.textContent = S.inflationRate + '%';
-  document.getElementById('app').value = S.assetAppreciation;
-  document.getElementById('app-v').textContent = S.assetAppreciation + '%';
+  const appEl = document.getElementById('app'); if (appEl) appEl.value = S.assetAppreciation;
+  const appVEl = document.getElementById('app-v'); if (appVEl) appVEl.textContent = S.assetAppreciation + '%';
 }
 
 // ── AI Evaluation ──
