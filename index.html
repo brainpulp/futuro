@@ -2315,6 +2315,9 @@ async function loadScenarios() {
 
   if (best) {
     _applyScenarios(best); // _applyScenarios already calls saveActive() → lsSave() → sbSave()
+    // Auto-migrate: if deals are missing but dealId-tagged items exist, run migration now
+    const _hasTagged = [...(S.incomes||[]), ...(S.expenses||[]), ...(S.properties||[])].some(x => x.dealId);
+    if (_hasTagged && !(S.deals||[]).length) _migrateToDealModel();
     return;
   }
   // Fall back to bundled scenarios.json seed
