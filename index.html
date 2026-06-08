@@ -3849,7 +3849,7 @@ const msPlugin = {
       function drawDot(xp, yp, txns, net, year, age, mo) {
         if (xp < chartArea.left - 2 || xp > chartArea.right + 2) return;
         if (yp < chartArea.top - 2  || yp > chartArea.bottom + 2) return;
-        const isSale = txns.some(t => t.type === 'sale');
+        const isSale = txns.some(t => t.type === 'sale' || t.type === 'deal-exit');
         ctx.save(); ctx.shadowBlur = 5;
         let yHit = yp;
         if (isSale) {
@@ -4024,9 +4024,9 @@ function renderRC(data) {
         const lqC = r.liq < 0 ? '#e05050' : r.liq < 200000 ? '#c07030' : '';
         const mktC = (r.mktGain || 0) >= 0 ? '#1A8C5F' : '#e05050';
         const mktStr = r.mktGain != null ? ((r.mktGain >= 0 ? '+' : '') + _fmt$(r.mktGain)) : '—';
-        const ooSpans = (r.txns || []).filter(t => t.amount < 0 || t.type === 'sale').map(t => {
-          const col = t.type === 'sale' ? '#16a34a' : t.type === 'installment' ? '#94a3b8' : '#c07030';
-          const sign = t.type === 'sale' ? '+' : '−';
+        const ooSpans = (r.txns || []).filter(t => t.amount < 0 || t.type === 'sale' || t.type === 'deal-exit').map(t => {
+          const col = (t.type === 'sale' || t.type === 'deal-exit') ? '#16a34a' : t.type === 'installment' ? '#94a3b8' : '#c07030';
+          const sign = (t.type === 'sale' || t.type === 'deal-exit') ? '+' : '−';
           const label = t.type === 'installment' ? `${t.name} ${t.installNum}/${t.installTotal}` : t.name;
           return `<span style="color:${col};">${label} ${sign}${_fmt$(Math.abs(t.amount))}</span>`;
         });
@@ -4116,11 +4116,11 @@ function renderMinDrill(data) {
       const barCol = net >= 0 ? '#1A8C5F' : '#C03030';
       const liqCol = r.liq < 0 ? '#f87171' : r.liq < 200_000 ? '#e9972a' : 'rgba(255,255,255,0.75)';
       const rowBg  = isMin ? 'background:rgba(192,48,48,0.18);' : i % 2 ? 'background:rgba(255,255,255,0.025);' : '';
-      const ooHtml = (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale').length
-        ? (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale').map(t => {
-            const col = t.type === 'sale' ? '#16a34a' : '#e9972a';
+      const ooHtml = (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale' || t.type === 'deal-exit').length
+        ? (r.txns||[]).filter(t => t.amount < 0 || t.type === 'sale' || t.type === 'deal-exit').map(t => {
+            const col = (t.type === 'sale' || t.type === 'deal-exit') ? '#16a34a' : '#e9972a';
             const label = t.type === 'installment' ? `${t.name} ${t.installNum}/${t.installTotal}` : t.name;
-            return `<span style="color:${col};">${label}&nbsp;${t.type === 'sale' ? '+' : '−'}${_fmt$(Math.abs(t.amount))}</span>`;
+            return `<span style="color:${col};">${label}&nbsp;${(t.type === 'sale' || t.type === 'deal-exit') ? '+' : '−'}${_fmt$(Math.abs(t.amount))}</span>`;
           }).join(' ')
         : '<span style="color:rgba(255,255,255,0.18);">—</span>';
       const minMark = isMin ? '&nbsp;<span style="color:#f87171;font-size:9px;">◀ min</span>' : '';
@@ -4383,12 +4383,13 @@ function _buildLwMarkers(data) {
   if (dense) {
     // Monthly dots (1y) or quarterly dots (5y)
     sim.forEach(m => {
-      if (_chartZoom === 5 && ![1, 4, 7, 10].includes(m.mo) && !getMonthTxns(m.age, m.mo).some(t => t.type === 'sale')) return;
+      const _isSale = t => t.type === 'sale' || t.type === 'deal-exit';
+      if (_chartZoom === 5 && ![1, 4, 7, 10].includes(m.mo) && !getMonthTxns(m.age, m.mo).some(_isSale)) return;
       const txns = getMonthTxns(m.age, m.mo);
       if (!txns.length) return;
       const income = txns.filter(t => t.amount > 0).reduce((s,t) => s + t.amount, 0);
       const expenses = txns.filter(t => t.amount < 0).reduce((s,t) => s + Math.abs(t.amount), 0);
-      const hasSale = txns.some(t => t.type === 'sale');
+      const hasSale = txns.some(_isSale);
       const net = income - expenses;
       const col = hasSale ? 'rgba(0,0,0,0)' : (net >= 0 ? '#22c55e' : '#f87171');
       const time = _mt(m.year, m.mo);
@@ -4411,7 +4412,7 @@ function _buildLwMarkers(data) {
       }
       if (!allTxns.length) return;
       const net = income - expenses;
-      const hasSale = allTxns.some(t => t.type === 'sale');
+      const hasSale = allTxns.some(t => t.type === 'sale' || t.type === 'deal-exit');
       const year = age - sa + sy;
       const time = _mt(year, 7);
       const col = hasSale ? 'rgba(0,0,0,0)' : (net >= 0 ? '#22c55e' : '#f87171');
@@ -4738,9 +4739,11 @@ function go() {
   if (_chartZoom === 1 || _chartZoom === 5) {
     const nMo = _chartZoom === 5 ? 60 : 12;
     const moN = (data.monthly || []).slice(0, nMo);
-    labels  = moN.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
-    subAges = moN.map(m => m.age);
-    expData = moN.map(m => m.baseExp);
+    // 5y: quarterly dots only (Jan/Apr/Jul/Oct) — less clutter, still draggable
+    const moPlot = _chartZoom === 5 ? moN.filter(m => [1,4,7,10].includes(m.mo)) : moN;
+    labels  = moPlot.map(m => _MON[m.mo - 1] + ' \'' + String(m.year).slice(2));
+    subAges = moPlot.map(m => m.age);
+    expData = moPlot.map(m => m.baseExp);
   } else {
     const maxAge   = (S.startAge || 57) + _chartZoom;
     const filtered = data.filter(d => d.age <= maxAge);
