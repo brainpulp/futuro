@@ -6145,7 +6145,8 @@ function _renderDealExpandCard(d) {
 }
 
 function renderEventRow(row) {
-  const isOpen = openId===row.id;
+  const rowId = String(row.id);
+  const isOpen = openId===rowId;
   const dotClr = row._kind==='expense'?'#E05252':row._kind==='income'?'#1A8C5F':row._kind==='deal'?'#8b5cf6':'#4A90D9';
   const moClr  = row._mo>0?'#1A8C5F':row._mo<0?'#E05252':'#c1cad4';
   const otClr  = row._ot>0?'#1A8C5F':row._ot<0?'#E05252':'#c1cad4';
@@ -6166,7 +6167,7 @@ function renderEventRow(row) {
     else card=_renderPropExpandCard(row);
   }
   return `<div>
-  <div class="item-row${row.enabled===false?' disabled-row':''}" onclick="toggle(${row.id});renderEvents()">
+  <div class="item-row${row.enabled===false?' disabled-row':''}" onclick="toggle('${row.id}');renderEvents()">
     <span style="width:7px;height:7px;border-radius:50%;background:${dotClr};flex-shrink:0;display:inline-block;"></span>
     <input class="iname" type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="${nameFn}">
     <span style="width:74px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:${moClr};flex-shrink:0;">${moStr}</span>
