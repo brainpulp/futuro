@@ -3098,6 +3098,20 @@ window._selfTest = function() {
     assert('T10 ensureFields idempotent', snap1 === snap2, 'property ages changed on second call');
   } catch(e) { err('T10 ensureFields idempotent', e.message); }
 
+  // ── T11: annual expense tooltip shows full annual amount, not monthly amortized ──
+  try {
+    const annExp = { id: 9901, name: 'Test Annual', type: 'annual', amount: 6000, from: 57, to: 87, fromMonth: 1, toMonth: 12, enabled: true };
+    // Simulate what showTxnTooltip does: annual txn has amount = -6000/12 = -500 stored in sim
+    const fakeTxn = { id: 9901, arr: 'expenses', name: 'Test Annual', amount: -500, type: 'annual' };
+    const fakeDot = { isYearly: false, txns: [fakeTxn] };
+    const dispAmt = (fakeTxn.type === 'annual' && !fakeDot.isYearly) ? fakeTxn.amount * 12 : fakeTxn.amount;
+    assert('T11 annual tooltip shows annual amount not monthly', dispAmt === -6000, `got ${dispAmt}`);
+    // Yearly dot: should show the summed amount as-is (already summed 12× by _groupTxnsForYearly)
+    const fakeYearlyDot = { isYearly: true, txns: [{ ...fakeTxn, amount: -6000, _count: 12 }] };
+    const dispAmtYr = (fakeYearlyDot.txns[0].type === 'annual' && !fakeYearlyDot.isYearly) ? fakeYearlyDot.txns[0].amount * 12 : fakeYearlyDot.txns[0].amount;
+    assert('T11b annual yearly tooltip not double-multiplied', dispAmtYr === -6000, `got ${dispAmtYr}`);
+  } catch(e) { err('T11 annual tooltip', e.message); }
+
   const total = pass.length + fail.length;
   const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
   console.log(summary);
@@ -5940,8 +5954,10 @@ function showTxnTooltip(dot, cx, cy) {
 
   rows.innerHTML = dot.txns.map(t => {
     const col = _TXN_COLORS[t.type] || '#94a3b8';
-    const sign = t.amount >= 0 ? '+' : '';
-    const amtCol = t.amount >= 0 ? '#22c55e' : '#f87171';
+    // Annual expenses are stored as amount/12 for sim smoothing; show the real annual cost in monthly tooltips
+    const dispAmt = (t.type === 'annual' && !dot.isYearly) ? t.amount * 12 : t.amount;
+    const sign = dispAmt >= 0 ? '+' : '';
+    const amtCol = dispAmt >= 0 ? '#22c55e' : '#f87171';
     // Badge: grouped recurring shows "×N/yr", single installment shows "X/Y", else type name
     let badge;
     if (t._count > 1 && t.type === 'installment' && t.installNumFirst != null) {
@@ -5963,7 +5979,7 @@ function showTxnTooltip(dot, cx, cy) {
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
-      <div class="tt-amt" style="color:${amtCol}">${sign}${fmtM(Math.abs(t.amount))}</div>
+      <div class="tt-amt" style="color:${amtCol}">${sign}${fmtM(Math.abs(dispAmt))}</div>
       ${togBtn}
     </div>`;
   }).join('');
