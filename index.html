@@ -4882,7 +4882,7 @@ function toggleDeal(dealId) {
       }
     });
   });
-  renderInc(); renderExp(); renderProps(); renderDeals(); go();
+  renderInc(); renderExp(); renderDeals(); go();
 }
 function toggle(id){ openId = openId === id ? null : id; }
 function nid()     { return ++nextId; }
@@ -5574,7 +5574,8 @@ function addE()  { const id=nid(); S.expenses.push({id,name:'Expense',amount:100
 
 // ── Real estate ──
 function renderProps() {
-  document.getElementById('props-list').innerHTML = S.properties.map((p, i) => {
+  const _pl = document.getElementById('props-list'); if (!_pl) return;
+  _pl.innerHTML = S.properties.map((p, i) => {
     const appOpen = openId === p.id;
     const appLabel = p.appRate !== undefined ? p.appRate + '%' : 'global';
     return `<div class="item-row${p.enabled===false?' disabled-row':''}" onclick="toggle(${p.id});renderProps()">
@@ -5671,10 +5672,14 @@ function fmtK(v) {
 function _dealCapBlock(d) {
   const cap = d.capital || {};
   const t = cap.type || 'none';
+  const linkedExp = (S.expenses||[]).filter(e => e.dealId === d.id && e.enabled !== false);
+  const hasLinked = t === 'none' && linkedExp.length > 0;
   return `<div class="deal-block">
     <div class="deal-blk-title">Capital in</div>
     <div class="deal-type-sel">
-      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{type:'none'});renderDeals();go()">None</button>
+      ${hasLinked
+        ? `<button class="deal-tbtn dtact" style="opacity:.55;cursor:default;" onclick="event.stopPropagation()">Linked</button>`
+        : `<button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{type:'none'});renderDeals();go()">None</button>`}
       <button class="deal-tbtn${t==='oneoff'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).capital,type:'oneoff'});renderDeals();go()">One-off</button>
       <button class="deal-tbtn${t==='installments'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','capital',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).capital,type:'installments'});renderDeals();go()">Installments</button>
     </div>
@@ -5686,9 +5691,8 @@ function _dealCapBlock(d) {
     <div class="deal-frow"><span class="deal-flbl">Payments</span><input type="number" class="ifield" value="${cap.nPayments||1}" style="width:44px;" onchange="event.stopPropagation();upDf('${d.id}','capital','nPayments',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">×</span><select style="height:24px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;padding:0 4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','capital','frequency',this.value);go()" onclick="event.stopPropagation()"><option${cap.frequency==='monthly'||!cap.frequency?' selected':''}>monthly</option><option${cap.frequency==='quarterly'?' selected':''}>quarterly</option><option${cap.frequency==='annual'?' selected':''}>annual</option></select></div>
     <div class="deal-frow"><span class="deal-flbl">Starts</span><input type="month" value="${cap.startDate||cap.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','capital','startDate',this.value);upDf('${d.id}','capital','date',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
     ${t==='none' ? (() => {
-      const linked = (S.expenses||[]).filter(e => e.dealId === d.id && e.enabled !== false);
-      if (!linked.length) return `<div style="font-size:11px;color:#a0aec0;">No upfront capital.</div>`;
-      return linked.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid #f0f4ff;">
+      if (!linkedExp.length) return `<div style="font-size:11px;color:#a0aec0;">No upfront capital.</div>`;
+      return linkedExp.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid #f0f4ff;">
         <span style="color:#64748b;">↳ ${e.name}</span>
         <span style="font-weight:600;color:#e53e3e;">&minus;${fmtK(e.type==='installments'?(e.budget||e.installTotal||0):(e.amount||0))}</span>
       </div>`).join('');
@@ -5699,10 +5703,14 @@ function _dealCapBlock(d) {
 function _dealRetBlock(d) {
   const ret = d.returns || {};
   const t = ret.type || 'none';
+  const linkedInc = (S.incomes||[]).filter(i => i.dealId === d.id && i.enabled !== false);
+  const hasLinked = t === 'none' && linkedInc.length > 0;
   return `<div class="deal-block">
     <div class="deal-blk-title">Returns</div>
     <div class="deal-type-sel">
-      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{type:'none'});renderDeals();go()">None</button>
+      ${hasLinked
+        ? `<button class="deal-tbtn dtact" style="opacity:.55;cursor:default;" onclick="event.stopPropagation()">Linked</button>`
+        : `<button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{type:'none'});renderDeals();go()">None</button>`}
       <button class="deal-tbtn${t==='monthly'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'monthly'});renderDeals();go()">Monthly</button>
       <button class="deal-tbtn${t==='yearly'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'yearly'});renderDeals();go()">Yearly</button>
       <button class="deal-tbtn${t==='oneoff'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','returns',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).returns,type:'oneoff'});renderDeals();go()">One-off</button>
@@ -5715,9 +5723,8 @@ function _dealRetBlock(d) {
     <div class="deal-frow"><span class="deal-flbl">Amount</span><input type="text" class="iamt" value="${fmtInput(ret.amount||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','returns','amount',parseNum(this.value));go()" onclick="event.stopPropagation()"></div>
     <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ret.from||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','returns','from',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
     ${t==='none' ? (() => {
-      const linked = (S.incomes||[]).filter(i => i.dealId === d.id && i.enabled !== false);
-      if (!linked.length) return `<div style="font-size:11px;color:#a0aec0;">No recurring returns.</div>`;
-      return linked.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid #f0f4ff;">
+      if (!linkedInc.length) return `<div style="font-size:11px;color:#a0aec0;">No recurring returns.</div>`;
+      return linkedInc.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid #f0f4ff;">
         <span style="color:#64748b;">↳ ${i.name}</span>
         <span style="font-weight:600;color:#16a34a;">+${fmtK(i.monthly||0)}/mo</span>
       </div>`).join('');
