@@ -114,6 +114,29 @@ let _chartZoom = 10;         // persisted via localStorage 'futuro-chart-zoom'
 - **Emoji vignette** — animated emoji background clipped to liquid curve area, on overlay canvas.
 - **Market fan ribbon** — base/pessimistic/optimistic sims run in `go()`, fed to `lwFanHighSeries`/`lwFanLowSeries` behind main liquid line.
 
+## UI Structure (post 2026-06-07 refactor — commit 3b47d49)
+
+### Section order (left panel)
+`Outgoing → Incoming → Deals → Budget` (Budget is last)
+
+### Flat income/expense lists
+- `#all-inc-list` — single flat container for ALL income items (no Monthly/Yearly/One-off sub-headings)
+- `#all-exp-list` — single flat container for ALL expense items (no sub-headings)
+- Both filter out `dealId`-linked items (those render inside their deal card)
+- Summer/winter trips auto-migrate to regular annual expenses on first load (idempotent migration in `_applyScenarios`)
+
+### Deal cards
+- Collapsed: shows `<span class="deal-name-t">` (truncated text, not editable)
+- Expanded (click to open): shows `<input class="deal-name-i">` (rename in place)
+- Linked incomes/expenses rendered inside expanded deal card
+
+### Assets section
+- **Removed entirely** from HTML and JS
+- Standalone properties auto-migrate to Deals on load (migration in `_applyScenarios` before `saveActive()`)
+
+### Expense chart
+- Vertical multiplier wheel (`#exp-mult-wheel`) removed; horizontal slider only remains
+
 ## Pending / deferred
 - Dancing numbers on LW chart (not yet reimplemented after Chart.js migration)
 - Montecarlo bands on LW chart (not yet reimplemented)
