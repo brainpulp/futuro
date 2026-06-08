@@ -541,39 +541,6 @@ body:not([data-theme="graphite"]) #txn-tip .tt-name { color: #1a1f36; }
 body:not([data-theme="graphite"]) #txn-tip .tt-hint { border-color: #f0f2f8; color: #8792a2; }
 
 /* ── TRANSACTION EDIT MODAL ─────────────────────────────────── */
-#txn-edit-backdrop {
-  display: none; position: fixed; inset: 0; z-index: 1500;
-  background: rgba(0,0,0,.35);
-  align-items: center; justify-content: center;
-}
-#txn-edit-backdrop.open { display: flex; }
-#txn-edit-modal {
-  background: #1e293b; border: 1px solid #334155; border-radius: 14px;
-  padding: 20px; width: 340px; box-shadow: 0 16px 48px rgba(0,0,0,.6);
-}
-body:not([data-theme="graphite"]) #txn-edit-modal { background: #fff; border-color: #e6ebf1; }
-#txn-edit-modal .em-hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
-#txn-edit-modal .em-title { font-size: 13px; font-weight: 800; color: #e2e8f0; }
-body:not([data-theme="graphite"]) #txn-edit-modal .em-title { color: #1a1f36; }
-#txn-edit-modal .em-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 18px; padding: 0; line-height: 1; }
-#txn-edit-modal .em-close:hover { color: #e2e8f0; }
-#txn-edit-modal .em-field { margin-bottom: 11px; }
-#txn-edit-modal .em-label { display: block; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
-#txn-edit-modal .em-field input, #txn-edit-modal .em-field select {
-  width: 100%; background: rgba(255,255,255,.05); border: 1px solid #334155;
-  border-radius: 6px; color: #e2e8f0; font-size: 13px; font-family: inherit; padding: 7px 10px; outline: none;
-}
-body:not([data-theme="graphite"]) #txn-edit-modal .em-field input,
-body:not([data-theme="graphite"]) #txn-edit-modal .em-field select { background: #f6f9fc; border-color: #e0e6ed; color: #1a1f36; }
-#txn-edit-modal .em-field input:focus, #txn-edit-modal .em-field select:focus { border-color: #60a5fa; }
-#txn-edit-modal .em-field input[type="month"] { color-scheme: dark; }
-body:not([data-theme="graphite"]) #txn-edit-modal .em-field input[type="month"] { color-scheme: light; }
-#txn-edit-modal .em-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-#txn-edit-modal .em-actions { display: flex; gap: 6px; margin-top: 14px; }
-#txn-edit-modal .em-save   { flex:1; background:#3b82f6; color:#fff; border:none; border-radius:6px; padding:8px; font-size:12px; font-weight:700; cursor:pointer; }
-#txn-edit-modal .em-save:hover { background:#2563eb; }
-#txn-edit-modal .em-cancel { background:rgba(255,255,255,.06); color:#94a3b8; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
-#txn-edit-modal .em-delete { background:rgba(239,68,68,.15); color:#f87171; border:1px solid rgba(239,68,68,.3); border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
 
 /* ── CHART BOX ─────────────────────────────────────────────── */
 .chart-box {
@@ -1176,19 +1143,8 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
     <!-- Transaction hover tooltip -->
-    <div id="txn-tip" onmouseleave="hideTxnTooltip()"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to edit</div></div>
+    <div id="txn-tip" onmouseleave="hideTxnTooltip()"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to scroll to item</div></div>
     <!-- Transaction edit modal -->
-    <div id="txn-edit-backdrop" onclick="if(event.target===this)closeTxnEdit()">
-      <div id="txn-edit-modal">
-        <div class="em-hdr"><div><div class="em-title" id="txn-edit-title">Edit</div></div><button class="em-close" onclick="closeTxnEdit()">✕</button></div>
-        <div id="txn-edit-fields"></div>
-        <div class="em-actions">
-          <button class="em-save" onclick="saveTxnEdit()">Save</button>
-          <button class="em-cancel" onclick="closeTxnEdit()">Cancel</button>
-          <button class="em-delete" onclick="deleteTxnEdit()">Delete</button>
-        </div>
-      </div>
-    </div>
     <div id="sync-ticker">
       <span class="tick-icon" id="tick-icon">📡</span>
       <span id="tick-msg">Syncing…</span>
@@ -3526,7 +3482,6 @@ function getMonthTxns(age, mo) {
   return row ? (row.txns || []) : [];
 }
 
-let _txnEditItem = null; // { id, arr, type } — currently editing
 
 const msPlugin = {
   id: 'ms',
@@ -4356,7 +4311,7 @@ function _initLwChart() {
       const diff = Math.abs(new Date(d.time).getTime() - hMs);
       return diff < THRESH && diff < best.dist ? { d, dist: diff } : best;
     }, { d: null, dist: Infinity }).d;
-    if (hit) openTxnEditForDot(hit);
+    if (hit) { if (hit.txns.length === 1 && hit.txns[0].id != null && hit.txns[0].arr) { scrollToEvent(hit.txns[0].id, hit.txns[0].arr); } else { showTxnTooltip(hit, window._lastMouseX || 400, window._lastMouseY || 300); } }
   });
 
   _startDanceLoop();
@@ -6176,7 +6131,7 @@ function renderEventRow(row) {
     else if (isDeal) card=_renderDealExpandCard(row);
     else card=_renderPropExpandCard(row);
   }
-  return `<div>
+  return `<div data-event-id="${row.id}">
   <div class="item-row${row.enabled===false?' disabled-row':''}" onclick="toggle('${row.id}');renderEvents()">
     <span style="width:7px;height:7px;border-radius:50%;background:${dotClr};flex-shrink:0;display:inline-block;"></span>
     <input class="iname" type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="${nameFn}">
@@ -6284,11 +6239,11 @@ function showTxnTooltip(dot, cx, cy) {
     } else {
       badge = t.type;
     }
-    const clickable = t.id != null;
-    const item = t.id != null ? (S[t.arr]||[]).find(x => x.id === t.id) : null;
+    const clickable = t.id != null && t.arr;
+    const item = clickable ? (S[t.arr]||[]).find(x => x.id === t.id) : null;
     const enabled = item ? item.enabled !== false : true;
     const togBtn = item ? `<button id="tt-tog-${t.id}" onclick="event.stopPropagation();_txnToggleEnabled(${t.id},'${t.arr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:${enabled?1:0.4};flex-shrink:0;" title="${enabled?'Disable':'Enable'}">${enabled?'●':'○'}</button>` : '';
-    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="openTxnEdit(${JSON.stringify(t).replace(/"/g,'&quot;')})"`:''}>
+    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="scrollToEvent(${JSON.stringify(t.id)},'${t.arr}')"`:''}">
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
@@ -6312,136 +6267,32 @@ function hideTxnTooltip() {
 }
 
 // ── Transaction edit modal ────────────────────────────────────
-function openTxnEdit(t) {
-  _txnEditItem = t;
-  clearTimeout(_tipHideTimer);
-  const _tt = document.getElementById('txn-tip');
-  if (_tt) { _tt.style.display = 'none'; _tt.style.pointerEvents = 'none'; }
-  const modal = document.getElementById('txn-edit-backdrop');
-  const title = document.getElementById('txn-edit-title');
-  const fields = document.getElementById('txn-edit-fields');
-  if (!modal) return;
-  title.textContent = t.name;
-  const arr = S[t.arr];
-  const item = arr && arr.find(x => x.id === t.id);
-  if (!item) return;
-  const sa = S.startAge || 57, ea = S.endAge || 87;
-  const ageLbl = _yearMode ? 'Year' : 'Age';
-  function field(lbl, html) { return `<div class="em-field"><label class="em-label">${lbl}</label>${html}</div>`; }
-  function inp(fld, val, type='text') { return `<input type="${type}" value="${val??''}" oninput="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">`; }
-  // Age field: displays dispA(), writes back via readA() in _txnFieldUpd
-  function ageInp(fld, age) {
-    const disp = age !== undefined ? dispA(age) : dispA(sa);
-    return `<input type="number" value="${disp}" oninput="_txnAgeUpd(${t.id},'${t.arr}','${fld}',this.value)">`;
-  }
-  function sel(fld, val, opts) { return `<select onchange="_txnFieldUpd(${t.id},'${t.arr}','${fld}',this.value)">${opts.map(o=>`<option value="${o}"${o===val?' selected':''}>${o}</option>`).join('')}</select>`; }
-  let html = field('Name', inp('name', item.name));
-  if (t.arr === 'incomes' || (t.arr === 'expenses' && item.type === 'monthly')) {
-    html += `<div class="em-row">${field('Amount', inp(t.arr==='incomes'?'monthly':'amount', t.arr==='incomes'?(item.monthly||0):(item.amount||0), 'number'))}${field('Type', sel('type', item.type||'monthly',['monthly','annual','oneoff']))}</div>`;
-    html += `<div class="em-row">${field('From '+ageLbl, ageInp('from', item.from||sa))}${field('To '+ageLbl, ageInp('to', item.to||ea))}</div>`;
-  } else if (t.arr === 'expenses' && item.type === 'oneoff') {
-    html += `<div class="em-row">${field('Amount', inp('amount', item.amount||0,'number'))}${field(ageLbl, ageInp('atAge', item.atAge||sa))}</div>`;
-  } else if (t.arr === 'expenses' && item.type === 'installments') {
-    const _iTotal = item.installTotal || item.budget || item.amount || 0;
-    const _iN     = item.installN || 1;
-    const _iPer   = _iN > 0 ? _iTotal / _iN : 0;
-    const _igc    = item.gastosCategory && item.gastosCategory.trim().toLowerCase();
-    const _ispent = _igc ? _projActual(_igc) : 0;
-    const _ipaid  = _iPer > 0 ? Math.min(Math.floor(_ispent / _iPer), _iN) : 0;
-    const _irem   = _iN - _ipaid;
-    const _sy2 = S.startYear||2026, _sa3 = S.startAge||57, _ea3 = S.endAge||87;
-    const _iYM = `${ageToYear(item.atAge||_sa3)}-${String(item.atMonth||1).padStart(2,'0')}`;
-    const _iMin = `${_sy2}-01`, _iMax = `${_sy2+_ea3-_sa3}-12`;
-    const _startInp = `<input type="month" value="${_iYM}" min="${_iMin}" max="${_iMax}" oninput="_txnInstallStartUpd(${item.id},this.value)">`;
-    html += `<div class="em-row">${field('Total amount', inp('installTotal', _iTotal,'number'))}${field('# payments', inp('installN', _iN,'number'))}</div>`;
-    html += `<div class="em-row">${field('Frequency', sel('installFreq', item.installFreq||'monthly',['monthly','quarterly','semester','annual']))}${field('Start', _startInp)}</div>`;
-    const _sumParts = [`<b>${fmtM(_iPer)}</b>/payment`];
-    if (_igc && _ispent > 0) _sumParts.push(`Gastos paid: ${fmtM(_ispent)} (${_ipaid} payments)`);
-    _sumParts.push(`Remaining: <b>${_irem} × ${fmtM(_iPer)} = ${fmtM(_irem * _iPer)}</b>`);
-    html += `<div style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.8;">${_sumParts.join(' &nbsp;·&nbsp; ')}</div>`;
-  } else if (t.arr === 'properties') {
-    html += `<div class="em-row">${field('Value', inp('value', item.value||0,'number'))}${field('Monthly rent', inp('monthlyRent', item.monthlyRent||0,'number'))}</div>`;
-    const sy = S.startYear || 2026, sa2 = S.startAge || 57, ea2 = S.endAge || 87;
-    const rfa = (item.rentFromAge > 2000 ? yearToAge(item.rentFromAge) : item.rentFromAge) ?? sa2;
-    const rfm = item.rentFromMonth || 1;
-    const rfYM = `${ageToYear(rfa)}-${String(rfm).padStart(2,'0')}`;
-    const minYM = `${sy}-01`, maxYM = `${sy + ea2 - sa2}-12`;
-    const monthInp = `<input type="month" value="${rfYM}" min="${minYM}" max="${maxYM}" oninput="_txnRentFromUpd(${item.id},this.value)">`;
-    const saleAge = item.saleAge || ea2;
-    const saleMo  = item.saleMonth || 6;
-    const saleYM  = `${ageToYear(saleAge)}-${String(saleMo).padStart(2,'0')}`;
-    const saleInp = `<input type="month" value="${saleYM}" min="${minYM}" max="${maxYM}" oninput="_txnSaleFromUpd(${item.id},this.value)">`;
-    html += `<div class="em-row">${field('Rent from', monthInp)}${field('Sale', saleInp)}</div>`;
-    html += field('App rate %', inp('appRate', item.appRate??S.assetAppreciation,'number'));
-  }
-  fields.innerHTML = html;
-  modal.classList.add('open');
-}
-function openTxnEditForDot(dot) {
-  if (dot.txns.length === 1) { openTxnEdit(dot.txns[0]); return; }
-  showTxnTooltip(dot, window._lastMouseX || 400, window._lastMouseY || 300);
-}
-function closeTxnEdit() {
-  document.getElementById('txn-edit-backdrop').classList.remove('open');
-  _txnEditItem = null;
-}
-function _txnFieldUpd(id, arrName, field, val) {
-  const arr = S[arrName];
-  if (!arr) return;
-  const item = arr.find(x => x.id === id);
-  if (!item) return;
-  const num = parseFloat(val);
-  item[field] = (!isNaN(num) && String(val).trim() !== '') ? num : val;
-  markDirty(); go();
-}
-function _txnAgeUpd(id, arrName, field, val) {
-  const arr = S[arrName];
-  if (!arr) return;
-  const item = arr.find(x => x.id === id);
-  if (!item) return;
-  const num = parseFloat(val);
-  if (!isNaN(num)) { item[field] = readA(num); markDirty(); go(); }
+function scrollToEvent(id, arr) {
+  hideTxnTooltip();
+  openId = String(id);
+  renderEvents();
+  // Ensure section is open
+  const body = document.getElementById('sec-body-events');
+  if (body && body.style.display === 'none') toggleSec('events');
+  // Scroll to the row
+  setTimeout(() => {
+    const el = document.querySelector(`[data-event-id="${id}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else document.getElementById('sec-body-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 60);
 }
 function _txnToggleEnabled(id, arr) {
   const item = (S[arr]||[]).find(x => x.id === id);
   if (!item) return;
   item.enabled = item.enabled === false ? true : false;
   const on = item.enabled !== false;
-  // Patch DOM immediately — no re-render needed for visual feedback
   const btn = document.getElementById('tt-tog-' + id);
   const row = document.getElementById('tt-row-' + id);
   if (btn) { btn.textContent = on ? '●' : '○'; btn.style.opacity = on ? 1 : 0.4; btn.title = on ? 'Disable' : 'Enable'; }
   if (row) row.style.opacity = on ? '' : '0.45';
   markDirty(); go();
-  if (arr === 'incomes') renderInc();
-  else if (arr === 'expenses') renderExp();
-  else if (arr === 'properties') renderProps();
 }
-function _txnInstallStartUpd(id, ym) {
-  const [y, m] = ym.split('-').map(Number);
-  const item = S.expenses.find(e => e.id === id);
-  if (!item) return;
-  item.atAge   = yearToAge(y);
-  item.atMonth = m;
-  markDirty(); go();
-}
-function _txnRentFromUpd(id, ym) {
-  const [y, m] = ym.split('-').map(Number);
-  const item = S.properties.find(p => p.id === id);
-  if (!item) return;
-  item.rentFromAge   = yearToAge(y);
-  item.rentFromMonth = m;
-  markDirty(); go();
-}
-function _txnSaleFromUpd(id, ym) {
-  const [y, m] = ym.split('-').map(Number);
-  const item = S.properties.find(p => p.id === id);
-  if (!item) return;
-  item.saleAge   = yearToAge(y);
-  item.saleMonth = m;
-  item.hold      = false;
-  markDirty(); go();
-}
+function saveTxnEdit() { markDirty(); go(); }
 function _tlRentFromUpd(id, ym) {
   const [y, m] = ym.split('-').map(Number);
   const item = S.properties.find(p => p.id === id);
@@ -6449,19 +6300,6 @@ function _tlRentFromUpd(id, ym) {
   item.rentFromAge   = yearToAge(y);
   item.rentFromMonth = m;
   markDirty(); go(); renderTimeline();
-}
-function saveTxnEdit() { markDirty(); go(); closeTxnEdit(); }
-function deleteTxnEdit() {
-  if (!_txnEditItem) return;
-  const arr = S[_txnEditItem.arr];
-  if (!arr) return;
-  const idx = arr.findIndex(x => x.id === _txnEditItem.id);
-  if (idx >= 0) arr.splice(idx, 1);
-  markDirty(); go();
-  if (_txnEditItem.arr === 'incomes') renderInc();
-  else if (_txnEditItem.arr === 'expenses') renderExp();
-  else if (_txnEditItem.arr === 'properties') renderProps();
-  closeTxnEdit();
 }
 
 function toggleTheme() {
