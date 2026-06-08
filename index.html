@@ -934,11 +934,16 @@ body[data-theme="graphite"] .deal-row:hover { background: #21262d; }
 
 .deal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
+.deal-name-t {
+  font-size: 12px; font-weight: 700; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .deal-name-i {
   font-size: 12px; font-weight: 700; color: inherit;
-  background: none; border: none; outline: none;
-  flex: 1; min-width: 0; font-family: inherit; cursor: pointer;
+  background: rgba(0,0,0,.04); border: 1px solid rgba(0,0,0,.1); outline: none; border-radius: 3px; padding: 0 4px;
+  flex: 1; min-width: 0; font-family: inherit; cursor: text; height: 22px;
 }
+body[data-theme="graphite"] .deal-name-i { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
 .deal-name-i:focus { cursor: text; background: rgba(0,0,0,.04); border-radius: 3px; padding: 0 2px; }
 body[data-theme="graphite"] .deal-name-i:focus { background: rgba(255,255,255,.06); }
 
@@ -1155,46 +1160,10 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
     <!-- Expense sub-chart (merged into market section) -->
     <div style="position:relative;padding-top:18px;margin-bottom:10px;">
       <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(100,50,160,0.5);pointer-events:none;">Monthly Expenses &nbsp;<span id="exp-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
-      <div style="display:flex;align-items:stretch;gap:0;">
-        <!-- Multiplier wheel -->
-        <div id="exp-mult-wheel" title="Scroll or drag to scale all monthly expenses"
-          style="width:38px;flex-shrink:0;display:flex;flex-direction:column;align-items:stretch;cursor:ns-resize;user-select:none;border:1px solid rgba(100,50,160,0.22);border-right:none;border-radius:4px 0 0 4px;overflow:hidden;position:relative;background:#f8f6fe;">
-          <!-- upper grooves -->
-          <div style="flex:1;min-height:14px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(100,50,160,0.13) 3px,rgba(100,50,160,0.13) 4px);"></div>
-          <!-- centre value band -->
-          <div style="background:rgba(100,50,160,0.09);border-top:1.5px solid rgba(100,50,160,0.28);border-bottom:1.5px solid rgba(100,50,160,0.28);padding:5px 2px;text-align:center;">
-            <span id="exp-mult-label" style="font-size:10px;font-weight:800;color:rgba(100,50,160,0.82);font-family:'SF Mono',Menlo,monospace;display:block;white-space:nowrap;">—</span>
-          </div>
-          <!-- lower grooves -->
-          <div style="flex:1;min-height:14px;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(100,50,160,0.13) 3px,rgba(100,50,160,0.13) 4px);"></div>
-          <!-- cylindrical sheen overlay -->
-          <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(255,255,255,0.45) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 55%,rgba(255,255,255,0.18) 100%);pointer-events:none;"></div>
-        </div>
-        <div class="chart-box" style="flex:1;margin-bottom:0;border-top:none;border-radius:0 0 4px 4px;height:90px;padding:2px 4px 0;"><canvas id="expChart"></canvas></div>
-      </div>
+      <div class="chart-box" style="margin-bottom:0;border-top:none;border-radius:0 0 4px 4px;height:90px;padding:2px 4px 0;"><canvas id="expChart"></canvas></div>
     </div>
 
     </div><!-- /sec-body-chart-market -->
-
-    <!-- TIMELINE & BUDGETS collapsible section -->
-    <div class="main-section-title" onclick="toggleSec('timeline')">Timeline &amp; Budgets<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
-    <div id="sec-body-timeline">
-      <div id="timeline-strip"></div>
-      <!-- Project budget panel (populated by renderProjectBudgets()) -->
-      <div style="display:flex;margin-top:6px;">
-      <div id="projects-panel" style="display:none;max-width:520px;flex:0 0 auto;">
-        <div id="projects-panel-header" onclick="toggleProjectsPanel()">
-          <span id="projects-panel-title">📊 Project Budget Status</span>
-          <span style="display:flex;align-items:center;gap:8px;">
-            <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
-              style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
-            <span id="projects-panel-arrow" style="font-size:10px;">▾</span>
-          </span>
-        </div>
-        <div id="projects-panel-body"></div>
-      </div>
-      </div><!-- /projects flex wrapper -->
-    </div><!-- /sec-body-timeline -->
 
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
@@ -1231,10 +1200,6 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
           </span>
         </div>
         <div id="sec-body-outgoing">
-
-        <!-- Monthly sub-section -->
-        <div class="freq-title" onclick="toggleSec('exp-monthly')">Monthly <span id="exp-monthly-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-exp-monthly" class="sec-chevron">▾</span></div>
-        <div id="sec-body-exp-monthly">
         <div class="monthly-base-ctrl">
           <span style="font-size:11px;font-weight:700;color:rgba(100,50,160,0.7);white-space:nowrap;flex-shrink:0;">Base /mo</span>
           <div style="flex:1;display:flex;flex-direction:column;">
@@ -1247,7 +1212,6 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
           </div>
           <span id="monthly-base-val" style="font-size:11px;font-weight:800;color:rgba(100,50,160,0.85);font-family:'SF Mono',Menlo,monospace;white-space:nowrap;min-width:56px;text-align:right;">—</span>
         </div>
-        <!-- Breakdown panel (collapsed by default) -->
         <div style="margin-bottom:3px;">
           <div onclick="toggleBreakdown()" style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:4px;" onmouseenter="this.style.background='#f4f6fb'" onmouseleave="this.style.background='transparent'">
             <span id="breakdown-arrow" style="font-size:9px;color:#c1cad4;width:10px;text-align:center;">▶</span>
@@ -1256,44 +1220,11 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
           </div>
           <div id="monthly-breakdown-panel" style="display:none;padding:8px 10px 6px;background:#f8f6fe;border-radius:0 0 6px 6px;border:1px solid rgba(100,50,160,0.1);border-top:none;"></div>
         </div>
-        <div id="exp-monthly-list"></div>
-        </div><!-- /sec-body-exp-monthly -->
-
-        <!-- One-off sub-section -->
-        <div class="freq-title" onclick="toggleSec('exp-oneoff')">One-off <span id="exp-oneoff-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-exp-oneoff" class="sec-chevron">▾</span></div>
-        <div id="sec-body-exp-oneoff">
-        <div id="exp-oneoff-list"></div>
-        </div><!-- /sec-body-exp-oneoff -->
-
-        <!-- Yearly sub-section -->
-        <div class="freq-title" onclick="toggleSec('exp-yearly')">Yearly <span id="exp-yearly-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-exp-yearly" class="sec-chevron">▾</span></div>
-        <div id="sec-body-exp-yearly">
-        <div style="margin-bottom:4px;">
-          <div class="item-row ora" style="cursor:default;">
-            <span class="item-num">☀</span>
-            <span class="item-name">Summer trip</span>
-            <input type="text" class="iamt" id="summerTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.summerTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
-          </div>
-          <div class="item-row ora" style="cursor:default;">
-            <span class="item-num">❄</span>
-            <span class="item-name">Winter trip</span>
-            <input type="text" class="iamt" id="winterTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.winterTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
-          </div>
-        </div>
-        <div id="exp-yearly-list"></div>
-        </div><!-- /sec-body-exp-yearly -->
-
-        <!-- Installments sub-section -->
-        <div class="freq-title" onclick="toggleSec('exp-installments')">Installments <span id="exp-installments-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-exp-installments" class="sec-chevron">▾</span></div>
-        <div id="sec-body-exp-installments">
-        <div id="exp-installments-list"></div>
-        </div><!-- /sec-body-exp-installments -->
-
+        <div id="all-exp-list"></div>
         </div><!-- /sec-body-outgoing -->
-
       </div>
 
-      <!-- ── COL 2: INCOMING + ASSETS ──────────────────────────── -->
+      <!-- ── COL 2: INCOMING + DEALS ────────────────────────────── -->
       <div>
         <div id="sec-band-income" class="main-section-title" onclick="toggleSec('incoming')">
           Incoming
@@ -1303,45 +1234,8 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
           </span>
         </div>
         <div id="sec-body-incoming">
-
-        <!-- Monthly sub-section -->
-        <div class="freq-title" onclick="toggleSec('inc-monthly')">Monthly <span id="inc-monthly-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-inc-monthly" class="sec-chevron">▾</span></div>
-        <div id="sec-body-inc-monthly"><div id="inc-monthly-list"></div></div>
-
-        <!-- Yearly sub-section -->
-        <div class="freq-title" onclick="toggleSec('inc-yearly')">Yearly <span id="inc-yearly-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-inc-yearly" class="sec-chevron">▾</span></div>
-        <div id="sec-body-inc-yearly"><div id="inc-yearly-list"></div></div>
-
-        <!-- One-off sub-section -->
-        <div class="freq-title" onclick="toggleSec('inc-oneoff')">One-off <span id="inc-oneoff-total" style="opacity:0.5;font-weight:400;letter-spacing:0;"></span><span id="sec-arr-inc-oneoff" class="sec-chevron">▾</span></div>
-        <div id="sec-body-inc-oneoff"><div id="inc-oneoff-list"></div></div>
-
+          <div id="all-inc-list"></div>
         </div><!-- /sec-body-incoming -->
-
-        <div class="sep"></div>
-        <div id="sec-band-realestate" class="main-section-title" onclick="toggleSec('assets')">
-          Assets <span id="assets-total" style="opacity:0.5;font-size:11px;font-weight:400;margin-left:4px;letter-spacing:0;"></span>
-          <span style="display:flex;align-items:center;gap:8px;">
-            <button class="btn-add" onclick="event.stopPropagation();addP()" title="Add property" style="width:16px;height:16px;font-size:13px;">+</button>
-            <span id="sec-arr-assets" class="sec-chevron">▾</span>
-          </span>
-        </div>
-        <div id="sec-body-assets">
-        <div style="margin-bottom:6px;">
-          <label class="lbl">Appreciation &nbsp;<span id="app-v" class="mono" style="float:right;"></span></label>
-          <input type="range" id="app" min="0" max="12" step="0.25" oninput="S.assetAppreciation=+this.value;document.getElementById('app-v').textContent=this.value+'%';go()">
-        </div>
-        <div style="display:flex;gap:4px;padding:0 2px 2px;font-size:9px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
-          <span style="flex:1;min-width:0;visibility:hidden;">name</span>
-          <span style="width:88px;text-align:right;">value</span>
-          <span style="width:88px;text-align:right;">rent/month</span>
-          <span style="width:44px;text-align:center;">owned</span>
-          <span style="width:44px;text-align:center;">rented</span>
-          <span style="width:44px;text-align:center;">sell</span>
-          <span style="width:100px;"></span>
-        </div>
-        <div id="props-list"></div>
-        </div><!-- /sec-body-assets -->
 
         <div class="sep"></div>
         <div id="sec-band-deals" class="main-section-title" onclick="toggleSec('deals')">
@@ -1354,10 +1248,28 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
         <div id="sec-body-deals">
           <div id="deals-list"></div>
         </div><!-- /sec-body-deals -->
-
       </div>
 
     </div><!-- /grid -->
+
+    <!-- BUDGET section (last) -->
+    <div class="main-section-title" onclick="toggleSec('timeline')">Budget<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
+    <div id="sec-body-timeline">
+      <div id="timeline-strip"></div>
+      <div style="display:flex;margin-top:6px;">
+      <div id="projects-panel" style="display:none;max-width:520px;flex:0 0 auto;">
+        <div id="projects-panel-header" onclick="toggleProjectsPanel()">
+          <span id="projects-panel-title">📊 Project Budget Status</span>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <button onclick="event.stopPropagation();projectActualsSync()" title="Refresh project actuals"
+              style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↺</button>
+            <span id="projects-panel-arrow" style="font-size:10px;">▾</span>
+          </span>
+        </div>
+        <div id="projects-panel-body"></div>
+      </div>
+      </div>
+    </div><!-- /sec-body-timeline -->
 
     <!-- ── Settings panel ────────────────────────────────────────── -->
     <div style="margin-top:14px;border-top:1px solid #f0efe8;">
@@ -2240,11 +2152,31 @@ function _applyScenarios(saved) {
   if (_ibkrLiq > 0) {
     S.liquidBase = _ibkrLiq;
   }
-  // Auto-migrate to deal model if needed (runs before saveActive so the migrated state is what gets persisted)
-  // Detection: pre-migration scenarios have >1 property (7 real estate deals were in S.properties)
-  // and no deals. Post-migration: only Mocoretá remains in S.properties.
+  // Auto-migrate to deal model if needed
   if (!(S.deals||[]).length && (S.properties||[]).length > 1) {
     try { _migrateToDealModel(); } catch(e) { console.warn('auto-migrate failed', e); }
+  }
+  // Migrate summer/winter trips to regular annual expenses (idempotent)
+  if ((S.summerTrip||0) > 0 && !(S.expenses||[]).find(e => e.id==='exp_summer')) {
+    (S.expenses=S.expenses||[]).push({id:'exp_summer',name:'Summer trip',type:'annual',amount:S.summerTrip,from:S.startAge||57,to:S.endAge||87,fromMonth:1,toMonth:12,enabled:true});
+    S.summerTrip = 0;
+  }
+  if ((S.winterTrip||0) > 0 && !(S.expenses||[]).find(e => e.id==='exp_winter')) {
+    (S.expenses=S.expenses||[]).push({id:'exp_winter',name:'Winter trip',type:'annual',amount:S.winterTrip,from:S.startAge||57,to:S.endAge||87,fromMonth:1,toMonth:12,enabled:true});
+    S.winterTrip = 0;
+  }
+  // Migrate standalone properties to deals (idempotent)
+  { const _psa=S.startAge||57,_psy=S.startYear||2026;
+    const _pYM=(age,mo=1)=>{const a=age>2000?(_psa+age-_psy):age;return `${_psy+(a-_psa)}-${String(mo).padStart(2,'0')}`;};
+    (S.properties||[]).filter(p=>!p.dealId).forEach(p=>{
+      if ((S.deals||[]).find(d=>d.id==='deal_prop_'+p.id)) return;
+      const rate=p.appRate!==undefined?p.appRate:(S.assetAppreciation||3);
+      const rfa=p.rentFromAge>2000?(_psa+p.rentFromAge-_psy):(p.rentFromAge||_psa);
+      const returns=(p.monthlyRent>0)?{type:'monthly',amount:p.monthlyRent,from:_pYM(rfa,p.rentFromMonth||1),untilSale:true}:{type:'none'};
+      const exit=p.hold?{type:'auto',date:'2100-01',basis:p.value||0,rate,sellingCosts:0}:(p.saleAge?{type:'auto',date:_pYM(p.saleAge,p.saleMonth||6),basis:p.value||0,rate,sellingCosts:0}:{type:'none'});
+      (S.deals=S.deals||[]).push({id:'deal_prop_'+p.id,name:p.name,enabled:p.enabled!==false,color:'#8b5cf6',capital:{type:'none'},returns,exit});
+    });
+    S.properties=(S.properties||[]).filter(p=>p.dealId);
   }
   saveActive();
   // Restore cross-device preferences from saved payload
@@ -5439,45 +5371,11 @@ function renderInc() {
 </div>`;
   }
 
-  const monthly = S.incomes.filter(i => !i.dealId && i.type !== 'oneoff' && i.type !== 'annual');
-  const yearly  = S.incomes.filter(i => !i.dealId && i.type === 'annual');
-  const oneoff  = S.incomes.filter(i => !i.dealId && i.type === 'oneoff');
-
-  let idx = 0;
-
-  // Monthly: property rents first (only if rent > 0), then income items
-  const rentRows = S.properties.filter(p => p.enabled !== false && p.monthlyRent > 0).map(p => {
-    const fromAge = p.rentFromAge || sa;
-    return `<div class="rent-row${p.enabled===false?' disabled-row':''}">
-  <span style="font-size:11px;font-weight:600;color:#8792a2;flex-shrink:0;">🏠</span>
-  <span class="item-name" style="font-size:12px;color:#697386;">${p.name}</span>
-  <input type="text" class="iamt" value="${fmtInput(p.monthlyRent)}" placeholder="rent/mo" title="Monthly rent"
-    onfocus="moneyFocus(this);event.stopPropagation();"
-    onblur="moneyBlur(this)"
-    onchange="event.stopPropagation();upP(${p.id},'monthlyRent',parseNum(this.value));renderProps();go()"
-    onclick="event.stopPropagation()">
-  <span style="font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;">${_yearMode ? ageToYear(fromAge) : 'fr.' + fromAge}</span>
-  ${sw(p.enabled, `togP(${p.id})`)}
-</div>`;
-  }).join('');
-
-  const monthlyEl = document.getElementById('inc-monthly-list');
-  const yearlyEl  = document.getElementById('inc-yearly-list');
-  const oneoffEl  = document.getElementById('inc-oneoff-list');
-
-  const emptyRow = `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
-  if (monthlyEl) monthlyEl.innerHTML = rentRows + monthly.map(i => renderIncItem(i, ++idx)).join('');
-  if (yearlyEl)  yearlyEl.innerHTML  = yearly.length  ? yearly.map(i  => renderIncItem(i, ++idx)).join('') : emptyRow;
-  if (oneoffEl)  oneoffEl.innerHTML  = oneoff.length   ? oneoff.map(i  => renderIncItem(i, ++idx)).join('') : emptyRow;
-
-  const sumEnabled = (arr, fn) => arr.filter(i => i.enabled !== false).reduce((s, i) => s + (fn(i) || 0), 0);
-  const rentSum = S.properties.filter(p => p.enabled !== false).reduce((s, p) => s + (p.monthlyRent || 0), 0);
-  const mSum = rentSum + sumEnabled(monthly, i => i.monthly);
-  const ySum = sumEnabled(yearly, i => i.monthly || i.amount);
-  const oSum = sumEnabled(oneoff, i => i.amount);
-  const el_mt = document.getElementById('inc-monthly-total'); if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
-  const el_yt = document.getElementById('inc-yearly-total');  if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
-  const el_ot = document.getElementById('inc-oneoff-total');  if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
+  const all = S.incomes.filter(i => !i.dealId);
+  const el  = document.getElementById('all-inc-list');
+  if (el) el.innerHTML = all.length
+    ? all.map((i, idx) => renderIncItem(i, idx)).join('')
+    : `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
 }
 function upI(id,f,v) { S.incomes=S.incomes.map(i=>i.id===id?{...i,[f]:v}:i); }
 function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; renderInc(); go(); }
@@ -5663,33 +5561,11 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 }
 
 function renderExp() {
-  const monthly  = S.expenses.filter(e => !e.dealId && e.type === 'monthly');
-  const annual   = S.expenses.filter(e => !e.dealId && e.type === 'annual');
-  const oneoff   = S.expenses.filter(e => !e.dealId && e.type === 'oneoff');
-  const installs = S.expenses.filter(e => !e.dealId && e.type === 'installments');
-
-  let idx = 0;
-  const monthlyEl  = document.getElementById('exp-monthly-list');
-  const yearlyEl   = document.getElementById('exp-yearly-list');
-  const oneoffEl   = document.getElementById('exp-oneoff-list');
-  const installsEl = document.getElementById('exp-installments-list');
-
-  const emptyRow = `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
-  if (monthlyEl)  monthlyEl.innerHTML  = monthly.map(e => renderExpItem(e, ++idx)).join('');
-  if (yearlyEl)   yearlyEl.innerHTML   = annual.length ? annual.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
-  if (oneoffEl)   oneoffEl.innerHTML   = oneoff.length ? oneoff.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
-  if (installsEl) installsEl.innerHTML = installs.length ? installs.map(e => renderExpItem(e, ++idx)).join('') : emptyRow;
-
-  const sumEnabled = (arr, fn) => arr.filter(e => e.enabled !== false).reduce((s, e) => s + (fn(e) || 0), 0);
-  const mSum = sumEnabled(monthly, e => e.amount);
-  const ySum = sumEnabled(annual, e => e.amount);
-  const oSum = sumEnabled(oneoff, e => e.amount);
-  const iSum = sumEnabled(installs, e => e.budget || e.installTotal || e.amount);
-  const el_mt = document.getElementById('exp-monthly-total');      if (el_mt) el_mt.textContent = mSum > 0 ? fmt(mSum) + '/mo' : '';
-  const el_yt = document.getElementById('exp-yearly-total');       if (el_yt) el_yt.textContent  = ySum > 0 ? fmt(ySum) + '/yr' : '';
-  const el_ot = document.getElementById('exp-oneoff-total');       if (el_ot) el_ot.textContent  = oSum > 0 ? fmt(oSum) : '';
-  const el_it = document.getElementById('exp-installments-total'); if (el_it) el_it.textContent  = iSum > 0 ? fmt(iSum) : '';
-
+  const all = S.expenses.filter(e => !e.dealId);
+  const el  = document.getElementById('all-exp-list');
+  if (el) el.innerHTML = all.length
+    ? all.map((e, idx) => renderExpItem(e, idx + 1)).join('')
+    : '';
   updateMonthlyBaseSlider();
 }
 function upE(id,f,v) { S.expenses=S.expenses.map(e=>e.id===id?{...e,[f]:v}:e); }
@@ -5747,7 +5623,7 @@ function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p
 function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
 function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
 
-function renderAll() { renderCurve(); renderInc(); renderExp(); renderProps(); renderProjectBudgets(); renderDeals(); }
+function renderAll() { renderCurve(); renderInc(); renderExp(); renderProjectBudgets(); renderDeals(); }
 
 // ── Deal card open state ──
 let _openDealId = null;
@@ -5889,11 +5765,13 @@ function renderDeals() {
     return `<div class="deal-card${isOff?' deal-off':''}${isOpen?' deal-open':''}" id="dcard-${d.id}">
   <div class="deal-row" onclick="event.stopPropagation();_openDealId=_openDealId==='${d.id}'?null:'${d.id}';renderDeals()">
     <div class="deal-dot" style="background:${d.color||'#888'}"></div>
-    <input class="deal-name-i" value="${(d.name||'').replace(/"/g,'&quot;')}" title="${d.name||''}"
-      onclick="event.stopPropagation()"
-      onchange="event.stopPropagation();upD('${d.id}','name',this.value);renderDeals()">
+    ${isOpen
+      ? `<input class="deal-name-i" value="${(d.name||'').replace(/"/g,'&quot;')}" title="Rename"
+           onclick="event.stopPropagation()"
+           onchange="event.stopPropagation();upD('${d.id}','name',this.value);renderDeals()">`
+      : `<span class="deal-name-t">${d.name||''}</span>`}
     <div class="deal-chips">${chips}</div>
-    <span class="deal-chev">▶</span>
+    <span class="deal-chev">${isOpen?'▼':'▶'}</span>
     ${sw(d.enabled, `toggleDeal('${d.id}')`)}
   </div>
   ${isOpen ? `<div class="deal-body">
