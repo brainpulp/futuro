@@ -5469,6 +5469,15 @@ function renderExpItem(e, i) {
   ${sw(e.enabled, `togE(${e.id})`)}${xb(`rmE(${e.id})`)}
 </div>
 ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
+  <div style="margin-bottom:8px;">
+    <label class="lbl">Type</label>
+    <select class="iselect" style="width:100%;" onclick="event.stopPropagation()" onchange="event.stopPropagation();expTypeChanged(${e.id},this.value);">
+      <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
+      <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
+      <option value="oneoff"${e.type==='oneoff'?' selected':''}>One-off</option>
+      <option value="installments"${inst?' selected':''}>Installments</option>
+    </select>
+  </div>
   ${(!oo && !inst) ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
   <div>
     <label class="lbl">From</label>
