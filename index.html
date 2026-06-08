@@ -497,6 +497,12 @@ select.iselect {
   background: #fff;
   box-shadow: 0 2px 5px rgba(50,50,93,.08), 0 1px 3px rgba(0,0,0,.05);
 }
+.add-evt-opt { padding:7px 14px;cursor:pointer;font-size:12px;color:#1a1f36;white-space:nowrap; }
+.add-evt-opt:hover { background:#f5f7ff; }
+.events-hdr { display:flex;align-items:center;gap:4px;padding:2px 6px 4px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #f0f2f8;margin-bottom:2px; }
+.events-hdr span { cursor:pointer;user-select:none; }
+.events-hdr span:hover { color:#697386; }
+.events-footer-row { display:flex;align-items:center;gap:4px;padding:5px 6px 2px;border-top:1px solid #f0f2f8;margin-top:2px;font-size:11px;font-weight:700;color:#8792a2; }
 .expand-card.red { border-left: 3px solid #f87171; }
 .expand-card.blu { border-left: 3px solid #60a5fa; }
 .expand-card.grn { border-left: 3px solid #34d399; }
@@ -1187,70 +1193,84 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
       <div class="tick-bar"><div class="tick-bar-fill" id="tick-bar-fill" style="height:0%"></div></div>
     </div>
 
-    <!-- 2-column control grid -->
-    <div class="grid-2col">
-
-      <!-- ── COL 1: OUTGOING ────────────────────────────────────── -->
-      <div>
-        <div id="sec-band-outgoing" class="main-section-title" onclick="toggleSec('outgoing')">
-          Outgoing
-          <span style="display:flex;align-items:center;gap:8px;">
-            <button class="btn-add" onclick="event.stopPropagation();addE()" title="Add expense" style="width:16px;height:16px;font-size:13px;">+</button>
-            <span id="sec-arr-outgoing" class="sec-chevron">▾</span>
-          </span>
+    <!-- Single-column events layout -->
+    <div>
+      <!-- Base /mo slider (full-width) -->
+      <div class="monthly-base-ctrl">
+        <span style="font-size:11px;font-weight:700;color:rgba(100,50,160,0.7);white-space:nowrap;flex-shrink:0;">Base /mo</span>
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <input type="range" id="monthly-base-slider" min="500" max="30000" step="100"
+            style="width:100%;margin:0;" oninput="applyMonthlyBaseSlider(+this.value)">
+          <div class="slider-tick-bar">
+            <div id="monthly-min-tick" class="slider-tick red" title="Breakdown sum (floor)"></div>
+            <div id="monthly-max-tick" class="slider-tick grn" title="Maximum recommended"></div>
+          </div>
         </div>
-        <div id="sec-body-outgoing">
-        <div class="monthly-base-ctrl">
-          <span style="font-size:11px;font-weight:700;color:rgba(100,50,160,0.7);white-space:nowrap;flex-shrink:0;">Base /mo</span>
-          <div style="flex:1;display:flex;flex-direction:column;">
-            <input type="range" id="monthly-base-slider" min="500" max="30000" step="100"
-              style="width:100%;margin:0;" oninput="applyMonthlyBaseSlider(+this.value)">
-            <div class="slider-tick-bar">
-              <div id="monthly-min-tick" class="slider-tick red" title="Breakdown sum (floor)"></div>
-              <div id="monthly-max-tick" class="slider-tick grn" title="Maximum recommended"></div>
+        <span id="monthly-base-val" style="font-size:11px;font-weight:800;color:rgba(100,50,160,0.85);font-family:'SF Mono',Menlo,monospace;white-space:nowrap;min-width:56px;text-align:right;">—</span>
+      </div>
+      <!-- Breakdown panel -->
+      <div style="margin-bottom:3px;">
+        <div onclick="toggleBreakdown()" style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:4px;" onmouseenter="this.style.background='#f4f6fb'" onmouseleave="this.style.background='transparent'">
+          <span id="breakdown-arrow" style="font-size:9px;color:#c1cad4;width:10px;text-align:center;">▶</span>
+          <span style="font-size:12px;color:#8792a2;font-weight:600;">Expense breakdown</span>
+          <span id="breakdown-sum-inline" style="margin-left:auto;font-family:'SF Mono',Menlo,monospace;font-size:10px;color:rgba(100,50,160,0.7);"></span>
+        </div>
+        <div id="monthly-breakdown-panel" style="display:none;padding:8px 10px 6px;background:#f8f6fe;border-radius:0 0 6px 6px;border:1px solid rgba(100,50,160,0.1);border-top:none;">
+          <div class="item-row ora" style="cursor:default;">
+            <span class="item-num">☀</span>
+            <span class="item-name">Summer trip</span>
+            <input type="text" class="iamt" id="summerTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.summerTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
+          </div>
+          <div class="item-row ora" style="cursor:default;">
+            <span class="item-num">❄</span>
+            <span class="item-name">Winter trip</span>
+            <input type="text" class="iamt" id="winterTrip" onfocus="moneyFocus(this);event.stopPropagation();" onblur="moneyBlur(this)" onchange="S.winterTrip=parseNum(this.value);go()" onclick="event.stopPropagation()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Events unified table -->
+      <div id="sec-band-events" class="main-section-title" onclick="toggleSec('events')">
+        Events
+        <span style="display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation()">
+          <div style="position:relative;display:inline-block;">
+            <button class="btn-add" onclick="toggleAddEventMenu(event)" title="Add event" style="width:16px;height:16px;font-size:13px;">+</button>
+            <div id="add-event-menu" style="display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #e4e8ef;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.12);z-index:200;min-width:175px;padding:4px 0;">
+              <div onclick="addE('monthly');toggleAddEventMenu()" class="add-evt-opt">📉 Expense (monthly)</div>
+              <div onclick="addE('oneoff');toggleAddEventMenu()" class="add-evt-opt">📉 Expense (one-off)</div>
+              <div onclick="addE('annual');toggleAddEventMenu()" class="add-evt-opt">📉 Expense (annual)</div>
+              <div onclick="addE('installments');toggleAddEventMenu()" class="add-evt-opt">📉 Expense (installments)</div>
+              <div style="height:1px;background:#f0f2f8;margin:4px 0;"></div>
+              <div onclick="addI('monthly');toggleAddEventMenu()" class="add-evt-opt" style="color:#1A8C5F;">📈 Income (monthly)</div>
+              <div onclick="addI('oneoff');toggleAddEventMenu()" class="add-evt-opt" style="color:#1A8C5F;">📈 Income (one-off)</div>
+              <div style="height:1px;background:#f0f2f8;margin:4px 0;"></div>
+              <div onclick="addD();toggleAddEventMenu()" class="add-evt-opt" style="color:#4A90D9;">🤝 Deal</div>
+              <div onclick="addP();toggleAddEventMenu()" class="add-evt-opt" style="color:#4A90D9;">🏠 Property</div>
             </div>
           </div>
-          <span id="monthly-base-val" style="font-size:11px;font-weight:800;color:rgba(100,50,160,0.85);font-family:'SF Mono',Menlo,monospace;white-space:nowrap;min-width:56px;text-align:right;">—</span>
-        </div>
-        <div style="margin-bottom:3px;">
-          <div onclick="toggleBreakdown()" style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:4px;" onmouseenter="this.style.background='#f4f6fb'" onmouseleave="this.style.background='transparent'">
-            <span id="breakdown-arrow" style="font-size:9px;color:#c1cad4;width:10px;text-align:center;">▶</span>
-            <span style="font-size:12px;color:#8792a2;font-weight:600;">Expense breakdown</span>
-            <span id="breakdown-sum-inline" style="margin-left:auto;font-family:'SF Mono',Menlo,monospace;font-size:10px;color:rgba(100,50,160,0.7);"></span>
-          </div>
-          <div id="monthly-breakdown-panel" style="display:none;padding:8px 10px 6px;background:#f8f6fe;border-radius:0 0 6px 6px;border:1px solid rgba(100,50,160,0.1);border-top:none;"></div>
-        </div>
-        <div id="all-exp-list"></div>
-        </div><!-- /sec-body-outgoing -->
+          <span id="sec-arr-events" class="sec-chevron">▾</span>
+        </span>
+      </div>
+      <div id="sec-body-events">
+        <div id="events-col-headers"></div>
+        <div id="events-list"></div>
+        <div id="events-footer"></div>
       </div>
 
-      <!-- ── COL 2: INCOMING + DEALS ────────────────────────────── -->
-      <div>
-        <div id="sec-band-income" class="main-section-title" onclick="toggleSec('incoming')">
-          Incoming
-          <span style="display:flex;align-items:center;gap:8px;">
-            <button class="btn-add" onclick="event.stopPropagation();addI()" title="Add income" style="width:16px;height:16px;font-size:13px;">+</button>
-            <span id="sec-arr-incoming" class="sec-chevron">▾</span>
-          </span>
-        </div>
-        <div id="sec-body-incoming">
-          <div id="all-inc-list"></div>
-        </div><!-- /sec-body-incoming -->
-
-        <div class="sep"></div>
-        <div id="sec-band-deals" class="main-section-title" onclick="toggleSec('deals')">
-          Deals
-          <span style="display:flex;align-items:center;gap:8px;">
-            <button class="btn-add" onclick="event.stopPropagation();addD()" title="Add deal" style="width:16px;height:16px;font-size:13px;">+</button>
-            <span id="sec-arr-deals" class="sec-chevron">▾</span>
-          </span>
-        </div>
-        <div id="sec-body-deals">
-          <div id="deals-list"></div>
-        </div><!-- /sec-body-deals -->
+      <!-- Hidden stubs for backward-compat DOM references -->
+      <div style="display:none;">
+        <div id="exp-monthly-list"></div><div id="exp-oneoff-list"></div>
+        <div id="exp-yearly-list"></div><div id="exp-installments-list"></div>
+        <div id="inc-monthly-list"></div><div id="inc-yearly-list"></div>
+        <div id="inc-oneoff-list"></div><div id="props-list"></div>
+        <span id="exp-monthly-total"></span><span id="exp-oneoff-total"></span>
+        <span id="exp-yearly-total"></span><span id="exp-installments-total"></span>
+        <span id="inc-monthly-total"></span><span id="inc-yearly-total"></span>
+        <span id="inc-oneoff-total"></span><span id="assets-total"></span>
+        <span id="sec-arr-outgoing"></span><span id="sec-arr-incoming"></span>
+        <span id="sec-arr-assets"></span>
       </div>
-
-    </div><!-- /grid -->
+    </div>
 
     <!-- BUDGET section (last) -->
     <div class="main-section-title" onclick="toggleSec('timeline')">Budget<span id="sec-arr-timeline" class="sec-chevron">▾</span></div>
@@ -1305,6 +1325,10 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
           <label class="lbl">Inflation &nbsp;<span id="inf-v" class="mono" style="float:right;"></span></label>
           <input type="range" id="inf" min="1" max="8" step="0.25" oninput="S.inflationRate=+this.value;document.getElementById('inf-v').textContent=this.value+'%';document.getElementById('infl-badge').textContent=this.value+'%';go()">
           <div style="font-size:10px;color:#aaa;margin-top:2px;">Market implied (TIPS 5yr): <span style="font-weight:700;color:#888;">2.4%</span></div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="lbl">Asset appreciation &nbsp;<span id="app-v" class="mono" style="float:right;"></span></label>
+          <input type="range" id="app" min="0" max="12" step="0.25" oninput="S.assetAppreciation=+this.value;document.getElementById('app-v').textContent=this.value+'%';go()">
         </div>
         <div style="margin-top:10px;">
           <label class="lbl">Your profile <span style="font-weight:400;color:#aaa;">(used by AI advisor for context)</span></label>
@@ -4882,9 +4906,9 @@ document.addEventListener('keydown', e => {
 });
 
 function togItem(arr, id) { return arr.map(x => x.id === id ? { ...x, enabled: x.enabled === false } : x); }
-function togP(id)  { S.properties   = togItem(S.properties,   id); renderProps();  go(); }
-function togI(id)  { S.incomes      = togItem(S.incomes,      id); renderInc();    go(); }
-function togE(id)  { S.expenses     = togItem(S.expenses,     id); renderExp();    go(); }
+function togP(id)  { S.properties   = togItem(S.properties,   id); renderEvents(); go(); }
+function togI(id)  { S.incomes      = togItem(S.incomes,      id); renderEvents(); go(); }
+function togE(id)  { S.expenses     = togItem(S.expenses,     id); renderEvents(); go(); }
 function toggleDeal(dealId) {
   const bu = (S.deals || []).find(b => b.id === dealId);
   if (!bu) return;
@@ -4899,7 +4923,7 @@ function toggleDeal(dealId) {
       }
     });
   });
-  renderInc(); renderExp(); renderDeals(); go();
+  renderEvents(); go();
 }
 function toggle(id){ openId = openId === id ? null : id; }
 function nid()     { return ++nextId; }
@@ -5323,7 +5347,7 @@ document.getElementById('curve-svg').addEventListener('dblclick', e => {
 });
 
 // ── Other incomes ──
-function renderInc() {
+function _oldRenderInc_unused() {
   const sa = S.startAge || 57;
 
   function renderIncItem(inc, i) {
@@ -5395,8 +5419,8 @@ function renderInc() {
     : `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
 }
 function upI(id,f,v) { S.incomes=S.incomes.map(i=>i.id===id?{...i,[f]:v}:i); }
-function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; renderInc(); go(); }
-function addI()  { const id=nid(); S.incomes.push({id,name:'Income',type:'monthly',monthly:1000,amount:1000,from:S.startAge,to:S.endAge,atAge:S.startAge,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderInc(); go(); }
+function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
+function addI(type='monthly')  { const id=nid(); S.incomes.push({id,name:'Income',type,monthly:1000,amount:1000,from:S.startAge,to:S.endAge,atAge:S.startAge,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderEvents(); go(); }
 
 // ── One-off date helpers ──
 const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5586,22 +5610,16 @@ ${openId===e.id?`<div class="expand-card" style="margin:-2px 0 4px;border-radius
 </div>`:''}`;
 }
 
-function renderExp() {
-  const all = S.expenses.filter(e => !e.dealId);
-  const el  = document.getElementById('all-exp-list');
-  if (el) el.innerHTML = all.length
-    ? all.map((e, idx) => renderExpItem(e, idx + 1)).join('')
-    : '';
-  updateMonthlyBaseSlider();
-}
+function renderExp() { renderEvents(); }
+function renderInc() { renderEvents(); }
+function renderProps() { renderEvents(); }
 function upE(id,f,v) { S.expenses=S.expenses.map(e=>e.id===id?{...e,[f]:v}:e); }
-function rmE(id) { S.expenses=S.expenses.filter(e=>e.id!==id); if(openId===id)openId=null; renderExp(); go(); }
-function addE()  { const id=nid(); S.expenses.push({id,name:'Expense',amount:1000,type:'monthly',from:S.startAge,to:S.endAge,atAge:S.startAge,atMonth:1,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderExp(); go(); }
+function rmE(id) { S.expenses=S.expenses.filter(e=>e.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
+function addE(type='monthly')  { const id=nid(); S.expenses.push({id,name:'Expense',amount:1000,type,from:S.startAge,to:S.endAge,atAge:S.startAge,atMonth:1,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderEvents(); go(); }
 
 // ── Real estate ──
-function renderProps() {
-  const _pl = document.getElementById('props-list'); if (!_pl) return;
-  _pl.innerHTML = S.properties.map((p, i) => {
+function _oldRenderProps_unused() {
+  document.getElementById('props-list').innerHTML = S.properties.map((p, i) => {
     const appOpen = openId === p.id;
     const appLabel = p.appRate !== undefined ? p.appRate + '%' : 'global';
     return `<div class="item-row${p.enabled===false?' disabled-row':''}" onclick="toggle(${p.id});renderProps()">
@@ -5647,10 +5665,10 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
 }
 
 function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
-function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderProps(); go(); }
-function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderProps(); go(); }
+function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
+function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderEvents(); go(); }
 
-function renderAll() { renderCurve(); renderInc(); renderExp(); renderProjectBudgets(); renderDeals(); }
+function renderAll() { renderCurve(); renderEvents(); renderProjectBudgets(); }
 
 // ── Deal card open state ──
 let _openDealId = null;
@@ -5913,6 +5931,290 @@ function addD() {
   });
   _openDealId = id;
   renderDeals(); go();
+}
+
+function renderAll() { renderCurve(); renderEvents(); renderProjectBudgets(); }
+
+// ── Unified Events Table ──────────────────────────────────────
+let _eventsSort = { f: 'mo', d: -1 };
+
+function _fmtK(val) {
+  const abs = Math.abs(val);
+  const s = val < 0 ? '-' : '';
+  if (abs >= 1000000) return s + (abs/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (abs >= 1000) return s + Math.round(abs/1000) + 'k';
+  return s + Math.round(abs);
+}
+
+function _evtPeriod(row) {
+  const sa = S.startAge, ea = S.endAge;
+  if (row._kind === 'expense') {
+    if (row.type === 'oneoff') return ageMonthToLabel(row.atAge||sa, row.atMonth||1);
+    if (row.type === 'installments') return ageMonthToLabel(row.atAge||sa, row.atMonth||1) + ' ×' + (row.installN||'?');
+    return ageMonthToLabel(row.from||sa, row.fromMonth||1) + ' – ' + ageMonthToLabel(row.to||ea, row.toMonth||12);
+  }
+  if (row._kind === 'income') {
+    if (row.type === 'oneoff') return ageMonthToLabel(row.atAge||sa, row.atMonth||1);
+    return ageMonthToLabel(row.from||sa, row.fromMonth||1) + ' – ' + ageMonthToLabel(row.to||ea, row.toMonth||12);
+  }
+  if (row._kind === 'property') {
+    const acq = ageMonthToLabel(row.acquireAge||sa, 1);
+    const sell = row.hold ? 'hold' : ageMonthToLabel(row.saleAge||ea, 12);
+    return acq + ' – ' + sell;
+  }
+  return '';
+}
+
+function _normalizeEvents() {
+  const sa = S.startAge, ea = S.endAge;
+  const rows = [];
+  (S.expenses||[]).forEach(e => {
+    let mo = 0, ot = 0;
+    if (e.type==='monthly')      mo = -(e.amount||0);
+    else if (e.type==='annual')  mo = -(e.amount||0)/12;
+    else if (e.type==='oneoff')  ot = -(e.amount||0);
+    else if (e.type==='installments') ot = -(e.installTotal||e.budget||e.amount||0);
+    rows.push({...e, _kind:'expense', _mo:mo, _ot:ot, _ps:e.from||e.atAge||sa});
+  });
+  (S.incomes||[]).forEach(i => {
+    const mo = i.type==='oneoff' ? 0 : (i.monthly||i.amount||0);
+    const ot = i.type==='oneoff' ? (i.amount||0) : 0;
+    rows.push({...i, _kind:'income', _mo:mo, _ot:ot, _ps:i.from||i.atAge||sa});
+  });
+  (S.properties||[]).forEach(p => {
+    rows.push({...p, _kind:'property', _mo:p.monthlyRent||0, _ot:-(p.value||0), _ps:p.acquireAge||sa});
+  });
+  (S.deals||[]).forEach(d => {
+    const cap = d.capital||{}, ret = d.returns||{};
+    const mo = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
+    const ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.total||cap.amount||0) : 0;
+    const ps = cap.type!=='none' && cap.date ? (new Date(cap.date).getFullYear()-(S.startYear||2026)+(S.startAge||57)) : sa;
+    rows.push({...d, _kind:'deal', _mo:mo, _ot:ot, _ps:ps});
+  });
+  return rows;
+}
+
+function sortEvents(f) {
+  if (_eventsSort.f===f) _eventsSort.d*=-1;
+  else { _eventsSort.f=f; _eventsSort.d = f==='name'?1:-1; }
+  renderEvents();
+}
+
+function toggleAddEventMenu(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('add-event-menu');
+  if (!m) return;
+  const show = m.style.display==='none';
+  m.style.display = show ? '' : 'none';
+  if (show) {
+    const hide = ev => { if (!m.contains(ev.target)) { m.style.display='none'; document.removeEventListener('click', hide); } };
+    setTimeout(() => document.addEventListener('click', hide), 0);
+  }
+}
+
+function _renderIncExpandCard(inc) {
+  const sa = S.startAge||57;
+  const oo = inc.type==='oneoff';
+  const cols = oo ? '1fr 1fr' : '1fr 1fr 1fr 1fr';
+  return `<div class="expand-card grn" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
+  <div style="display:grid;grid-template-columns:${cols};gap:8px;">
+    <div><label class="lbl">Amount</label><input type="text" value="${fmtInput(oo?inc.amount:inc.monthly)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="upI(${inc.id},'${oo?'amount':'monthly'}',parseNum(this.value));go()"></div>
+    <div><label class="lbl">Type</label><select onchange="upI(${inc.id},'type',this.value);renderEvents();go();">
+      <option value="monthly"${inc.type==='monthly'?' selected':''}>Monthly</option>
+      <option value="annual"${inc.type==='annual'?' selected':''}>Annual</option>
+      <option value="oneoff"${oo?' selected':''}>One-off</option>
+    </select></div>
+    ${oo
+      ?`<div><label class="lbl">When</label><div style="display:flex;gap:4px;">
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'atMonth',+this.value);go()">${monthOpts(inc.atMonth||1)}</select>
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'atAge',yearToAge(+this.value));go()">${yearOpts(ageToYear(inc.atAge||sa))}</select>
+        </div></div>`
+      :`<div><label class="lbl">From</label><div style="display:flex;gap:4px;">
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'fromMonth',+this.value);go()">${monthOpts(inc.fromMonth||1)}</select>
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'from',yearToAge(+this.value));renderEvents();go()">${yearOpts(ageToYear(inc.from||sa))}</select>
+        </div></div>
+        <div><label class="lbl">To</label><div style="display:flex;gap:4px;">
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'toMonth',+this.value);go()">${monthOpts(inc.toMonth||12)}</select>
+          <select class="iselect" style="flex:1;" onchange="upI(${inc.id},'to',yearToAge(+this.value));renderEvents();go()">${yearOpts(ageToYear(inc.to||S.endAge))}</select>
+        </div></div>`
+    }
+  </div>
+  <div style="margin-top:6px;"><label class="lbl">Description</label>
+    <textarea class="desc" rows="2" placeholder="Context for AI advisor…" onchange="upI(${inc.id},'description',this.value)">${(inc.description||'').replace(/</g,'&lt;')}</textarea>
+  </div></div>`;
+}
+
+function _renderExpExpandCard(e) {
+  const oo = e.type==='oneoff', inst=e.type==='installments';
+  return `<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+    <div><label class="lbl">Amount</label>
+      <input type="text" value="${fmtInput(inst?(e.installTotal||e.budget||e.amount):e.amount)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
+        onchange="const _v=parseNum(this.value);upE(${e.id},'amount',_v);${inst?`upE(${e.id},'installTotal',_v);`:''}renderEvents();go()">
+    </div>
+    <div><label class="lbl">Type</label>
+      <select onchange="event.stopPropagation();expTypeChanged(${e.id},this.value);">
+        <option value="monthly"${e.type==='monthly'?' selected':''}>Monthly</option>
+        <option value="annual"${e.type==='annual'?' selected':''}>Annual</option>
+        <option value="oneoff"${oo?' selected':''}>One-off</option>
+        <option value="installments"${inst?' selected':''}>Installments</option>
+      </select>
+    </div>
+    ${(!oo&&!inst)?`
+    <div><label class="lbl">From</label><div style="display:flex;gap:4px;">
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'fromMonth',+this.value);go()">${monthOpts(e.fromMonth||1)}</select>
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'from',yearToAge(+this.value));renderEvents();go()">${yearOpts(ageToYear(e.from||S.startAge))}</select>
+    </div></div>
+    <div><label class="lbl">To</label><div style="display:flex;gap:4px;">
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'toMonth',+this.value);go()">${monthOpts(e.toMonth||12)}</select>
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'to',yearToAge(+this.value));renderEvents();go()">${yearOpts(ageToYear(e.to||S.endAge))}</select>
+    </div></div>`:''}
+    ${oo?`<div><label class="lbl">When</label><div style="display:flex;gap:4px;">
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'atMonth',+this.value);go()">${monthOpts(e.atMonth||1)}</select>
+      <select class="iselect" style="flex:1;" onchange="upE(${e.id},'atAge',yearToAge(+this.value));renderEvents();go()">${yearOpts(ageToYear(e.atAge||S.startAge))}</select>
+    </div></div>`:''}
+    ${inst?`<div><label class="lbl"># Installments</label>
+      <input type="number" class="ifield" style="width:100%!important;" value="${e.installN||12}" min="1" max="360" onchange="upE(${e.id},'installN',+this.value);go()">
+    </div>`:''}
+  </div>
+  <label class="lbl">Description</label>
+  <textarea class="desc" rows="2" placeholder="Context for AI advisor…" onclick="event.stopPropagation()" onchange="upE(${e.id},'description',this.value)">${(e.description||'').replace(/</g,'&lt;')}</textarea>
+  <label class="lbl" style="margin-top:6px;">Budget cap <span style="font-size:9px;color:#aaa;">(optional)</span></label>
+  <input type="text" placeholder="optional total cap" value="${e.budget>0?fmtInput(e.budget):''}" style="width:100%;" onclick="event.stopPropagation()"
+    onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
+    onchange="const _bv=parseNum(this.value);upE(${e.id},'budget',_bv);${inst?`upE(${e.id},'installTotal',_bv);`:''}renderEvents();go()">
+  <label class="lbl" style="margin-top:6px;">Gastos category</label>
+  <input type="text" placeholder="e.g. delta" value="${e.gastosCategory||''}" style="width:100%;" onclick="event.stopPropagation()"
+    oninput="upE(${e.id},'gastosCategory',this.value.trim());renderProjectBudgets();go()">
+</div>`;
+}
+
+function _renderPropExpandCard(p) {
+  const sa = S.startAge, ea = S.endAge;
+  return `<div class="expand-card blu" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px;">
+    <div><label class="lbl">Value</label>
+      <input type="text" value="${fmtInput(p.value)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
+        onchange="upP(${p.id},'value',parseNum(this.value));renderEvents();go()">
+    </div>
+    <div><label class="lbl">Rent /mo</label>
+      <input type="text" value="${fmtInput(p.monthlyRent)}" placeholder="0" onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
+        onchange="upP(${p.id},'monthlyRent',parseNum(this.value));renderEvents();go()">
+    </div>
+    <div><label class="lbl">Acquire ${_yearMode?'year':'age'}</label>
+      <input type="number" class="ifield" style="width:100%!important;" value="${dispA(p.acquireAge||sa)}"
+        min="${dispA(sa)}" max="${dispA(ea)}" onchange="upP(${p.id},'acquireAge',readA(this.value));renderEvents();go()">
+    </div>
+    <div><label class="lbl">Rent from ${_yearMode?'year':'age'}</label>
+      <input type="number" class="ifield" style="width:100%!important;" value="${dispA(p.rentFromAge||sa)}"
+        min="${dispA(sa)}" max="${dispA(ea)}" onchange="upP(${p.id},'rentFromAge',readA(this.value));go()">
+    </div>
+    <div><label class="lbl">Sell ${_yearMode?'year':'age'} <span style="font-size:9px;color:#aaa;">(blank=hold)</span></label>
+      <input type="number" class="ifield" style="width:100%!important;" value="${p.hold?'':dispA(p.saleAge)}" placeholder="hold"
+        min="${dispA(sa+1)}" max="${dispA(ea)}"
+        onchange="const _v=readA(this.value);if(!this.value||_v>S.endAge){upP(${p.id},'hold',true);upP(${p.id},'saleAge',S.endAge)}else{upP(${p.id},'hold',false);upP(${p.id},'saleAge',_v)};renderEvents();go()">
+    </div>
+    <div><label class="lbl">Appreciation</label>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <input type="range" min="0" max="12" step="0.25" value="${p.appRate!==undefined?p.appRate:S.assetAppreciation}"
+          style="flex:1;" oninput="upP(${p.id},'appRate',+this.value);go()">
+        <span style="font-size:10px;color:#8792a2;white-space:nowrap;font-family:'SF Mono',Menlo,monospace;">
+          ${p.appRate!==undefined?p.appRate+'%':'global'}
+        </span>
+      </div>
+      ${p.appRate!==undefined?`<button onclick="upP(${p.id},'appRate',undefined);renderEvents();go()" style="font-size:9px;color:#aaa;background:none;border:none;cursor:pointer;padding:0;">↺ global</button>`:''}
+    </div>
+  </div>
+  <label class="lbl">Description</label>
+  <textarea class="desc" rows="2" placeholder="Location, type, rental status, plans…" onchange="upP(${p.id},'description',this.value)">${(p.description||'').replace(/</g,'&lt;')}</textarea>
+</div>`;
+}
+
+function _renderDealExpandCard(d) {
+  return `<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;border-left:3px solid ${d.color||'#8b5cf6'};" onclick="event.stopPropagation()">
+  <div class="deal-body" style="padding:0;">
+    ${_dealCapBlock(d)}
+    ${_dealRetBlock(d)}
+    ${_dealExitBlock(d)}
+    <div class="deal-block">
+      <div class="deal-blk-title">Color</div>
+      <div class="deal-color-row">${_DEAL_COLORS.map(c=>`<div class="deal-swatch${d.color===c?' dsact':''}" style="background:${c}" title="${c}" onclick="event.stopPropagation();upD('${d.id}','color','${c}');renderEvents();go()"></div>`).join('')}</div>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderEventRow(row) {
+  const isOpen = openId===row.id;
+  const dotClr = row._kind==='expense'?'#E05252':row._kind==='income'?'#1A8C5F':row._kind==='deal'?'#8b5cf6':'#4A90D9';
+  const moClr  = row._mo>0?'#1A8C5F':row._mo<0?'#E05252':'#c1cad4';
+  const otClr  = row._ot>0?'#1A8C5F':row._ot<0?'#E05252':'#c1cad4';
+  const moStr  = row._mo!==0?(row._mo>0?'+':'')+_fmtK(row._mo)+'/mo':'—';
+  const otStr  = row._ot!==0?(row._ot>0?'+':'')+_fmtK(row._ot):'—';
+  const beMo   = (row._ot<0&&row._mo>0)?Math.round(Math.abs(row._ot)/row._mo):0;
+  const beStr  = beMo>0?(beMo>=24?Math.round(beMo/12)+'yr':beMo+'mo'):'—';
+  const period = _evtPeriod(row);
+  const isDeal = row._kind==='deal';
+  const togFn  = row._kind==='expense'?`togE(${row.id})`:row._kind==='income'?`togI(${row.id})`:isDeal?`toggleDeal('${row.id}')`:`togP(${row.id})`;
+  const delFn  = row._kind==='expense'?`rmE(${row.id})`:row._kind==='income'?`rmI(${row.id})`:isDeal?`rmD('${row.id}')`:`rmP(${row.id})`;
+  const nameFn = row._kind==='expense'?`upE(${row.id},'name',this.value)`:row._kind==='income'?`upI(${row.id},'name',this.value)`:isDeal?`upD('${row.id}','name',this.value);renderEvents()`:`upP(${row.id},'name',this.value)`;
+  let card='';
+  if (isOpen) {
+    if (row._kind==='expense') card=_renderExpExpandCard(row);
+    else if (row._kind==='income') card=_renderIncExpandCard(row);
+    else if (isDeal) card=_renderDealExpandCard(row);
+    else card=_renderPropExpandCard(row);
+  }
+  return `<div>
+  <div class="item-row${row.enabled===false?' disabled-row':''}" onclick="toggle(${row.id});renderEvents()">
+    <span style="width:7px;height:7px;border-radius:50%;background:${dotClr};flex-shrink:0;display:inline-block;"></span>
+    <input class="iname" type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="${nameFn}">
+    <span style="width:74px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:${moClr};flex-shrink:0;">${moStr}</span>
+    <span style="width:68px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:${otClr};flex-shrink:0;">${otStr}</span>
+    <span style="width:44px;text-align:right;font-size:10px;color:#8792a2;flex-shrink:0;">${beStr}</span>
+    <span style="width:110px;font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;text-align:right;overflow:hidden;text-overflow:ellipsis;">${period}</span>
+    ${sw(row.enabled,togFn)}${xb(delFn)}
+  </div>${card}</div>`;
+}
+
+function renderEvents() {
+  const rows = _normalizeEvents();
+  const {f,d} = _eventsSort;
+  rows.sort((a,b)=>{
+    if (f==='name') { const na=(a.name||'').toLowerCase(),nb=(b.name||'').toLowerCase(); return d*(na<nb?-1:na>nb?1:0); }
+    if (f==='mo')  return d*(b._mo-a._mo);
+    if (f==='ot')  return d*(b._ot-a._ot);
+    if (f==='be')  {
+      const ba=(a._ot<0&&a._mo>0)?Math.abs(a._ot)/a._mo:Infinity;
+      const bb=(b._ot<0&&b._mo>0)?Math.abs(b._ot)/b._mo:Infinity;
+      return d*(ba-bb);
+    }
+    if (f==='period') return d*(a._ps-b._ps);
+    return 0;
+  });
+  const si = f2=>_eventsSort.f===f2?(_eventsSort.d===-1?' ↓':' ↑'):'';
+  const hEl=document.getElementById('events-col-headers');
+  if (hEl) hEl.innerHTML=`<div class="events-hdr">
+    <span style="flex:1;" onclick="sortEvents('name')">Name${si('name')}</span>
+    <span style="width:74px;text-align:right;" onclick="sortEvents('mo')">/mo${si('mo')}</span>
+    <span style="width:68px;text-align:right;" onclick="sortEvents('ot')">One-time${si('ot')}</span>
+    <span style="width:44px;text-align:right;" onclick="sortEvents('be')">Break-even${si('be')}</span>
+    <span style="width:110px;text-align:right;" onclick="sortEvents('period')">Period${si('period')}</span>
+    <span style="width:50px;"></span>
+  </div>`;
+  const lEl=document.getElementById('events-list');
+  if (lEl) lEl.innerHTML=rows.length?rows.map(renderEventRow).join(''):`<div style="padding:6px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— no events —</div>`;
+  const enabled=rows.filter(r=>r.enabled!==false);
+  const totMo=enabled.reduce((s,r)=>s+r._mo,0);
+  const totOt=enabled.reduce((s,r)=>s+r._ot,0);
+  const fEl=document.getElementById('events-footer');
+  if (fEl) fEl.innerHTML=`<div class="events-footer-row">
+    <span style="flex:1;">Net (enabled)</span>
+    <span style="width:74px;text-align:right;font-family:'SF Mono',Menlo,monospace;color:${totMo>=0?'#1A8C5F':'#E05252'};">${totMo>=0?'+':''}_fmtK(totMo)/mo</span>
+    <span style="width:68px;text-align:right;font-family:'SF Mono',Menlo,monospace;color:${totOt>=0?'#1A8C5F':'#E05252'};">${totOt>=0?'+':''}_fmtK(totOt)</span>
+    <span style="width:204px;"></span>
+  </div>`.replace('_fmtK(totMo)',_fmtK(totMo)).replace('_fmtK(totOt)',_fmtK(totOt));
+  updateMonthlyBaseSlider();
 }
 
 function syncSettingsPanel() {
@@ -7034,13 +7336,7 @@ function expTypeChanged(id, value) {
     const e = S.expenses.find(x => x.id === id);
     if (e && !e.installTotal && e.amount) { e.installTotal = e.amount; e.installN = e.installN || 12; }
   }
-  // Always open the outgoing parent + the correct sub-section so item never vanishes
-  openSec('outgoing');
-  if (value === 'annual') openSec('exp-yearly');
-  else if (value === 'installments') openSec('exp-installments');
-  else if (value === 'oneoff') openSec('exp-oneoff');
-  else openSec('exp-monthly');
-  renderExp();
+  renderEvents();
   go();
 }
 function initSections() {
@@ -7051,7 +7347,7 @@ function initSections() {
   if (!localStorage.getItem('futuro-sec-timeline')) {
     localStorage.setItem('futuro-sec-timeline', '0');
   }
-  ['chart-nw','chart-market','timeline','outgoing','incoming','assets','exp-monthly','exp-oneoff','exp-yearly','exp-installments','inc-monthly','inc-yearly','inc-oneoff'].forEach(key => {
+  ['chart-nw','chart-market','timeline','events'].forEach(key => {
     const open = localStorage.getItem('futuro-sec-' + key) !== '0';
     const body = document.getElementById('sec-body-' + key);
     const arr  = document.getElementById('sec-arr-' + key);
