@@ -6106,7 +6106,35 @@ function _renderPropExpandCard(p) {
 </div>`;
 }
 
+function _renderDealSubItem(item, kind) {
+  const sa = S.startAge||57, ea = S.endAge||87;
+  const isInc = kind==='income';
+  const isOo = item.type==='oneoff', isInst = item.type==='installments';
+  const amt = isInc ? (isOo ? item.amount : item.monthly||item.amount) : (isInst ? (item.installTotal||item.budget||item.amount) : item.amount);
+  const amtFld = isInc ? (isOo?'amount':'monthly') : (isInst?'installTotal':'amount');
+  const updFn = isInc ? `upI(${item.id},'${amtFld}',parseNum(this.value));go()` : `const _v=parseNum(this.value);upE(${item.id},'amount',_v);${isInst?`upE(${item.id},'installTotal',_v);`:''}go()`;
+  const borderClr = isInc ? '#34d399' : '#f87171';
+  return `<div style="border-top:1px solid rgba(128,128,128,.15);padding-top:8px;margin-top:4px;">
+    <div style="font-size:9px;font-weight:700;color:${borderClr};text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">${isInc?'↑ Income':'↓ Expense'} — ${item.name||'?'}</div>
+    <div style="display:grid;grid-template-columns:auto auto;gap:8px;align-items:start;">
+      <div><label class="lbl">Amount</label><input type="text" value="${fmtInput(amt)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="${updFn}" onclick="event.stopPropagation()"></div>
+      <div><label class="lbl">Type</label><select onclick="event.stopPropagation()" onchange="${isInc?`upI(${item.id},'type',this.value);renderEvents();go()`:`expTypeChanged(${item.id},this.value)`}">
+        ${isInc
+          ? `<option value="monthly"${item.type==='monthly'?' selected':''}>Monthly</option><option value="annual"${item.type==='annual'?' selected':''}>Annual</option><option value="oneoff"${isOo?' selected':''}>One-off</option>`
+          : `<option value="monthly"${item.type==='monthly'?' selected':''}>Monthly</option><option value="annual"${item.type==='annual'?' selected':''}>Annual</option><option value="oneoff"${isOo?' selected':''}>One-off</option><option value="installments"${isInst?' selected':''}>Installments</option>`}
+      </select></div>
+    </div>
+  </div>`;
+}
+
 function _renderDealExpandCard(d) {
+  // Tagged sub-items (expenses/incomes with dealId = d.id)
+  const taggedExp = (S.expenses||[]).filter(e => e.dealId === d.id);
+  const taggedInc = (S.incomes||[]).filter(i => i.dealId === d.id);
+  const subSections = [
+    ...taggedExp.map(e => _renderDealSubItem(e, 'expense')),
+    ...taggedInc.map(i => _renderDealSubItem(i, 'income'))
+  ].join('');
   return `<div class="expand-card" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;border-left:3px solid ${d.color||'#8b5cf6'};" onclick="event.stopPropagation()">
   <div class="deal-body" style="padding:0;">
     ${_dealCapBlock(d)}
@@ -6116,7 +6144,7 @@ function _renderDealExpandCard(d) {
       <div class="deal-blk-title">Color</div>
       <div class="deal-color-row">${_DEAL_COLORS.map(c=>`<div class="deal-swatch${d.color===c?' dsact':''}" style="background:${c}" title="${c}" onclick="event.stopPropagation();upD('${d.id}','color','${c}');renderEvents();go()"></div>`).join('')}</div>
     </div>
-  </div>
+  </div>${subSections}
 </div>`;
 }
 
