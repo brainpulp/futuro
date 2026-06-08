@@ -5951,8 +5951,18 @@ function _normalizeEvents() {
   });
   deals.forEach(d => {
     const cap = d.capital||{}, ret = d.returns||{};
-    const mo = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
-    const ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.total||cap.amount||0) : 0;
+    let mo = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
+    let ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.total||cap.amount||0) : 0;
+    // Add contributions from tagged sub-items (expenses/incomes with dealId = d.id)
+    (S.incomes||[]).filter(i => i.dealId === d.id && i.enabled !== false).forEach(i => {
+      if (i.type==='oneoff') ot += (i.amount||0);
+      else mo += (i.monthly||i.amount||0);
+    });
+    (S.expenses||[]).filter(e => e.dealId === d.id && e.enabled !== false).forEach(e => {
+      if (e.type==='oneoff') ot -= (e.amount||0);
+      else if (e.type==='installments') ot -= (e.installTotal||e.budget||e.amount||0);
+      else mo -= (e.amount||0);
+    });
     const ps = cap.type!=='none' && cap.date ? (new Date(cap.date).getFullYear()-(S.startYear||2026)+(S.startAge||57)) : sa;
     rows.push({...d, _kind:'deal', _mo:mo, _ot:ot, _ps:ps});
   });
