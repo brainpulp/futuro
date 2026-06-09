@@ -1,179 +1,76 @@
-# Futuro — Handoff
+# Futuro — Claude Instructions
 
-## Quick lookup — key function line numbers (index.html)
-| Function | Line | Purpose |
-|----------|------|---------|
-| `sbSave` | 1597 | Save scenario to Supabase |
-| `sbLoad` | 1613 | Load scenarios from Supabase (merges ALL rows) |
-| `runSim` | 2615 | Monthly simulation engine → `data.monthly[]` |
-| `getMonthTxns(age,mo)` | 3262 | Returns txns for one month |
-| `setChartZoom(y)` | 3956 | Zoom button handler |
-| `_initLwChart` | 4037 | Create LW chart + overlay canvas |
-| `_updateLwChart` | 4140 | Feed sim data into LW chart |
-| `_groupTxnsForYearly` | 4161 | Collapse repeated txns for yearly tooltip |
-| `_buildLwMarkers` | 4177 | Build LW markers + `_txnDots[]` |
-| `_setLwZoom` | 4252 | Set LW visible time range |
-| `_updateVig` | 4261 | Draw emoji vignette on overlay canvas |
-| `go()` | 4319 | Main render entry point (runs sim + updates chart) |
-| `showTxnTooltip` | 5242 | Render transaction hover tooltip |
-| `syncMarketBandInputs` | ~1997 | Sync band slider inputs from S.marketBands |
-| `updateMarketBand` | ~2005 | Update one band value and re-run go() |
-| `ibkrSync` | ~6060 | Pull IBKR net liquidation |
-| `gastosSync` | 6096 | Pull gastos monthly actuals |
-| `renderTimeline` | 6340 | Render event timeline strip |
-
-**Note:** Line numbers shift as code changes. Use as starting point, not gospel.
-
-## Self-test (run at session start)
-**ALWAYS run `_selfTest()` in the browser at the start of every session** before making changes.
-Skill: `.claude/skills/selftest/SKILL.md` — uses Chrome MCP, zero tokens, 14 assertions.
-If any fail, fix before proceeding. When fixing a new bug, add a regression test.
-
-## Code review
-**ALWAYS run the `check-futuro` skill before committing.** It is at `.claude/skills/check-futuro/SKILL.md`.
-Invoke it by reading that file and following every check listed. Fix all 🔴 CRITICAL findings before pushing.
+## Session start protocol (ALWAYS do this first)
+1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
+2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
+3. If 20/20 passed → continue. If any fail → fix before touching anything else.
 
 ## What it is
 Single-file HTML/JS retirement net-worth projector. No build step.
-Deployed to GitHub Pages: https://brainpulp.github.io/futuro/
-Repo: https://github.com/brainpulp/futuro
+- Repo: https://github.com/brainpulp/futuro
+- Deployed: https://brainpulp.github.io/futuro/
+- Local dev: `python3 -m http.server 8765 --directory ~/futuro` (or node save-server.js)
+- Edit only: `~/futuro/index.html` (~6700 lines)
 
-## Tech
-- `index.html` — entire app (~6200 lines). Edit this file directly.
-- `save-server.js` — local Node server (port 3001) for saving scenarios.json and proxying IBKR. NOT deployed.
-- `supabase/functions/get-ibkr-liquid/index.ts` — deployed edge function for IBKR Flex API pull.
-- **TradingView LightweightCharts v4.2.0** (CDN) — main NW chart. Replaced Chart.js for main chart.
-- Chart.js (bundled locally at `index_files/chart.umd.js`) — still used for sub-charts only (expense breakdown, MC distribution).
-- Supabase JS client (CDN).
+## Pre-commit UI review (ALWAYS before committing any UI change)
+Before declaring a UI change done, scan for obvious gaps:
+1. **Branch parity** — if one conditional branch (e.g. `type=oneoff`) gets fields A+B, check every other branch has what it needs. Don't ship a branch with missing fields.
+2. **Cross-function parity** — if a parallel function already handles the same case fully (e.g. `_dealCapBlock` for installments), use it as a checklist. Go field by field.
+3. **User completeness test** — read the rendered section and ask: "does a user have everything they need to fill this in?" If any input is ambiguous or missing context, add it.
+4. **Render path check** — confirm which function actually renders the visible UI (e.g. `_renderDealSubItem` not `_dealCapBlock` for deal expand cards). Editing the wrong function = silent no-op.
 
-## Supabase projects
-| Project | ID | Purpose |
-|---------|-----|---------|
-| futuro  | `kbatdnrxfrltcmqvsmyy` | scenarios persistence, IBKR edge function. Table: `futuro_state` |
-| gastos  | `fnzdkqrkranedtgysqcf` | expense actuals (monthly-actuals, auto-categorize) |
+## Commit & push protocol (ALWAYS after any code change)
+1. Run `_selfTest()` → all must pass
+2. `cd ~/futuro && git add index.html && git commit -m "..." && git push` — push immediately, don't wait for user to ask
 
-Supabase access token (for CLI deploys): stored in session, ask user if needed.
-Deploy edge function: `SUPABASE_ACCESS_TOKEN=... npx supabase functions deploy get-ibkr-liquid --project-ref kbatdnrxfrltcmqvsmyy --no-verify-jwt`
-
-## Key constants in index.html
+## Key globals
 ```js
-const SB_URL   = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
-const SB_ANON  = 'eyJ...'; // anon key
-const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
-const GASTOS_ANON = 'eyJ...'; // gastos anon key
-const MARKET_BAND_DEFAULTS = { pessimistic: 3, base: 7, optimistic: 11 }; // % annual
-const IBKR_SYNC_MS = 4 * 60 * 60 * 1000; // 4 hours
-const _currentYM = new Date().toISOString().slice(0, 7); // e.g. "2026-05"
+S                    // active scenario data object
+SCENARIOS            // array of all scenarios
+go()                 // main render: runSim() → update ribbon + LW chart
+runSim()             // monthly sim engine → data.monthly[] + yearly out[]
+ensureFields()       // normalizes S properties — called on load, NOT in go()
+markDirty()          // debounces saveActive() at 600ms
+upP(id, field, val)  // update property
+upD(id, field, val)  // update deal field
+upDf(id, block, field, val) // update deal sub-block field (capital/returns/exit)
+upE(id, field, val)  // update expense
+upI(id, field, val)  // update income
+_selfTest()          // 20-assertion in-browser test suite
 ```
 
-## LightweightCharts globals (main NW chart)
-```js
-let lwChart = null, lwLiqSeries = null, lwReSeries = null;
-let lwTotalSeries = null, lwRealSeries = null;
-let lwFanHighSeries = null, lwFanLowSeries = null; // fan ribbon (optimistic/pessimistic)
-let lwVigCanvas = null;  // overlay canvas for emoji vignette + dot hit detection
-let _txnDots = [];       // [{xp,yp,hitR,age,mo,year,txns,net,isYearly}]
-function _mt(year, mo) { return `${year}-${String(mo).padStart(2,'0')}-01`; }
+## Render architecture — CRITICAL
+- `renderEvents()` — renders the unified events table (expenses, incomes, properties, deals)
+- `renderDeals()` — writes to `#deals-list` which does NOT exist; it's a dead stub. Never call it expecting a visible result.
+- Deal expand cards render via `_renderDealExpandCard(d)` → `_renderDealSubItem(item, kind)` for tagged sub-items
+- All button/input handlers inside deal blocks must call `renderEvents()` not `renderDeals()`
+- `openId` — string tracking which row's expand card is open
+
+## Deal expand card structure
+```
+_renderDealExpandCard(d):
+  deal-body: [Out block if cap≠none] [Returns block if ret≠none] [Color]
+  subSections: tagged expense sub-items + tagged income sub-items
+  deal-body: [Exit/Sale block]   ← always at the bottom
 ```
 
-Key functions:
-- `_initLwChart()` — creates chart, 4 series (RE orange, Liquid blue, Total green dashed, Real grey dashed), overlay canvas, mouse event listeners
-- `_updateLwChart(data)` — sets series data from `data.monthly`, calls `_buildLwMarkers(data)`, calls `_setLwZoom`
-- `_buildLwMarkers(data)` — builds LW markers + `_txnDots`. In 1y/5y: monthly dots. In 10y+: yearly aggregate dots with `_groupTxnsForYearly()` to collapse repeated rents/installments
-- `_groupTxnsForYearly(txns)` — groups all txns by name+type, sums amounts, tracks `_count`
-- `_setLwZoom(years)` — sets `timeScale().setVisibleRange()`
-- `_updateVig()` — draws emoji vignette clipped to liquid curve on overlay canvas
+## Tagged sub-items pattern (CRITICAL)
+Deals like Canchitas store cashflows in tagged `S.expenses`/`S.incomes` (`item.dealId = deal.id`) with `capital.type='none'` and `returns.type='none'`. These render via `_renderDealSubItem`, not `_dealCapBlock`/`_dealRetBlock`.
 
-## Other globals
-```js
-let _yearMode = false;       // age vs calendar year display
-let _gastosActuals = {};     // { "2026-01": 4320.50, ... } from gastos edge fn
-let _chartZoom = 10;         // persisted via localStorage 'futuro-chart-zoom'
-```
+## _renderDealSubItem field completeness
+Each type must have ALL fields a user needs:
+- `oneoff`: Amount, Type, **Date**
+- `monthly/annual`: Amount, Type, **From → To**
+- `installments`: Amount, Type, **# payments**, **frequency**, **Starts date**
 
-## Transaction markers behavior
-- **1y / 5y zoom** (`_chartZoom <= 5`): one dot per month that has transactions, tooltip shows that month's txns
-- **10y / 20y / 30y zoom**: one dot per age-year (placed at July), tooltip shows annual totals with grouped rows
-- Installments grouped: badge shows `X/Y` in monthly view, `×N/yr` in yearly view
-- Recurring rent/income grouped: badge shows `×12/yr` with annual total
+## Exit types
+- `none` — no exit event
+- `auto` — appreciates at rate%, sells at date, proceeds = cv × (1 - costs%)
+- `auto` + date > simEnd — "Hold" mode, stays illiquid
+- `manual` — fixed sale price at date, independent of appreciation
+- `appreciation` — exit = outflow × (1+rate)^years, base = Out amount or custom
 
-## Simulation
-- `runSim()` generates `data.monthly[]` — array of `{age, mo, year, liq, iliq, inc, baseExp, oneoffs}`
-- `getMonthTxns(age, mo)` — returns all transactions for a specific month
-- `getYearSummary(age)` — aggregates all monthly transactions for a year
-- Past months use gastos actuals; future months use projected inflation-adjusted expenses
-- `rentFromAge` guard: `if (ra > 2000) ra = yearToAge(ra)` — some properties saved rentFromAge as calendar year
-
-## Features implemented
-- **Age/Year toggle** — `◑` button. `dispA(age)` / `readA(val)` helpers. `body.year-mode` class.
-- **Gastos actuals integration** — past months use real USD spend from gastos. `gastosSync()` on load.
-- **Graphite dark theme** — `body[data-theme="graphite"]`. Toggle `◑`. Persists via localStorage.
-- **IBKR auto-sync toggle** — checkbox, default OFF during dev. Persists via localStorage.
-- **IBKR verbose errors** — edge fn returns `ibkr_error_code`, `ibkr_status`, `xml_snippet`.
-- **Montecarlo** — 500 runs, amber/gold bands. `_mcResult` global. Not yet on LW chart (sub-chart only).
-- **Emoji vignette** — animated emoji background clipped to liquid curve area, on overlay canvas.
-- **Market fan ribbon** — base/pessimistic/optimistic sims run in `go()`, fed to `lwFanHighSeries`/`lwFanLowSeries` behind main liquid line.
-
-## UI Structure (post 2026-06-07 refactor — commit 3b47d49)
-
-### Section order (left panel)
-`Outgoing → Incoming → Deals → Budget` (Budget is last)
-
-### Flat income/expense lists
-- `#all-inc-list` — single flat container for ALL income items (no Monthly/Yearly/One-off sub-headings)
-- `#all-exp-list` — single flat container for ALL expense items (no sub-headings)
-- Both filter out `dealId`-linked items (those render inside their deal card)
-- Summer/winter trips auto-migrate to regular annual expenses on first load (idempotent migration in `_applyScenarios`)
-
-### Deal cards
-- Collapsed: shows `<span class="deal-name-t">` (truncated text, not editable)
-- Expanded (click to open): shows `<input class="deal-name-i">` (rename in place)
-- Linked incomes/expenses rendered inside expanded deal card
-
-### Assets section
-- **Removed entirely** from HTML and JS
-- Standalone properties auto-migrate to Deals on load (migration in `_applyScenarios` before `saveActive()`)
-
-### Expense chart
-- Vertical multiplier wheel (`#exp-mult-wheel`) removed; horizontal slider only remains
-
-## Pending / deferred
-- Dancing numbers on LW chart (not yet reimplemented after Chart.js migration)
-- Montecarlo bands on LW chart (not yet reimplemented)
-- TradingView watermark (TV logo, bottom-left) — free tier limitation
-- Edge browser: timeline/budget title bars don't expand (Chrome/Mac work fine)
-
-## IBKR status
-- Uses Flex API (query ID `1510170`). Token in Supabase secret `IBKR_FLEX_TOKEN`.
-- Error 1001 = rate limited. Transient — retry in 15 min.
-- Auto-sync disabled by default. Enable checkbox when not actively developing.
-
-## Gastos auto-categorize
-- Edge function runs hourly via pg_cron on gastos Supabase project.
-- Requires `ANTHROPIC_API_KEY` secret set in gastos project functions settings.
-
-## Local dev
-Local path: `F:\code\futuro\` (moved out of Google Drive on 2026-05-19 — Drive sync corrupts git index)
-
-```bash
-node save-server.js          # start local save server (port 3001)
-npx http-server . -p 8765    # serve app locally
-```
-
-## Git
-Main branch → GitHub Pages auto-deploys.
-```bash
-git add index.html && git commit -m "..." && git push
-```
-Always update CLAUDE.md and `memory/project_retiro.md` after significant changes.
-
-## Known bugs & gotchas (don't re-diagnose these)
-
-| Symptom | Root cause | Fix |
-|---------|-----------|-----|
-| Rental income silently $0 | `rentFromAge` saved as calendar year (2026) not age (57) | `if (ra > 2000) ra = yearToAge(ra)` guard in `getMonthTxns` |
-| Tooltip lists 12× same rent | Yearly dot collects all 12 months, rent not grouped | `_groupTxnsForYearly` groups by name+type key |
-| Scenario data lost on reload | `sbLoad` was picking newest row only | Now merges ALL rows' scenarios |
-| Chart y-axis squishes liquid line | Chart.js shared y-axis with RE (~$12M) | Resolved: LightweightCharts auto-scales per series |
-| TDZ crash on property sale | `_oo.push()` before `const _oo = []` | Use `_soldThisMo` intermediate array |
-| Edge browser timeline won't expand | Title bar click handler issue, Chrome/Mac work | Known deferred |
+## Persistence
+- localStorage key: `futuro_scenarios`
+- Supabase: project `kbatdnrxfrltcmqvsmyy`, table `futuro_state`
+- `saveActive()` → deepCopy(S) into SCENARIOS → lsSave() → sbSave()
