@@ -5827,6 +5827,13 @@ function _dealExitBlock(d) {
       <button class="deal-tbtn${t==='manual'?' dtact':''}" title="You set the exact sale price — useful when the exit value is independent of what you put in (e.g. business on someone else's land)" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderEvents();go()">Manual</button>
       <button class="deal-tbtn${t==='appreciation'?' dtact':''}" title="Exit value = outflow × (1 + rate)^years — good when you expect to recover more or less than you put in, proportionally" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'appreciation'});renderEvents();go()">Appreciation</button>
     </div>
+    <div style="font-size:10px;color:#94a3b8;margin:3px 0 6px;line-height:1.4;">${
+      t==='none'    ? 'No exit — money in, money back periodically, nothing more.' :
+      isHold        ? 'Asset appreciates but is never sold within the simulation — stays illiquid.' :
+      t==='auto'    ? 'Sells on a set date. Proceeds = asset value (basis compounding at rate%) minus selling costs.' :
+      t==='manual'  ? 'You set the exact sale price — use when exit value is independent of what you put in.' :
+      t==='appreciation' ? 'Exit = outflow × (1+rate)^years. Useful when you expect partial recovery or a proportional return.' : ''
+    }</div>
     ${isHold ? `<div style="font-size:11px;color:#a0aec0;">Appreciates at ${ex.rate||0}%/yr · no sale within simulation.</div>
     <div class="deal-frow" style="margin-top:4px;"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
     <div class="deal-frow"><span class="deal-flbl">Rate</span><input type="number" class="ifield" value="${ex.rate||0}" step="0.25" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','rate',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">% / yr</span></div>` : ''}
