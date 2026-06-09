@@ -2616,7 +2616,9 @@ function runSim(monthlyOverride, yieldRateOverride) {
     const ex  = d.exit    || {};
     const cap = d.capital || {};
     if (ex.type === 'none') return;
-    const basis = ex.basis || cap.amount || cap.totalAmount || 0;
+    const basis = ex.baseType === 'custom'
+      ? (ex.basis || 0)
+      : (cap.amount || cap.totalAmount || ex.basis || 0);
     if (!basis) return;
     const capStr  = cap.date || cap.startDate || String(_startYr) + '-01';
     const capYear = parseInt(capStr.split('-')[0], 10);
@@ -2772,7 +2774,10 @@ function runSim(monthlyOverride, yieldRateOverride) {
           const cap = d.capital || {};
           if (cap.type === 'oneoff' && cap.date) {
             const [cy, cm] = cap.date.split('-').map(Number);
-            if (_yr === cy && mo === cm) da.cv = (d.exit || {}).basis || cap.amount || 0;
+            if (_yr === cy && mo === cm) {
+              const _ex = d.exit || {};
+              da.cv = _ex.baseType === 'custom' ? (_ex.basis || 0) : (cap.amount || _ex.basis || 0);
+            }
           }
         }
         // Appreciate (same position as property appreciation)
@@ -5678,7 +5683,7 @@ function _dealCapBlock(d) {
   const linkedExp = (S.expenses||[]).filter(e => e.dealId === d.id && e.enabled !== false);
   const hasLinked = t === 'none' && linkedExp.length > 0;
   return `<div class="deal-block">
-    <div class="deal-blk-title">Capital in</div>
+    <div class="deal-blk-title">Out</div>
     <div class="deal-type-sel">
       ${hasLinked
         ? `<button class="deal-tbtn dtact" style="opacity:.55;cursor:default;" onclick="event.stopPropagation()">Linked</button>`
@@ -5806,6 +5811,7 @@ function _dealExitBlock(d) {
       <button class="deal-tbtn${t==='auto'&&!isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit?.date&&((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date<'2090-01'?((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date:''});renderDeals();go()">Auto</button>
       <button class="deal-tbtn${isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:'2100-01'});renderDeals();go()">Hold</button>
       <button class="deal-tbtn${t==='manual'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderDeals();go()">Manual</button>
+      <button class="deal-tbtn${t==='appreciation'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'appreciation'});renderDeals();go()">Appreciation</button>
     </div>
     ${isHold ? `<div style="font-size:11px;color:#a0aec0;">Appreciates at ${ex.rate||0}%/yr · no sale within simulation.</div>
     <div class="deal-frow" style="margin-top:4px;"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
@@ -5819,6 +5825,34 @@ function _dealExitBlock(d) {
     <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ex.date||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','exit','date',this.value);go()" onclick="event.stopPropagation()"></div>
     <div class="deal-frow"><span class="deal-flbl">Price</span><input type="text" class="iamt" value="${fmtInput(ex.manualPrice||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','manualPrice',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD gross</span></div>
     <div class="deal-frow"><span class="deal-flbl">Costs</span><input type="number" class="ifield" value="${ex.sellingCosts||0}" step="0.5" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','sellingCosts',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">%</span></div>` : ''}
+    ${t==='appreciation' ? (() => {
+      const cap = d.capital || {};
+      const baseType = ex.baseType || 'out';
+      const outBasis = cap.amount || cap.totalAmount || 0;
+      const customBasis = ex.basis || 0;
+      const basis = baseType === 'custom' ? customBasis : outBasis;
+      const rate = ex.rate || 0;
+      const capDateStr = cap.date || cap.startDate || '';
+      const exitDateStr = ex.date || '';
+      let preview = '';
+      if (basis > 0 && rate !== 0 && capDateStr && exitDateStr) {
+        const [cy] = capDateStr.split('-').map(Number);
+        const [ey] = exitDateStr.split('-').map(Number);
+        const yrs = Math.max(0, ey - cy);
+        const val = Math.round(basis * Math.pow(1 + rate / 100, yrs) * (1 - (ex.sellingCosts || 0) / 100));
+        preview = `<div style="font-size:11px;color:#a0aec0;margin-top:4px;">→ Exit value: ~${fmtK(val)}</div>`;
+      }
+      return `
+      <div class="deal-frow"><span class="deal-flbl">Rate</span><input type="number" class="ifield" value="${rate}" step="0.25" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','rate',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">% / yr</span></div>
+      <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${exitDateStr}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','exit','date',this.value);go()" onclick="event.stopPropagation()"></div>
+      <div class="deal-frow"><span class="deal-flbl">Base</span>
+        <button class="deal-tbtn${baseType==='out'?' dtact':''}" style="font-size:10px;padding:2px 7px;" onclick="event.stopPropagation();upDf('${d.id}','exit','baseType','out');renderDeals();go()">Out amount</button>
+        <button class="deal-tbtn${baseType==='custom'?' dtact':''}" style="font-size:10px;padding:2px 7px;" onclick="event.stopPropagation();upDf('${d.id}','exit','baseType','custom');renderDeals();go()">Custom</button>
+      </div>
+      ${baseType === 'custom' ? `<div class="deal-frow"><span class="deal-flbl">Amount</span><input type="text" class="iamt" value="${fmtInput(customBasis)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>` : `<div style="font-size:11px;color:#a0aec0;padding:2px 0;">Base: ${fmtK(outBasis)} (from Out block)</div>`}
+      <div class="deal-frow"><span class="deal-flbl">Costs</span><input type="number" class="ifield" value="${ex.sellingCosts||0}" step="0.5" style="width:52px;" onchange="event.stopPropagation();upDf('${d.id}','exit','sellingCosts',+this.value);go()" onclick="event.stopPropagation()"><span class="deal-iunit">%</span></div>
+      ${preview}`;
+    })() : ''}
     ${t==='none' ? `<div style="font-size:11px;color:#a0aec0;">No sale planned.</div>` : ''}
   </div>`;
 }
