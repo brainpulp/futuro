@@ -6029,7 +6029,7 @@ function _normalizeEvents() {
   deals.forEach(d => {
     const cap = d.capital||{}, ret = d.returns||{};
     let mo = ret.type==='monthly' ? (ret.amount||0) : ret.type==='yearly' ? (ret.amount||0)/12 : 0;
-    let ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.total||cap.amount||0) : 0;
+    let ot = cap.type==='oneoff' ? -(cap.amount||0) : cap.type==='installments' ? -(cap.totalAmount||cap.total||cap.amount||0) : 0;
     // Add contributions from tagged sub-items (expenses/incomes with dealId = d.id)
     (S.incomes||[]).filter(i => i.dealId === d.id && i.enabled !== false).forEach(i => {
       if (i.type==='oneoff') ot += (i.amount||0);
