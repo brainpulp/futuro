@@ -5758,6 +5758,13 @@ function _dealCapBlock(d) {
               onfocus="moneyFocus(this)" onblur="moneyBlur(this)"
               onchange="event.stopPropagation();upE(${e.id},'amount',parseNum(this.value));renderEvents();go()"
               onclick="event.stopPropagation()">
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+            <span style="font-size:10px;color:#94a3b8;flex-shrink:0;">Date</span>
+            <input type="month" value="${e.atAge ? (((S.startYear||2026)+(e.atAge-(S.startAge||57)))+'-'+String(e.atMonth||1).padStart(2,'0')) : ''}"
+              style="flex:1;height:22px;padding:0 4px;font-size:10px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;"
+              onclick="event.stopPropagation()"
+              onchange="event.stopPropagation();const _ym=this.value.split('-');upE(${e.id},'atAge',+_ym[0]-(S.startYear||2026)+(S.startAge||57));upE(${e.id},'atMonth',+_ym[1]);renderEvents();go()">
           </div>`}
         </div>`;
       }).join('');
@@ -5789,10 +5796,17 @@ function _dealRetBlock(d) {
     <div class="deal-frow"><span class="deal-flbl">Date</span><input type="month" value="${ret.from||''}" style="width:110px;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onchange="event.stopPropagation();upDf('${d.id}','returns','from',this.value);go()" onclick="event.stopPropagation()"></div>` : ''}
     ${t==='none' ? (() => {
       if (!linkedInc.length) return `<div style="font-size:11px;color:#a0aec0;">No recurring returns.</div>`;
-      return linkedInc.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-top:1px solid #f0f4ff;">
-        <span style="color:#64748b;">↳ ${i.name}</span>
-        <span style="font-weight:600;color:#16a34a;">+${fmtK(i.monthly||0)}/mo</span>
-      </div>`).join('');
+      return linkedInc.map(i => {
+        const fromLbl = i.from ? ageMonthToLabel(i.from, i.fromMonth||1) : '?';
+        const toLbl   = i.to   ? ageMonthToLabel(i.to,   i.toMonth||12)  : '?';
+        return `<div style="border-top:1px solid #f0f4ff;padding:4px 0 2px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+            <span style="color:#64748b;">↳ ${i.name}</span>
+            <span style="font-weight:600;color:#16a34a;">+${fmtK(i.monthly||0)}/mo</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px;">${fromLbl} – ${toLbl}</div>
+        </div>`;
+      }).join('');
     })() : ''}
   </div>`;
 }
