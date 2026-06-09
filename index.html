@@ -6176,13 +6176,25 @@ function _renderPropExpandCard(p) {
 }
 
 function _renderDealSubItem(item, kind) {
-  const sa = S.startAge||57, ea = S.endAge||87;
+  const sa = S.startAge||57, ea = S.endAge||87, sy = S.startYear||2026;
   const isInc = kind==='income';
   const isOo = item.type==='oneoff', isInst = item.type==='installments';
   const amt = isInc ? (isOo ? item.amount : item.monthly||item.amount) : (isInst ? (item.installTotal||item.budget||item.amount) : item.amount);
   const amtFld = isInc ? (isOo?'amount':'monthly') : (isInst?'installTotal':'amount');
   const updFn = isInc ? `upI(${item.id},'${amtFld}',parseNum(this.value));go()` : `const _v=parseNum(this.value);upE(${item.id},'amount',_v);${isInst?`upE(${item.id},'installTotal',_v);`:''}go()`;
   const borderClr = isInc ? '#34d399' : '#f87171';
+  const toYM = (age, mo=1) => `${sy+(age-sa)}-${String(mo).padStart(2,'0')}`;
+  const mInp = (val, onch) => `<input type="month" value="${val}" style="flex:1;min-width:0;height:24px;padding:0 4px;font-size:11px;border:1px solid #dde3ec;border-radius:4px;background:inherit;color:inherit;" onclick="event.stopPropagation()" onchange="${onch}">`;
+  const upAge = (field, moField, isI) => `const _ym=this.value.split('-');${isI?`upI(${item.id},'${field}',+_ym[0]-${sy}+${sa});upI(${item.id},'${moField}',+_ym[1]);`:`upE(${item.id},'${field}',+_ym[0]-${sy}+${sa});upE(${item.id},'${moField}',+_ym[1]);`}renderEvents();go()`;
+  let dateRow = '';
+  if (isOo) {
+    const val = item.atAge ? toYM(item.atAge, item.atMonth||1) : '';
+    dateRow = `<div style="display:flex;gap:6px;align-items:center;margin-top:6px;"><label class="lbl" style="flex-shrink:0;">Date</label>${mInp(val, upAge('atAge','atMonth',isInc))}</div>`;
+  } else {
+    const fv = item.from ? toYM(item.from, item.fromMonth||1) : '';
+    const tv = item.to   ? toYM(item.to,   item.toMonth||12)  : '';
+    dateRow = `<div style="display:flex;gap:6px;align-items:center;margin-top:6px;"><label class="lbl" style="flex-shrink:0;">From</label>${mInp(fv, upAge('from','fromMonth',isInc))}<span style="color:#a0aec0;flex-shrink:0;">→</span>${mInp(tv, upAge('to','toMonth',isInc))}</div>`;
+  }
   return `<div style="border-top:1px solid rgba(128,128,128,.15);padding-top:8px;margin-top:4px;">
     <div style="font-size:9px;font-weight:700;color:${borderClr};text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">${isInc?'↑ Income':'↓ Expense'} — ${item.name||'?'}</div>
     <div style="display:grid;grid-template-columns:auto auto;gap:8px;align-items:start;">
@@ -6193,6 +6205,7 @@ function _renderDealSubItem(item, kind) {
           : `<option value="monthly"${item.type==='monthly'?' selected':''}>Monthly</option><option value="annual"${item.type==='annual'?' selected':''}>Annual</option><option value="oneoff"${isOo?' selected':''}>One-off</option><option value="installments"${isInst?' selected':''}>Installments</option>`}
       </select></div>
     </div>
+    ${dateRow}
   </div>`;
 }
 
