@@ -70,6 +70,28 @@ Each type must have ALL fields a user needs:
 - `manual` — fixed sale price at date, independent of appreciation
 - `appreciation` — exit = outflow × (1+rate)^years, base = Out amount or custom
 
+## In progress / pending (updated 2026-06-09)
+
+### Canchitas data fix needed
+- `exit.type` was accidentally set to `'hold'` during a debugging session — should be `'none'` (Canchitas has no planned exit)
+- Fix: `upD('deal_canchitas', 'exit', {type:'none'}); saveActive()`
+
+### Conceptual deal model — partially implemented
+Agreed design (discussed 2026-06-09):
+- **OUT** = any outflow (replaces "Capital In" label — done ✓)
+- **RETURNS** = periodic cashflows back in
+- **EXIT** = terminal cash event; its amount IS the illiquid asset value on the chart
+- Illiquid asset value = exit amount expected, or 0 if no exit (done ✓ in `_dealAssets` init)
+- "Expense" vs "Capital" distinction is irrelevant — it's all just outflow (label renamed ✓)
+
+### Tagged sub-items — not yet unified
+Canchitas uses tagged `S.expenses`/`S.incomes` (dealId pattern) instead of the deal's own Out/Returns blocks. This predates the new model. Agreed direction: eventually migrate these into the deal's own blocks so every deal is self-contained. Not done yet — tagged pattern still works and renders correctly via `_renderDealSubItem`.
+
+### Open design questions
+- Should the "Out" block support a name/description field (for deals with multiple outflows)?
+- Should tagged sub-items be migrated away entirely, or kept as a power-user pattern?
+- `_dealCapBlock` (used in old `renderDeals()` stub) has more features than `_renderDealSubItem` — e.g. Gastos spend tracking bar. Should that be ported to `_renderDealSubItem`?
+
 ## Persistence
 - localStorage key: `futuro_scenarios`
 - Supabase: project `kbatdnrxfrltcmqvsmyy`, table `futuro_state`
