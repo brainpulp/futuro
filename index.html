@@ -5951,6 +5951,29 @@ function _evtPeriod(row) {
     const sell = row.hold ? 'hold' : ageMonthToLabel(row.saleAge||ea, 12);
     return acq + ' – ' + sell;
   }
+  if (row._kind === 'deal') {
+    const cap = row.capital||{}, ret = row.returns||{}, ex = row.exit||{};
+    const _ymFmt = s => { if (!s) return null; const [y,m] = s.split('-').map(Number); return _MONTHS[(m||1)-1] + " '" + String(y).slice(2); };
+    // Outflow start: prefer cap date, fall back to tagged expense, then returns from
+    let startLbl = null;
+    if (cap.date || cap.startDate || ret.from) startLbl = _ymFmt(cap.date || cap.startDate || ret.from);
+    if (!startLbl) {
+      const tagExp = (S.expenses||[]).filter(e => e.dealId === row.id && e.enabled !== false);
+      if (tagExp.length) startLbl = ageMonthToLabel(tagExp[0].atAge||sa, tagExp[0].atMonth||1);
+    }
+    // End: prefer exit date, fall back to returns to, then tagged income end
+    let endLbl = null;
+    if (ex.type !== 'none' && ex.date) endLbl = _ymFmt(ex.date);
+    if (!endLbl && ret.to) endLbl = _ymFmt(ret.to);
+    if (!endLbl) {
+      const tagInc = (S.incomes||[]).filter(i => i.dealId === row.id && i.enabled !== false);
+      if (tagInc.length) endLbl = ageMonthToLabel(tagInc[tagInc.length-1].to||ea, 12);
+    }
+    if (startLbl && endLbl) return startLbl + ' – ' + endLbl;
+    if (startLbl) return startLbl + ' →';
+    if (endLbl) return '→ ' + endLbl;
+    return ageMonthToLabel(row._ps||sa, 1);
+  }
   return '';
 }
 
