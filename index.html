@@ -5821,11 +5821,11 @@ function _dealExitBlock(d) {
   return `<div class="deal-block">
     <div class="deal-blk-title">Exit / Sale</div>
     <div class="deal-type-sel">
-      <button class="deal-tbtn${t==='none'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{type:'none'});renderEvents();go()">None</button>
-      <button class="deal-tbtn${t==='auto'&&!isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit?.date&&((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date<'2090-01'?((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date:''});renderEvents();go()">Auto</button>
-      <button class="deal-tbtn${isHold?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:'2100-01'});renderEvents();go()">Hold</button>
-      <button class="deal-tbtn${t==='manual'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderEvents();go()">Manual</button>
-      <button class="deal-tbtn${t==='appreciation'?' dtact':''}" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'appreciation'});renderEvents();go()">Appreciation</button>
+      <button class="deal-tbtn${t==='none'?' dtact':''}" title="No exit — deal has no planned sale or terminal cash event" onclick="event.stopPropagation();upD('${d.id}','exit',{type:'none'});renderEvents();go()">None</button>
+      <button class="deal-tbtn${t==='auto'&&!isHold?' dtact':''}" title="Asset appreciates at a set rate and sells at a specific date — exit proceeds = appreciated value minus costs" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit?.date&&((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date<'2090-01'?((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit.date:''});renderEvents();go()">Auto</button>
+      <button class="deal-tbtn${isHold?' dtact':''}" title="Asset appreciates at a set rate but is never sold within the simulation — stays illiquid" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'auto',date:'2100-01'});renderEvents();go()">Hold</button>
+      <button class="deal-tbtn${t==='manual'?' dtact':''}" title="You set the exact sale price — useful when the exit value is independent of what you put in (e.g. business on someone else's land)" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'manual'});renderEvents();go()">Manual</button>
+      <button class="deal-tbtn${t==='appreciation'?' dtact':''}" title="Exit value = outflow × (1 + rate)^years — good when you expect to recover more or less than you put in, proportionally" onclick="event.stopPropagation();upD('${d.id}','exit',{...((S.deals||[]).find(x=>x.id==='${d.id}')||{}).exit,type:'appreciation'});renderEvents();go()">Appreciation</button>
     </div>
     ${isHold ? `<div style="font-size:11px;color:#a0aec0;">Appreciates at ${ex.rate||0}%/yr · no sale within simulation.</div>
     <div class="deal-frow" style="margin-top:4px;"><span class="deal-flbl">Basis</span><input type="text" class="iamt" value="${fmtInput(ex.basis||0)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="event.stopPropagation();upDf('${d.id}','exit','basis',parseNum(this.value));go()" onclick="event.stopPropagation()"><span class="deal-iunit">USD</span></div>
@@ -6224,12 +6224,12 @@ function _renderDealExpandCard(d) {
   <div class="deal-body" style="padding:0;">
     ${showCap ? _dealCapBlock(d) : ''}
     ${showRet ? _dealRetBlock(d) : ''}
-    ${_dealExitBlock(d)}
     <div class="deal-block">
       <div class="deal-blk-title">Color</div>
       <div class="deal-color-row">${_DEAL_COLORS.map(c=>`<div class="deal-swatch${d.color===c?' dsact':''}" style="background:${c}" title="${c}" onclick="event.stopPropagation();upD('${d.id}','color','${c}');renderEvents();go()"></div>`).join('')}</div>
     </div>
   </div>${subSections}
+  <div class="deal-body" style="padding:0;">${_dealExitBlock(d)}</div>
 </div>`;
 }
 
