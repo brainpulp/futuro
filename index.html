@@ -2776,7 +2776,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
             const [cy, cm] = cap.date.split('-').map(Number);
             if (_yr === cy && mo === cm) {
               const _ex = d.exit || {};
-              da.cv = _ex.baseType === 'custom' ? (_ex.basis || 0) : (cap.amount || _ex.basis || 0);
+              da.cv = _ex.baseType === 'custom' ? (_ex.basis || 0) : (cap.amount || cap.totalAmount || 0);
             }
           }
         }
@@ -2789,7 +2789,9 @@ function runSim(monthlyOverride, yieldRateOverride) {
           if (_yr === ey && mo === em) {
             let net;
             if (ex.manualPrice != null && ex.manualPrice !== '') {
-              net = Number(ex.manualPrice) * (1 - (ex.sellingCosts || 0) / 100);
+              const _mp = Number(ex.manualPrice);
+              if (da) da.cv = _mp;  // snap iliq carrying value to actual sale price
+              net = _mp * (1 - (ex.sellingCosts || 0) / 100);
             } else if (da && da.cv > 0) {
               // Exact float — no rounding — mirrors property liq += p.cv (exact) behaviour
               net = da.cv * (1 - (ex.sellingCosts || 0) / 100);
@@ -3098,6 +3100,30 @@ window._selfTest = function() {
     const dispAmtYr = (fakeYearlyDot.txns[0].type === 'annual' && !fakeYearlyDot.isYearly) ? fakeYearlyDot.txns[0].amount * 12 : fakeYearlyDot.txns[0].amount;
     assert('T11b annual yearly tooltip not double-multiplied', dispAmtYr === -6000, `got ${dispAmtYr}`);
   } catch(e) { err('T11 annual tooltip', e.message); }
+
+  // ── T12: manualPrice exit — net worth conservation (liq + iliq unchanged at sale) ──
+  try {
+    const d12 = simWith({ ...BASE,
+      deals: [{
+        id: 'd_t12', name: 'T12Deal', enabled: true, color: '#888',
+        capital: { type: 'oneoff', amount: 100000, date: '2027-01' },
+        returns: { type: 'none' },
+        exit: { type: 'manual', manualPrice: 60000, sellingCosts: 0, date: '2028-01' }
+      }]
+    });
+    // Dec 2027: capital paid (liq -100k, iliq +100k). Jan 2028: manual exit at 60k.
+    // After snap: iliq loses 60k, liq gains 60k → net Δ(liq+iliq) = 0 that month.
+    const mDec = d12.monthly.find(m => m.year === 2027 && m.mo === 12);
+    const mJan = d12.monthly.find(m => m.year === 2028 && m.mo === 1);
+    if (mDec && mJan) {
+      const nwBefore = mDec.liq + mDec.iliq;
+      const nwAfter  = mJan.liq  + mJan.iliq;
+      // net worth should not change at exit (just iliq → liq conversion)
+      assert('T12 manualPrice exit conserves net worth', near(nwAfter, nwBefore, 500), `before=${Math.round(nwBefore)} after=${Math.round(nwAfter)} delta=${Math.round(nwAfter-nwBefore)}`);
+    } else {
+      err('T12 manualPrice exit', `missing month rows dec=${!!mDec} jan=${!!mJan}`);
+    }
+  } catch(e) { err('T12 manualPrice exit', e.message); }
 
   const total = pass.length + fail.length;
   const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
