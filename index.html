@@ -2531,7 +2531,9 @@ function _dealCashflow(deal, year, mo, da) {
     if (year === ey && mo === em) {
       let net;
       if (ex.manualPrice != null && ex.manualPrice !== '') {
-        net = Number(ex.manualPrice) * (1 - (ex.sellingCosts || 0) / 100);
+        const _mp = Number(ex.manualPrice);
+        if (da) da.cv = _mp;  // snap iliq carrying value to actual sale price (mirrors pre-yield fix)
+        net = _mp * (1 - (ex.sellingCosts || 0) / 100);
       } else if (da && da.cv > 0) {
         // Exact float — no rounding — mirrors property liq += p.cv (exact) behaviour
         net = da.cv * (1 - (ex.sellingCosts || 0) / 100);
