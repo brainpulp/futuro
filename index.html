@@ -6439,8 +6439,8 @@ function showTxnTooltip(dot, cx, cy) {
     const clickable = t.id != null && t.arr;
     const item = clickable ? (S[t.arr]||[]).find(x => x.id === t.id) : null;
     const enabled = item ? item.enabled !== false : true;
-    const togBtn = item ? `<button id="tt-tog-${t.id}" onclick="event.stopPropagation();_txnToggleEnabled(${t.id},'${t.arr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:${enabled?1:0.4};flex-shrink:0;" title="${enabled?'Disable':'Enable'}">${enabled?'●':'○'}</button>` : '';
-    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="scrollToEvent(${JSON.stringify(t.id)},'${t.arr}')"`:''}">
+    const togBtn = item ? `<button id="tt-tog-${t.id}" onclick="event.stopPropagation();_txnToggleEnabled('${t.id}','${t.arr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:${enabled?1:0.4};flex-shrink:0;" title="${enabled?'Disable':'Enable'}">${enabled?'●':'○'}</button>` : '';
+    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="scrollToEvent('${t.id}','${t.arr}')"`:''}">
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
@@ -6479,7 +6479,7 @@ function scrollToEvent(id, arr) {
   }, 60);
 }
 function _txnToggleEnabled(id, arr) {
-  const item = (S[arr]||[]).find(x => x.id === id);
+  const item = (S[arr]||[]).find(x => String(x.id) === String(id));
   if (!item) return;
   item.enabled = item.enabled === false ? true : false;
   const on = item.enabled !== false;
