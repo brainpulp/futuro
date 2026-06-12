@@ -6512,8 +6512,15 @@ function _kindIcon(kind) {
 
 function openEventPopup(id, arr) {
   hideTxnTooltip();
-  _modalEventId = String(id);
-  _modalEventArr = arr;
+  // Deal sub-items (expenses/incomes with dealId) aren't in _normalizeEvents — redirect to parent deal
+  const item = (S[arr]||[]).find(x => String(x.id) === String(id));
+  if (item && item.dealId) {
+    _modalEventId = String(item.dealId);
+    _modalEventArr = 'deals';
+  } else {
+    _modalEventId = String(id);
+    _modalEventArr = arr;
+  }
   _refreshEventModal();
   document.getElementById('event-modal').style.display = 'block';
 }
