@@ -2799,7 +2799,8 @@ function runSim(monthlyOverride, yieldRateOverride) {
             // This makes the net-worth curve smooth rather than flat-then-cliff.
             const [cY, cM] = da.capDate.split('-').map(Number);
             const [eY, eM] = da.exitDate.split('-').map(Number);
-            const totalMo = (eY - cY) * 12 + (eM - cM);
+            // -1: reach exitPrice one month before exit fires, so exit month has no depreciation step
+            const totalMo = (eY - cY) * 12 + (eM - cM) - 1;
             const elapsed  = (_yr - cY) * 12 + (mo  - cM);
             if (totalMo > 0) {
               const t = Math.min(Math.max(elapsed / totalMo, 0), 1);
@@ -3146,8 +3147,9 @@ window._selfTest = function() {
     if (mDec && mJan) {
       const nwBefore = mDec.liq + mDec.iliq;
       const nwAfter  = mJan.liq  + mJan.iliq;
-      // T12a: net worth conserved at exit (no cliff)
-      assert('T12a manualPrice exit conserves net worth', near(nwAfter, nwBefore, 500), `before=${Math.round(nwBefore)} after=${Math.round(nwAfter)} delta=${Math.round(nwAfter-nwBefore)}`);
+      // T12a: exit month loses only expenses (no cliff from iliq mismatch)
+      // iliq reaches exitPrice one month before exit, so exit = clean iliq→liq swap + expenses
+      assert('T12a manualPrice exit conserves net worth', near(nwAfter, nwBefore - 1000, 200), `before=${Math.round(nwBefore)} after=${Math.round(nwAfter)} delta=${Math.round(nwAfter-nwBefore)}`);
       // T12b: iliq in Dec 2027 should be ~63,333 (11/12 of the way from 100k→60k), not still 100k
       assert('T12b iliq depreciates smoothly (no cliff)', mDec.iliq < 70000, `expected iliq<70000 at Dec2027 (smooth depreciation), got ${Math.round(mDec.iliq)}`);
     } else {
@@ -6440,7 +6442,7 @@ function showTxnTooltip(dot, cx, cy) {
     const item = clickable ? (S[t.arr]||[]).find(x => x.id === t.id) : null;
     const enabled = item ? item.enabled !== false : true;
     const togBtn = item ? `<button id="tt-tog-${t.id}" onclick="event.stopPropagation();_txnToggleEnabled('${t.id}','${t.arr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:${enabled?1:0.4};flex-shrink:0;" title="${enabled?'Disable':'Enable'}">${enabled?'●':'○'}</button>` : '';
-    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="scrollToEvent('${t.id}','${t.arr}')"`:''}">
+    return `<div id="tt-row-${t.id}" class="tt-row" style="${enabled?'':'opacity:0.45;'}${clickable?'':'cursor:default;'}" ${clickable?`onclick="scrollToEvent('${t.id}','${t.arr}')"`:''}>
       <div class="tt-dot" style="background:${col}"></div>
       <div class="tt-name">${t.name}</div>
       <div class="tt-badge">${badge}</div>
