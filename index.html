@@ -6521,6 +6521,9 @@ function openEventPopup(id, arr) {
     _modalEventId = String(id);
     _modalEventArr = arr;
   }
+  // Blur any focused input so the guard in _refreshEventModal doesn't skip the DOM update
+  const ae = document.activeElement;
+  if (ae && document.getElementById('event-modal')?.contains(ae)) ae.blur();
   _refreshEventModal();
   document.getElementById('event-modal').style.display = 'block';
 }
