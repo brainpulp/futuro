@@ -540,7 +540,39 @@ body:not([data-theme="graphite"]) #txn-tip .tt-name { color: #1a1f36; }
 #txn-tip .tt-hint { font-size: 9px; color: #475569; margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.05); }
 body:not([data-theme="graphite"]) #txn-tip .tt-hint { border-color: #f0f2f8; color: #8792a2; }
 
-/* ── TRANSACTION EDIT MODAL ─────────────────────────────────── */
+/* ── EVENT POPUP MODAL ──────────────────────────────────────── */
+#event-modal { position:fixed;inset:0;z-index:2000;display:none; }
+#event-modal-bg { position:absolute;inset:0;background:rgba(0,0,0,.45); }
+#event-modal-card {
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:#1e293b;border:1px solid #334155;border-radius:12px;
+  padding:0;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto;
+  box-shadow:0 12px 40px rgba(0,0,0,.65);
+}
+body:not([data-theme="graphite"]) #event-modal-card { background:#fff;border-color:#e6ebf1;box-shadow:0 8px 30px rgba(0,0,0,.18); }
+#event-modal-head {
+  display:flex;align-items:center;gap:7px;
+  padding:12px 14px 8px;border-bottom:1px solid rgba(255,255,255,.07);
+}
+body:not([data-theme="graphite"]) #event-modal-head { border-color:#f0f2f8; }
+#event-modal-head input.iname { font-size:13px!important;font-weight:700!important;flex:1;min-width:0; }
+#event-modal-body { padding:0 14px 14px; }
+#event-modal-body .expand-card { margin:8px 0 0!important;border-radius:8px!important; }
+/* icon badge in rows and modal */
+.evt-icon { display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;font-size:10px;font-weight:800;flex-shrink:0;line-height:1; }
+.evt-icon.exp { background:#fde8e8;color:#E05252; }
+.evt-icon.inc { background:#d1fae5;color:#059669; }
+.evt-icon.deal { background:#ede9fe;color:#7c3aed; }
+.evt-icon.prop { background:#dbeafe;color:#2563eb; }
+body[data-theme="graphite"] .evt-icon.exp { background:rgba(224,82,82,.18);color:#f87171; }
+body[data-theme="graphite"] .evt-icon.inc { background:rgba(26,140,95,.18);color:#34d399; }
+body[data-theme="graphite"] .evt-icon.deal { background:rgba(139,92,246,.18);color:#a78bfa; }
+body[data-theme="graphite"] .evt-icon.prop { background:rgba(74,144,217,.18);color:#60a5fa; }
+/* event name display in list row */
+.ename { font-size:13px;font-weight:600;color:#1a1f36;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer; }
+body[data-theme="graphite"] .ename { color:#e2e8f0; }
+.item-row.evt-active { background:rgba(99,91,255,.08)!important; }
+body[data-theme="graphite"] .item-row.evt-active { background:rgba(99,91,255,.22)!important; }
 
 /* ── CHART BOX ─────────────────────────────────────────────── */
 .chart-box {
@@ -1143,8 +1175,15 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
     <!-- Drag/hover value tooltip -->
     <div id="drag-tip" style="display:none;position:fixed;background:rgba(10,10,10,0.85);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;pointer-events:none;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
     <!-- Transaction hover tooltip -->
-    <div id="txn-tip" onmouseleave="hideTxnTooltip()"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to scroll to item</div></div>
-    <!-- Transaction edit modal -->
+    <div id="txn-tip" onmouseleave="hideTxnTooltip()"><div class="tt-month" id="txn-tip-month"></div><div id="txn-tip-rows"></div><div class="tt-hint">Click to open details</div></div>
+    <!-- Event detail popup modal -->
+    <div id="event-modal">
+      <div id="event-modal-bg" onclick="closeEventPopup()"></div>
+      <div id="event-modal-card" onclick="event.stopPropagation()">
+        <div id="event-modal-head"></div>
+        <div id="event-modal-body"></div>
+      </div>
+    </div>
     <div id="sync-ticker">
       <span class="tick-icon" id="tick-icon">📡</span>
       <span id="tick-msg">Syncing…</span>
@@ -1635,6 +1674,7 @@ let SCENARIOS = [];
 let activeScenarioId = null;
 let S = deepCopy(EMPTY);
 let nextId = 1000, chart = null, chart3 = null, openId = null, _maxTimer = null;
+let _modalEventId = null, _modalEventArr = null;
 let _chartZoom = parseInt(localStorage.getItem('futuro-chart-zoom') || '10');
 let _lastMaxMonthly = 0;
 let _danceT = 0, _danceRaf = null;
@@ -4917,8 +4957,12 @@ document.addEventListener('click', e => {
   }
 });
 
-// Pressing Enter inside an expanded card collapses it
+// Pressing Enter or Escape closes the event modal
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _modalEventId) { e.target.blur(); closeEventPopup(); return; }
+  if (e.key === 'Enter' && _modalEventId && e.target.closest('#event-modal-card')) {
+    e.target.blur(); return; // blur without closing — let user tab through fields
+  }
   if (e.key === 'Enter' && openId !== null && e.target.closest('.expand-card')) {
     e.target.blur();
     openId = null; renderAll(); go();
@@ -5439,8 +5483,8 @@ function _oldRenderInc_unused() {
     : `<div style="padding:3px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— none —</div>`;
 }
 function upI(id,f,v) { S.incomes=S.incomes.map(i=>i.id===id?{...i,[f]:v}:i); }
-function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
-function addI(type='monthly')  { const id=nid(); S.incomes.push({id,name:'Income',type,monthly:1000,amount:1000,from:S.startAge,to:S.endAge,atAge:S.startAge,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderEvents(); go(); }
+function rmI(id) { S.incomes=S.incomes.filter(i=>i.id!==id); if(openId===id)openId=null; if(String(_modalEventId)===String(id))closeEventPopup(); renderEvents(); go(); }
+function addI(type='monthly')  { const id=nid(); S.incomes.push({id,name:'Income',type,monthly:1000,amount:1000,from:S.startAge,to:S.endAge,atAge:S.startAge,fromMonth:1,toMonth:12,enabled:true}); renderEvents(); openEventPopup(id,'incomes'); go(); }
 
 // ── One-off date helpers ──
 const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5634,8 +5678,8 @@ function renderExp() { renderEvents(); }
 function renderInc() { renderEvents(); }
 function renderProps() { renderEvents(); }
 function upE(id,f,v) { S.expenses=S.expenses.map(e=>e.id===id?{...e,[f]:v}:e); }
-function rmE(id) { S.expenses=S.expenses.filter(e=>e.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
-function addE(type='monthly')  { const id=nid(); S.expenses.push({id,name:'Expense',amount:1000,type,from:S.startAge,to:S.endAge,atAge:S.startAge,atMonth:1,fromMonth:1,toMonth:12,enabled:true}); openId=id; renderEvents(); go(); }
+function rmE(id) { S.expenses=S.expenses.filter(e=>e.id!==id); if(openId===id)openId=null; if(String(_modalEventId)===String(id))closeEventPopup(); renderEvents(); go(); }
+function addE(type='monthly')  { const id=nid(); S.expenses.push({id,name:'Expense',amount:1000,type,from:S.startAge,to:S.endAge,atAge:S.startAge,atMonth:1,fromMonth:1,toMonth:12,enabled:true}); renderEvents(); openEventPopup(id,'expenses'); go(); }
 
 // ── Real estate ──
 function _oldRenderProps_unused() {
@@ -5685,8 +5729,8 @@ ${appOpen ? `<div class="expand-card" style="margin:-2px 0 4px;padding:8px 12px;
 }
 
 function upP(id,f,v) { S.properties=S.properties.map(p=>p.id===id?{...p,[f]:v}:p); }
-function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; renderEvents(); go(); }
-function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); openId=id; renderEvents(); go(); }
+function rmP(id) { S.properties=S.properties.filter(p=>p.id!==id); if(openId===id)openId=null; if(String(_modalEventId)===String(id))closeEventPopup(); renderEvents(); go(); }
+function addP()  { const id=nid(); S.properties.push({id,name:'Property',value:300000,monthlyRent:0,acquireAge:S.startAge,rentFromAge:S.startAge,saleAge:S.endAge,hold:false,enabled:true}); renderEvents(); openEventPopup(id,'properties'); go(); }
 
 function renderAll() { renderCurve(); renderEvents(); renderProjectBudgets(); }
 
@@ -5990,6 +6034,7 @@ function upDf(id, block, field, val) {
 function rmD(id) {
   S.deals = (S.deals||[]).filter(d => d.id !== id);
   if (_openDealId === id) _openDealId = null;
+  if (String(_modalEventId) === String(id)) closeEventPopup();
   renderEvents(); go();
 }
 function addD() {
@@ -5999,8 +6044,7 @@ function addD() {
     color: _DEAL_COLORS[S.deals.length % _DEAL_COLORS.length],
     capital: {type:'none'}, returns: {type:'none'}, exit: {type:'none'}
   });
-  _openDealId = id;
-  renderEvents(); go();
+  renderEvents(); openEventPopup(id,'deals'); go();
 }
 
 // ── Unified Events Table ──────────────────────────────────────
@@ -6129,7 +6173,7 @@ function _renderIncExpandCard(inc) {
   return `<div class="expand-card grn" style="margin:-2px 0 4px;border-radius:0 0 8px 8px;padding:8px 12px;" onclick="event.stopPropagation()">
   <div style="display:grid;grid-template-columns:${cols};gap:8px;">
     <div><label class="lbl">Amount</label><input type="text" value="${fmtInput(oo?inc.amount:inc.monthly)}" onfocus="moneyFocus(this)" onblur="moneyBlur(this)" onchange="upI(${inc.id},'${oo?'amount':'monthly'}',parseNum(this.value));go()"></div>
-    <div><label class="lbl">Type</label><select onchange="upI(${inc.id},'type',this.value);renderEvents();go();">
+    <div><label class="lbl">Type</label><select onchange="incTypeChanged(${inc.id},this.value)">
       <option value="monthly"${inc.type==='monthly'?' selected':''}>Monthly</option>
       <option value="annual"${inc.type==='annual'?' selected':''}>Annual</option>
       <option value="oneoff"${oo?' selected':''}>One-off</option>
@@ -6310,8 +6354,7 @@ function _renderDealExpandCard(d) {
 
 function renderEventRow(row) {
   const rowId = String(row.id);
-  const isOpen = openId===rowId;
-  const dotClr = row._kind==='expense'?'#E05252':row._kind==='income'?'#1A8C5F':row._kind==='deal'?'#8b5cf6':'#4A90D9';
+  const isDeal = row._kind==='deal';
   const moClr  = row._mo>0?'#1A8C5F':row._mo<0?'#E05252':'#c1cad4';
   const otClr  = row._ot>0?'#1A8C5F':row._ot<0?'#E05252':'#c1cad4';
   const moStr  = row._mo!==0?(row._mo>0?'+':'')+_fmtK(row._mo)+'/mo':'—';
@@ -6319,27 +6362,20 @@ function renderEventRow(row) {
   const beMo   = (row._ot<0&&row._mo>0)?Math.round(Math.abs(row._ot)/row._mo):0;
   const beStr  = beMo>0?(beMo>=24?Math.round(beMo/12)+'yr':beMo+'mo'):'—';
   const period = _evtPeriod(row);
-  const isDeal = row._kind==='deal';
   const togFn  = row._kind==='expense'?`togE(${row.id})`:row._kind==='income'?`togI(${row.id})`:isDeal?`toggleDeal('${row.id}')`:`togP(${row.id})`;
   const delFn  = row._kind==='expense'?`rmE(${row.id})`:row._kind==='income'?`rmI(${row.id})`:isDeal?`rmD('${row.id}')`:`rmP(${row.id})`;
-  const nameFn = row._kind==='expense'?`upE(${row.id},'name',this.value)`:row._kind==='income'?`upI(${row.id},'name',this.value)`:isDeal?`upD('${row.id}','name',this.value);renderEvents()`:`upP(${row.id},'name',this.value)`;
-  let card='';
-  if (isOpen) {
-    if (row._kind==='expense') card=_renderExpExpandCard(row);
-    else if (row._kind==='income') card=_renderIncExpandCard(row);
-    else if (isDeal) card=_renderDealExpandCard(row);
-    else card=_renderPropExpandCard(row);
-  }
+  const arrName = row._kind==='expense'?'expenses':row._kind==='income'?'incomes':isDeal?'deals':'properties';
+  const isActive = _modalEventId === rowId;
   return `<div data-event-id="${row.id}">
-  <div class="item-row${row.enabled===false?' disabled-row':''}" onclick="toggle('${row.id}');renderEvents()">
-    <span style="width:7px;height:7px;border-radius:50%;background:${dotClr};flex-shrink:0;display:inline-block;"></span>
-    <input class="iname" type="text" value="${(row.name||'').replace(/"/g,'&quot;')}" onclick="event.stopPropagation()" onchange="${nameFn}">
+  <div class="item-row${row.enabled===false?' disabled-row':''}${isActive?' evt-active':''}" onclick="openEventPopup('${rowId}','${arrName}')">
+    ${_kindIcon(row._kind)}
+    <span class="ename">${(row.name||'—').replace(/</g,'&lt;')}</span>
     <span style="width:74px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:${moClr};flex-shrink:0;">${moStr}</span>
     <span style="width:68px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:${otClr};flex-shrink:0;">${otStr}</span>
     <span style="width:44px;text-align:right;font-size:10px;color:#8792a2;flex-shrink:0;">${beStr}</span>
     <span style="width:110px;font-size:10px;color:#697386;flex-shrink:0;white-space:nowrap;text-align:right;overflow:hidden;text-overflow:ellipsis;">${period}</span>
-    ${sw(row.enabled,togFn)}${xb(delFn)}
-  </div>${card}</div>`;
+    <span onclick="event.stopPropagation()">${sw(row.enabled,togFn)}${xb(delFn)}</span>
+  </div></div>`;
 }
 
 function renderEvents() {
@@ -6360,12 +6396,13 @@ function renderEvents() {
   const si = f2=>_eventsSort.f===f2?(_eventsSort.d===-1?' ↓':' ↑'):'';
   const hEl=document.getElementById('events-col-headers');
   if (hEl) hEl.innerHTML=`<div class="events-hdr">
+    <span style="width:18px;flex-shrink:0;"></span>
     <span style="flex:1;" onclick="sortEvents('name')">Name${si('name')}</span>
     <span style="width:74px;text-align:right;" onclick="sortEvents('mo')">/mo${si('mo')}</span>
-    <span style="width:68px;text-align:right;" onclick="sortEvents('ot')">One-time${si('ot')}</span>
-    <span style="width:44px;text-align:right;" onclick="sortEvents('be')">Break-even${si('be')}</span>
-    <span style="width:110px;text-align:right;" onclick="sortEvents('period')">Period${si('period')}</span>
-    <span style="width:50px;"></span>
+    <span style="width:68px;text-align:right;" onclick="sortEvents('ot')">P&amp;L${si('ot')}</span>
+    <span style="width:44px;text-align:right;" onclick="sortEvents('be')">Duration${si('be')}</span>
+    <span style="width:110px;text-align:right;" onclick="sortEvents('period')">Dates${si('period')}</span>
+    <span style="width:50px;text-align:center;">● ✕</span>
   </div>`;
   const lEl=document.getElementById('events-list');
   if (lEl) lEl.innerHTML=rows.length?rows.map(renderEventRow).join(''):`<div style="padding:6px 8px;font-size:11px;color:#c1cad4;font-style:italic;">— no events —</div>`;
@@ -6380,6 +6417,7 @@ function renderEvents() {
     <span style="width:204px;"></span>
   </div>`.replace('_fmtK(totMo)',_fmtK(totMo)).replace('_fmtK(totOt)',_fmtK(totOt));
   updateMonthlyBaseSlider();
+  _refreshEventModal();
 }
 
 function syncSettingsPanel() {
@@ -6465,21 +6503,59 @@ function hideTxnTooltip() {
   }, 180);
 }
 
-// ── Transaction edit modal ────────────────────────────────────
-function scrollToEvent(id, arr) {
-  hideTxnTooltip();
-  openId = String(id);
-  renderEvents();
-  // Ensure section is open
-  const body = document.getElementById('sec-body-events');
-  if (body && body.style.display === 'none') toggleSec('events');
-  // Scroll to the row
-  setTimeout(() => {
-    const el = document.querySelector(`[data-event-id="${id}"]`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    else document.getElementById('sec-body-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 60);
+// ── Event popup modal ─────────────────────────────────────────
+function _kindIcon(kind) {
+  const cls = kind==='expense'?'exp':kind==='income'?'inc':kind==='deal'?'deal':'prop';
+  const ch  = kind==='expense'?'↓':kind==='income'?'↑':kind==='deal'?'◆':'⌂';
+  return `<span class="evt-icon ${cls}">${ch}</span>`;
 }
+
+function openEventPopup(id, arr) {
+  hideTxnTooltip();
+  _modalEventId = String(id);
+  _modalEventArr = arr;
+  _refreshEventModal();
+  document.getElementById('event-modal').style.display = 'block';
+}
+
+function closeEventPopup() {
+  _modalEventId = null; _modalEventArr = null;
+  document.getElementById('event-modal').style.display = 'none';
+  renderEvents(); // refresh row highlight
+}
+
+function _refreshEventModal() {
+  if (!_modalEventId || !_modalEventArr) return;
+  const modal = document.getElementById('event-modal');
+  if (!modal || modal.style.display === 'none') return;
+  // Don't clobber a focused text input (user is mid-type)
+  const ae = document.activeElement;
+  if (ae && modal.contains(ae) && (ae.tagName==='INPUT'&&ae.type!=='checkbox'||ae.tagName==='TEXTAREA')) return;
+  const id = _modalEventId, arr = _modalEventArr;
+  const rows = _normalizeEvents();
+  const row = rows.find(r => String(r.id) === id);
+  if (!row) { closeEventPopup(); return; }
+  const kind = row._kind;
+  const togFn = kind==='expense'?`togE(${id})`:kind==='income'?`togI(${id})`:kind==='deal'?`toggleDeal('${id}')`:`togP(${id})`;
+  const delFn = kind==='expense'?`rmE(${id})`:kind==='income'?`rmI(${id})`:kind==='deal'?`rmD('${id}')`:`rmP(${id})`;
+  const nameFn = kind==='expense'?`upE(${id},'name',this.value);renderEvents();go()`
+    :kind==='income'?`upI(${id},'name',this.value);renderEvents();go()`
+    :kind==='deal'?`upD('${id}','name',this.value);renderEvents();go()`
+    :`upP(${id},'name',this.value);renderEvents();go()`;
+  document.getElementById('event-modal-head').innerHTML =
+    `${_kindIcon(kind)}<input type="text" class="iname" style="flex:1;font-size:13px!important;font-weight:700!important;" value="${(row.name||'').replace(/"/g,'&quot;')}" onchange="${nameFn}">` +
+    `<div style="display:flex;gap:3px;">${sw(row.enabled!==false,togFn)}${xb(delFn)}</div>` +
+    `<button onclick="closeEventPopup()" style="background:none;border:none;cursor:pointer;font-size:16px;color:#94a3b8;padding:0 2px;line-height:1;margin-left:2px;">✕</button>`;
+  let cardHtml = '';
+  if (kind==='expense')     cardHtml = _renderExpExpandCard(row);
+  else if (kind==='income') cardHtml = _renderIncExpandCard(row);
+  else if (kind==='deal')   cardHtml = _renderDealExpandCard(row);
+  else                      cardHtml = _renderPropExpandCard(row);
+  document.getElementById('event-modal-body').innerHTML = cardHtml;
+}
+
+// Legacy alias — chart single-txn clicks used to scroll; now open popup
+function scrollToEvent(id, arr) { openEventPopup(id, arr); }
 function _txnToggleEnabled(id, arr) {
   const item = (S[arr]||[]).find(x => String(x.id) === String(id));
   if (!item) return;
@@ -7379,13 +7455,14 @@ function openSec(key) {
 }
 function expTypeChanged(id, value) {
   upE(id, 'type', value);
-  // When switching to installments, seed installTotal from amount if not already set
   if (value === 'installments') {
     const e = S.expenses.find(x => x.id === id);
     if (e && !e.installTotal && e.amount) { e.installTotal = e.amount; e.installN = e.installN || 12; }
   }
-  renderEvents();
-  go();
+  renderEvents(); go();
+}
+function incTypeChanged(id, value) {
+  upI(id, 'type', value); renderEvents(); go();
 }
 function initSections() {
   if (!localStorage.getItem('futuro-sec-exp-installments')) {
