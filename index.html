@@ -6521,11 +6521,13 @@ function openEventPopup(id, arr) {
     _modalEventId = String(id);
     _modalEventArr = arr;
   }
-  // Blur any focused input so the guard in _refreshEventModal doesn't skip the DOM update
+  // Make modal visible first so _refreshEventModal's display guard doesn't skip it
+  const modal = document.getElementById('event-modal');
+  modal.style.display = 'block';
+  // Blur any focused input so the typing guard in _refreshEventModal doesn't skip the DOM update
   const ae = document.activeElement;
-  if (ae && document.getElementById('event-modal')?.contains(ae)) ae.blur();
+  if (ae && modal.contains(ae)) ae.blur();
   _refreshEventModal();
-  document.getElementById('event-modal').style.display = 'block';
 }
 
 function closeEventPopup() {
