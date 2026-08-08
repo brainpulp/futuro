@@ -3,7 +3,18 @@
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
-3. If 22/22 passed → continue. If any fail → fix before touching anything else.
+3. If 39/39 passed → continue. If any fail → fix before touching anything else.
+
+**No browser available?** (remote/CI sessions) Run the suite headlessly with jsdom:
+```bash
+npm install --no-save jsdom          # once per container
+NODE_PATH=$PWD/node_modules node selftest.js index.html
+```
+The runner loads index.html in jsdom, strips CDN `<script src>` tags, stubs
+`getContext()` (jsdom has no canvas backend — without the stub the page script aborts
+partway and later `const`s stay in TDZ), then calls `window._selfTest()`.
+Note `S`, `EMPTY` and `_DEAL_COLORS` are `let`/`const`, so they are NOT on `window` —
+reach them with `window.eval(...)`, not `window.S`.
 
 ## What it is
 Single-file HTML/JS retirement net-worth projector. No build step.
@@ -89,6 +100,45 @@ _dealAssets[d.id] = {
 - Monthly: manual exits → linear interp; auto exits → compound at da.rate/12
 - Exit (pre-yield): snaps `da.cv = manualPrice` before computing net, marks `da.sold = true`
 
+## Cost & return model (added 2026-08-08)
+Scenario-level fields, all with per-asset overrides:
+```js
+S.sellCostRate      // % lost on every sale. Override: exit.sellingCosts / property.sellCosts
+S.propertyTaxRate   // annual % of carrying value, charged monthly. Override: deal.taxRate / property.taxRate
+S.mcVol             // assumed annual σ of market returns (was hardcoded 15 inside _mcParams)
+S.useMedianReturn   // default TRUE — applies σ²/2 volatility drag to the deterministic line
+S.borrowRate        // annual % at which a NEGATIVE liquid balance grows (default 10)
+```
+Helpers: `_sellCostPct(ex)` / `_netOfSellCosts(gross, ex)` / `_taxPct(obj)` /
+`_monthlyPropTax(cv, obj)` / `_propTaxThisMonth(props, dealAssets)` / `_liqMonthlyRate(liq, yld)` / `volDrag()`.
+
+**Override resolution:** unset/`''` → falls through to the global; an explicit `0` is honoured.
+So never write `sellingCosts: 0` when you mean "unset" — that masks the global default.
+The property→deal migration used to do exactly this; `ensureFields` now strips those
+auto-generated zeros once, behind the `S._migSellCosts` flag.
+
+**Volatility drag must not stack with the Monte Carlo.** MC draws around the *arithmetic*
+mean, and its spread already produces the median path. `runMonteCarlo` sets `_mcActive`
+so `volDrag()` returns 0 for the duration of the run. Restore it in a `finally`.
+
+**Inflation convention:** everything entered is in TODAY's money.
+- Inflated: base spend, trips, recurring (`monthly`/`annual`) expenses AND incomes.
+- Nominal: `oneoff` items, `installments`, and deal capital/returns — these are
+  contractual amounts fixed at a specific date.
+Expenses and incomes MUST be treated symmetrically; T16b enforces it.
+
+## Known bugs fixed (2026-08-08)
+| Bug | Root cause | Fix |
+|-----|-----------|-----|
+| In-progress installments stopped firing | `_installFires` compared `paidSoFar + slot < installN`, but `slot` was already absolute from plan start — so elapsed time counted twice. A >50%-elapsed plan contributed **zero** future outflows | Track `slotAtStart`; re-base to the sim's first month via `_installNum()` |
+| Property sales credited 100% of value | Sale did `liq += p.cv` with no transaction costs; `deal_prop_*` exits were stamped `sellingCosts: 0` | `S.sellCostRate` global + per-asset override; migration no longer writes the literal 0 |
+| Itemised expenses never inflated | `exp += e.amount` (face value) while incomes used `i.monthly * f` — trips stayed nominal for 30 years too | Recurring expenses and trips now multiply by `f` |
+| Headline line overstated the typical outcome | Deterministic sim compounded the arithmetic mean; ~half of real outcomes fall below it | `useMedianReturn` subtracts σ²/2 |
+| Shortfalls compounded at the portfolio yield | `liq *= (1 + mYld)` applied the investment return to a negative balance | `_liqMonthlyRate()` switches to `S.borrowRate` when `liq < 0` |
+| Gastos actuals double-counted | Past months used the Gastos actual as the base, then added itemised expenses on top | Items with a `gastosCategory` are skipped when an actual exists for that month |
+| Expense curve froze at its baking rate | `applyExpenseCeiling` baked with the then-current inflation and was never redone | `S.expenseAnchor` + `rebakeExpenseCurve()` on the inflation slider |
+| T3 silently broke in August | Asserted on a July row; the start-year loop begins at the current month | Assert on December |
+
 ## Known bugs fixed (2026-06-10)
 | Bug | Root cause | Fix |
 |-----|-----------|-----|
@@ -101,11 +151,25 @@ For any month: `Δ(liq + iliq)` should equal `income - expenses + mktGain`.
 At a manual exit: liq += net, iliq -= cv (which was snapped to manualPrice) → Δ = 0. ✓
 T12a/T12b regression tests enforce this.
 
-## Self-test suite — 22 assertions
+## Self-test suite — 39 assertions
 T1–T10: existing (yield, rent, property sale, market, inflation, ensureFields)
 T11/T11b: annual tooltip shows full annual amount
 T12a: manualPrice exit conserves net worth (Δ(liq+iliq) ≈ 0 at exit month)
 T12b: iliq depreciates smoothly before exit (no cliff — checks mid-hold value)
+T13a–d: in-progress installment plans fire all REMAINING payments, numbered correctly
+T14a–c: selling costs — none / global default / per-asset override
+T15a–c: property tax charged while held, stops at sale, silent at 0%
+T16a–b: recurring expenses inflate, and identically to recurring incomes
+T17a–c: volatility drag puts the median line below the mean line by ≈σ²/2
+T18a–b: negative balances accrue at `borrowRate`, not the portfolio yield
+
+**BASE fixture opts out of the new defaults** (`useMedianReturn:false`, `borrowRate:0`,
+`sellCostRate:0`, `propertyTaxRate:0`) so T1–T12 keep asserting raw engine mechanics.
+Any new test that wants the production defaults must set them explicitly.
+
+⚠ T3 reads a **December** row on purpose: the start-year loop begins at the *current*
+month, so any earlier month is simply absent from `out.monthly` once the calendar
+passes it. Never assert on a fixed early month in the start year.
 
 ## Open / pending
 - **Luisma deal**: cap.amount=0, exit.basis=230k, capDate=2036. With the activation fix, da.cv=0 during hold; $230k exits as a windfall via `_dealNetProceeds`. If Luisma represents a pre-existing asset (already paid), cap.type should be 'none' and capDate should be before 2026 so cv initializes at sim start. Needs data review.
