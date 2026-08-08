@@ -3,7 +3,7 @@
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
-3. If 46/46 passed → continue. If any fail → fix before touching anything else.
+3. If 52/52 passed → continue. If any fail → fix before touching anything else.
 
 **No browser available?** (remote/CI sessions) Run the suite headlessly with jsdom:
 ```bash
@@ -36,7 +36,11 @@ drives it with `contentWindow.eval(...)`.
   **hash link is the real transfer path**. "Copy link for another device" builds it.
 - No CDN and no chart library: the area chart is hand-rolled inline SVG.
 - Controls: spend, return, volatility, early crash, inflation, horizon, median toggle,
-  cost toggle, per-asset sale year steppers, per-income switches.
+  cost toggle, per-asset sale price + year steppers, per-income switches, add/remove
+  businesses. Removals and additions are working-scenario only — Reset restores them.
+- ⚠ Text-input handlers must NOT call `renderLists()`: replacing the node that is mid-blur
+  throws "node to be removed is no longer a child". Update the field in place, then
+  `render(true)`. Only button clicks may re-render the list.
 - Sale-year steppers must handle BOTH shapes: plain `S.properties` (`saleAge`/`hold`) and
   migrated deals (`exit.date` as `YYYY-MM`, year 2100 = hold). `assetsOf`/`applyEdits`.
 - ⚠ Never commit real scenario data into mobile.html — the repo is public and deployed.
@@ -128,7 +132,14 @@ S.useMedianReturn   // default TRUE — applies σ²/2 volatility drag to the de
 S.borrowRate        // annual % at which a NEGATIVE liquid balance grows (default 10)
 S.crashYears        // sequence-of-returns stress: N years from startAge pinned to…
 S.crashPct          // …this annual return. crashYears:0 disables. Set together.
+property.salePrice  // agreed sale price for a plain property (deals: exit.manualPrice)
 ```
+
+**`salePrice` mirrors a deal's `manualPrice`, interpolation included.** When set, carrying
+value walks linearly from `_basis` to the price over the hold instead of compounding at
+`appRate` — otherwise the chart shows a cliff at the sale and `Δ(liq+iliq)` breaks. Uses
+the same `-1` month offset so the sale month is a clean iliq→liq swap. `props` carries
+`_basis` from init and from the acquisition-year activation. T21 guards it.
 
 **Crash years outrank everything, including the Monte Carlo.** `getYield` checks
 `_crashRate(age)` *before* the yield curve, so `runMonteCarlo` — which overwrites
@@ -180,6 +191,7 @@ Expenses and incomes MUST be treated symmetrically; T16b enforces it.
 | Shortfalls compounded at the portfolio yield | `liq *= (1 + mYld)` applied the investment return to a negative balance | `_liqMonthlyRate()` switches to `S.borrowRate` when `liq < 0` |
 | Gastos actuals double-counted | Past months used the Gastos actual as the base, then added itemised expenses on top | Items with a `gastosCategory` are skipped when an actual exists for that month |
 | Expense curve froze at its baking rate | `applyExpenseCeiling` baked with the then-current inflation and was never redone | `S.expenseAnchor` + `rebakeExpenseCurve()` on the inflation slider |
+| Sold properties never left the monthly net-worth line | The yearly rows did `props.filter(p => !p.sold)` but BOTH `out.monthly` pushes summed every property, while correctly filtering sold *deals*. A sold property's cv froze and was counted forever, so the monthly chart overstated net worth after every sale | Filter `!p.sold` in both monthly pushes (T21f) |
 | T3 silently broke in August | Asserted on a July row; the start-year loop begins at the current month | Assert on December |
 
 ## Known bugs fixed (2026-06-10)
@@ -194,7 +206,7 @@ For any month: `Δ(liq + iliq)` should equal `income - expenses + mktGain`.
 At a manual exit: liq += net, iliq -= cv (which was snapped to manualPrice) → Δ = 0. ✓
 T12a/T12b regression tests enforce this.
 
-## Self-test suite — 46 assertions
+## Self-test suite — 52 assertions
 T1–T10: existing (yield, rent, property sale, market, inflation, ensureFields)
 T11/T11b: annual tooltip shows full annual amount
 T12a: manualPrice exit conserves net worth (Δ(liq+iliq) ≈ 0 at exit month)
@@ -207,6 +219,8 @@ T17a–d: volatility drag puts the median below the mean by ≈σ²/2; an explic
 T18a–b: negative balances accrue at `borrowRate`, not the portfolio yield
 T19: MC mean blends a partial yield curve with `S.yieldRate` instead of ignoring one
 T20a–e: early-crash years are pinned, recover after the window, and survive the MC
+T21a–f: property `salePrice` overrides appreciation, interpolates, conserves net worth,
+        and a sold property leaves the MONTHLY iliq total
 
 **BASE fixture opts out of the new defaults** (`useMedianReturn:false`, `borrowRate:0`,
 `sellCostRate:0`, `propertyTaxRate:0`) so T1–T12 keep asserting raw engine mechanics.

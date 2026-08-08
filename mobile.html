@@ -52,11 +52,32 @@
     border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:9px}
   .seg button small{display:block;font-size:9px;font-weight:500;opacity:.8;margin-top:1px}
   .seg button[aria-pressed=true]{background:var(--liq);border-color:var(--liq);color:#fff}
-  /* asset rows: name, then a stepper for the year it is sold */
-  .as{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+  /* asset rows: name on top, then price and the year it sells */
+  .as{padding:9px 0;border-top:1px solid var(--line)}
   .as:first-of-type{border-top:none}
-  .as .nm{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .as .nm small{display:block;font-weight:400;color:var(--dim);font-size:11px}
+  .as .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .as .nm{min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .as .nm small{font-weight:400;color:var(--dim);font-size:11px;margin-left:6px}
+  .as .btm{display:flex;align-items:center;gap:8px}
+  .px{flex:1;min-width:0;display:flex;align-items:center;gap:4px;border:1px solid var(--line);
+    border-radius:9px;padding:0 8px;height:34px;background:transparent}
+  .px span{font-size:12px;color:var(--dim);flex-shrink:0}
+  .px input{flex:1;min-width:0;width:100%;border:0;background:transparent;color:var(--ink);
+    font:inherit;font-size:13px;font-weight:700;padding:0;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  .px input:focus{outline:none}
+  .px.set{border-color:var(--liq)}
+  .px.off{opacity:.45}
+  .del{width:32px;height:32px;padding:0;flex-shrink:0;font-size:16px;color:var(--dim);
+    display:flex;align-items:center;justify-content:center;border-radius:8px}
+  .add{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .add input{border:1px solid var(--line);border-radius:9px;padding:0 9px;height:36px;
+    background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%}
+  .add input:focus{outline:2px solid var(--liq);outline-offset:-1px}
+  .add .wide{grid-column:1 / -1}
+  .add label{display:block;min-width:0}
+  .fl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--dim);font-weight:600;margin-bottom:3px}
   .stp{display:flex;align-items:center;gap:0;flex-shrink:0}
   .stp button{width:32px;height:32px;padding:0;font-size:17px;font-weight:600;border-radius:8px;
     color:var(--ink);display:flex;align-items:center;justify-content:center}
@@ -148,12 +169,15 @@
 <div class="card" id="assetsCard" hidden>
   <h2>When you sell</h2>
   <div id="assets"></div>
-  <p class="hint" style="margin:8px 0 0">Push a sale past your plan's end and it becomes “hold” — the property stays yours and never turns into cash.</p>
+  <p class="hint" style="margin:8px 0 0">Leave a price blank to let it appreciate on its own. Push a sale past your plan's end and it becomes “hold” — the property stays yours and never turns into cash.</p>
 </div>
 
 <div class="card" id="incomeCard" hidden>
-  <h2>Income</h2>
+  <h2>Income &amp; businesses</h2>
   <div id="incomes"></div>
+  <div style="height:10px"></div>
+  <button type="button" id="addBiz">+ Add a business</button>
+  <p class="hint" style="margin:8px 0 0">Removing one takes it out of this projection entirely. “Reset” brings it back — nothing here changes your saved plan.</p>
 </div>
 
 <div class="card">
@@ -265,8 +289,9 @@
 
   // Per-asset sale ages and per-income switches, keyed so they survive a re-render.
   // null age = hold (never sold). Empty until the user actually changes something.
-  let edits = { sales: {}, income: {} };
+  let edits = { sales: {}, price: {}, income: {}, gone: [], added: [] };
   let crash = { y: 0, p: 0 };
+  let nextBizId = 1;
 
   // Sellable assets come from two places: plain properties, and deals that have an exit.
   // Older scenarios use the first, migrated ones the second, so handle both.
@@ -276,7 +301,8 @@
     (s.properties || []).forEach(p => {
       if (p.enabled === false) return;
       out.push({ key: 'p:' + p.id, name: p.name || 'Property', value: p.value || 0,
-                 age: p.hold ? null : (p.saleAge ?? null) });
+                 age: p.hold ? null : (p.saleAge ?? null),
+                 price: p.salePrice == null || p.salePrice === '' ? null : +p.salePrice });
     });
     (s.deals || []).forEach(d => {
       const ex = d.exit || {};
@@ -284,7 +310,8 @@
       const [y, m] = String(ex.date).split('-').map(Number);
       const age = sa + (y - sy);
       out.push({ key: 'd:' + d.id, name: d.name || 'Deal', value: ex.basis || 0,
-                 age: age > ea ? null : age, mo: m || 6 });
+                 age: age > ea ? null : age, mo: m || 6,
+                 price: ex.manualPrice == null || ex.manualPrice === '' ? null : +ex.manualPrice });
     });
     return out;
   }
@@ -294,6 +321,8 @@
     (s.properties || []).forEach(p => {
       const e = edits.sales['p:' + p.id];
       if (e !== undefined) { if (e === null) { p.hold = true; } else { p.hold = false; p.saleAge = e; } }
+      const px = edits.price['p:' + p.id];
+      if (px !== undefined) { if (px === null) delete p.salePrice; else p.salePrice = px; }
       // A sale scheduled past the horizon can never fire — treat it as a hold instead
       // of leaving a sale stranded one year beyond the end of the simulation.
       if (!p.hold && p.saleAge > ea) { p.hold = true; }
@@ -306,11 +335,23 @@
       if (e !== undefined) ex.date = (e === null ? 2100 : sy + (e - sa)) + '-' + mo;
       const y = +String(ex.date).split('-')[0];
       if (sa + (y - sy) > ea && y !== 2100) ex.date = '2100-' + mo;
+      const px = edits.price['d:' + d.id];
+      if (px !== undefined) {
+        if (px === null) delete ex.manualPrice;
+        // A fixed price only means anything against a real exit, so promote 'none'.
+        else { ex.manualPrice = px; if (ex.type === 'none') ex.type = 'manual'; }
+      }
     });
-    (s.incomes || []).forEach(i => {
-      const e = edits.income[i.id];
-      if (e !== undefined) i.enabled = e;
-    });
+    s.incomes = (s.incomes || [])
+      .filter(i => !edits.gone.includes(String(i.id)))
+      .map(i => {
+        const e = edits.income[i.id];
+        return e === undefined ? i : { ...i, enabled: e };
+      })
+      .concat(edits.added.filter(a => a.enabled !== false).map(a => ({
+        id: a.id, name: a.name, type: 'monthly', monthly: a.monthly,
+        from: a.from, to: a.to, fromMonth: 1, toMonth: 12, enabled: true,
+      })));
     return s;
   }
 
@@ -355,11 +396,22 @@
     $('assets').innerHTML = list.map(a => {
       const held = a.age === null;
       return `<div class="as">
-        <div class="nm">${esc(a.name)}${a.value ? `<small>${fmt(a.value)}</small>` : ''}</div>
-        <div class="stp">
-          <button type="button" data-k="${esc(a.key)}" data-d="-1" aria-label="Sell ${esc(a.name)} earlier"${(!held && a.age <= sa + 1) ? ' disabled' : ''}>−</button>
-          <span class="n${held ? ' hold' : ''}">${held ? 'hold' : a.age}</span>
-          <button type="button" data-k="${esc(a.key)}" data-d="1" aria-label="Sell ${esc(a.name)} later"${held ? ' disabled' : ''}>+</button>
+        <div class="top">
+          <span class="nm">${esc(a.name)}${a.value ? `<small>worth ${fmt(a.value)}</small>` : ''}</span>
+        </div>
+        <div class="btm">
+          <label class="px${a.price != null ? ' set' : ''}${held ? ' off' : ''}">
+            <span>sells for</span>
+            <input type="text" inputmode="numeric" data-px="${esc(a.key)}"
+              value="${a.price != null ? a.price.toLocaleString() : ''}"
+              placeholder="${held ? 'not sold' : 'market value'}"
+              aria-label="Sale price for ${esc(a.name)}"${held ? ' disabled' : ''}>
+          </label>
+          <div class="stp">
+            <button type="button" data-k="${esc(a.key)}" data-d="-1" aria-label="Sell ${esc(a.name)} earlier"${(!held && a.age <= sa + 1) ? ' disabled' : ''}>−</button>
+            <span class="n${held ? ' hold' : ''}">${held ? 'hold' : a.age}</span>
+            <button type="button" data-k="${esc(a.key)}" data-d="1" aria-label="Sell ${esc(a.name)} later"${held ? ' disabled' : ''}>+</button>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -375,22 +427,75 @@
         renderLists(); render(false);
       };
     });
+    // Text fields update themselves in place. Re-running renderLists() from a change
+    // handler would replace the node that is still blurring, which throws.
+    $('assets').querySelectorAll('input[data-px]').forEach(inp => {
+      inp.onchange = () => {
+        const digits = inp.value.replace(/[^0-9]/g, '');
+        const val = digits === '' ? null : +digits;                    // blank = appreciate
+        edits.price[inp.dataset.px] = val;
+        inp.value = val == null ? '' : val.toLocaleString();
+        inp.closest('.px').classList.toggle('set', val != null);
+        render(true);
+      };
+    });
 
-    const inc = (saved.incomes || []);
-    $('incomeCard').hidden = inc.length === 0;
-    $('incomes').innerHTML = inc.map(i => {
+    // Existing incomes: switch on/off, or remove from the projection entirely.
+    const inc = (saved.incomes || []).filter(i => !edits.gone.includes(String(i.id)));
+    $('incomeCard').hidden = false;
+    const rows = inc.map(i => {
       const on = edits.income[i.id] !== undefined ? edits.income[i.id] : i.enabled !== false;
       const per = i.type === 'oneoff' ? 'one-off'
         : i.type === 'annual' ? `${fmt(i.amount || i.monthly || 0)}/yr`
         : `${fmt(i.monthly || 0)}/mo`;
       const span = (i.from && i.to) ? ` · age ${i.from}–${i.to}` : '';
-      return `<label class="sw"><span>${esc(i.name || 'Income')}<small>${per}${span}</small></span>
-        <input type="checkbox" data-i="${esc(String(i.id))}"${on ? ' checked' : ''}></label>`;
-    }).join('');
+      return `<div class="sw"><span>${esc(i.name || 'Income')}<small>${per}${span}</small></span>
+        <span style="display:flex;align-items:center;gap:4px">
+          <input type="checkbox" data-i="${esc(String(i.id))}"${on ? ' checked' : ''} aria-label="Include ${esc(i.name || 'income')}">
+          <button type="button" class="del" data-rm="${esc(String(i.id))}" aria-label="Remove ${esc(i.name || 'income')}">✕</button>
+        </span></div>`;
+    });
+    // Businesses added here are fully editable — they have no saved counterpart.
+    const news = edits.added.map(a => `<div class="sw" style="display:block">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:13px;font-weight:600">New business</span>
+          <button type="button" class="del" data-rmnew="${a.id}" aria-label="Remove new business">✕</button>
+        </div>
+        <div class="add">
+          <label class="wide"><span class="fl">Name</span>
+            <input type="text" data-f="name" data-id="${a.id}" value="${esc(a.name)}" placeholder="e.g. Sailing school"></label>
+          <label><span class="fl">Per month</span>
+            <input type="text" inputmode="numeric" data-f="monthly" data-id="${a.id}" value="${a.monthly.toLocaleString()}" placeholder="2,000"></label>
+          <label><span class="fl">From age</span>
+            <input type="number" data-f="from" data-id="${a.id}" value="${a.from}"></label>
+          <label><span class="fl">Until age</span>
+            <input type="number" data-f="to" data-id="${a.id}" value="${a.to}"></label>
+        </div>
+      </div>`);
+    $('incomes').innerHTML = (rows.concat(news).join('')) ||
+      '<p class="hint" style="margin:0">No income streams. Add one below.</p>';
+
     $('incomes').querySelectorAll('input[data-i]').forEach(c => {
-      c.onchange = () => {
-        const inc2 = (saved.incomes || []).find(x => String(x.id) === c.dataset.i);
-        if (inc2) { edits.income[inc2.id] = c.checked; render(true); }
+      c.onchange = () => { edits.income[c.dataset.i] = c.checked; render(true); };
+    });
+    $('incomes').querySelectorAll('button[data-rm]').forEach(b => {
+      b.onclick = () => { edits.gone.push(b.dataset.rm); renderLists(); render(true); };
+    });
+    $('incomes').querySelectorAll('button[data-rmnew]').forEach(b => {
+      b.onclick = () => {
+        edits.added = edits.added.filter(a => String(a.id) !== b.dataset.rmnew);
+        renderLists(); render(true);
+      };
+    });
+    $('incomes').querySelectorAll('[data-f]').forEach(inp => {
+      inp.onchange = () => {
+        const a = edits.added.find(x => String(x.id) === inp.dataset.id);
+        if (!a) return;
+        const f = inp.dataset.f;
+        if (f === 'name') { a.name = inp.value.trim() || 'New business'; inp.value = a.name; }
+        else if (f === 'monthly') { a.monthly = +inp.value.replace(/[^0-9]/g, '') || 0; inp.value = a.monthly.toLocaleString(); }
+        else { a[f] = Math.max(saved.startAge || 57, Math.min(+inp.value || 0, +$('ea').value)); inp.value = a[f]; }
+        render(true);   // no renderLists(): this node is mid-blur
       };
     });
   }
@@ -488,10 +593,16 @@
     $('med').checked = saved.useMedianReturn !== false;
     $('cost').checked = !!(saved.sellCostRate || saved.propertyTaxRate);
     crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0 };
-    edits = { sales: {}, income: {} };
+    edits = { sales: {}, price: {}, income: {}, gone: [], added: [] };
     renderLists();
     render(true);
   }
+  $('addBiz').addEventListener('click', () => {
+    const sa = saved.startAge || 57;
+    edits.added.push({ id: 'biz' + (nextBizId++), name: 'New business',
+      monthly: 2000, from: sa, to: Math.min(sa + 10, +$('ea').value), enabled: true });
+    renderLists(); render(true);
+  });
   ['sp','yr','vol','inf','ea'].forEach(id => $(id).addEventListener('input', () => {
     render(false);
     if (id === 'ea') renderLists();   // horizon changes which sales can still happen
