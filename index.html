@@ -2583,8 +2583,12 @@ function volDrag() {
 
 function getYield(age, overrideRate) {
   if (overrideRate !== undefined) return overrideRate / 100;
-  const base = (S.yieldCurve && S.yieldCurve[age] !== undefined) ? S.yieldCurve[age] : S.yieldRate;
-  return base / 100 - volDrag();
+  // An explicit per-age curve value is a REALIZED path, not an expectation: its own
+  // ups and downs already drag compounding below the arithmetic mean. Applying the
+  // mean→median correction on top of it would subtract the same penalty twice, so
+  // drag only applies to the flat S.yieldRate assumption.
+  if (S.yieldCurve && S.yieldCurve[age] !== undefined) return S.yieldCurve[age] / 100;
+  return S.yieldRate / 100 - volDrag();
 }
 
 // Monthly growth rate for the liquid pool. A negative balance is a shortfall being
@@ -3450,6 +3454,14 @@ window._selfTest = function() {
     assert('T17b drag magnitude ≈ σ²/2', near(lastMed / lastMean, expectedRatio, 0.01),
       `ratio=${(lastMed/lastMean).toFixed(4)} expected≈${expectedRatio.toFixed(4)}`);
     assert('T17c drag off by default flag', mean[1].liq > median[1].liq, 'flag had no effect');
+    // A hand-drawn yield curve is a realized path — its own volatility already drags
+    // compounding. Drag must NOT be applied on top of it.
+    const curve = {}; for (let a = 57; a <= 62; a++) curve[a] = 7;
+    const cMean = simWith({ ...common, useMedianReturn: false, yieldCurve: { ...curve } });
+    const cMed  = simWith({ ...common, useMedianReturn: true,  yieldCurve: { ...curve } });
+    assert('T17d explicit curve is exempt from drag',
+      near(cMed[cMed.length-1].liq, cMean[cMean.length-1].liq, 2),
+      `curve should be identical either way: median=${cMed[cMed.length-1].liq} mean=${cMean[cMean.length-1].liq}`);
   } catch(e) { err('T17 volatility drag', e.message); }
 
   // ── T18: a negative balance accrues at the borrow rate, not the portfolio yield ──
@@ -3463,6 +3475,19 @@ window._selfTest = function() {
       `20% debt=${end18} should be more negative than 0% debt=${end18b}`);
     assert('T18b zero borrow rate leaves debt flat', near(end18b, -100000, 50), `got ${end18b}`);
   } catch(e) { err('T18 borrow rate', e.message); }
+
+  // ── T19: MC mean blends a partial yield curve with S.yieldRate, never ignores it ──
+  try {
+    const saved19 = deepCopy(S);
+    // Curve covers 57-62 at 10%; ages 63-67 fall back to yieldRate 0 → mean should be ~5.
+    Object.assign(S, deepCopy({ ...BASE, startAge: 57, endAge: 67, yieldRate: 0,
+      yieldCurve: { 57:10, 58:10, 59:10, 60:10, 61:10, 62:10 } }));
+    ensureFields();
+    const p = _mcParams();
+    Object.assign(S, saved19); ensureFields();
+    assert('T19 partial curve blends into MC mean', near(p.mean, 6/11*10, 0.01),
+      `expected ${(6/11*10).toFixed(2)} got ${p.mean.toFixed(2)} (stale yieldRate would give 0)`);
+  } catch(e) { err('T19 mc mean', e.message); }
 
   const total = pass.length + fail.length;
   const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
@@ -3501,11 +3526,16 @@ function _mcParams() {
   // If curve covers all ages, use its average as MC mean — S.yieldRate may be
   // stale/irrelevant when every age has a custom override.
   const sa = S.startAge || 57, ea = S.endAge || 87;
-  const curveVals = Object.entries(S.yieldCurve || {})
-    .filter(([k]) => +k >= sa && +k <= ea).map(([, v]) => v);
-  const mean = curveVals.length >= (ea - sa + 1)
-    ? curveVals.reduce((s, v) => s + v, 0) / curveVals.length
-    : (S.yieldRate ?? 7);
+  // Average the rate the sim would actually use at each age: the curve value where one
+  // exists, S.yieldRate where it doesn't. The old version only trusted the curve when it
+  // covered EVERY age and otherwise fell back to S.yieldRate alone — so a scenario with a
+  // 30-year curve and a stale yieldRate would silently run the MC at the stale number the
+  // moment endAge moved past the end of the curve.
+  const curve = S.yieldCurve || {};
+  const fallback = S.yieldRate ?? 7;
+  let sum = 0, n = 0;
+  for (let a = sa; a <= ea; a++) { sum += (curve[a] !== undefined ? curve[a] : fallback); n++; }
+  const mean = n ? sum / n : fallback;
   const std = (S.mcVol == null ? 15 : S.mcVol); // annual std dev; 15 ≈ historical S&P
   return { mean, std };
 }

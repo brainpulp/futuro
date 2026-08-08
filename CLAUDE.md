@@ -3,7 +3,7 @@
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
-3. If 39/39 passed → continue. If any fail → fix before touching anything else.
+3. If 41/41 passed → continue. If any fail → fix before touching anything else.
 
 **No browser available?** (remote/CI sessions) Run the suite headlessly with jsdom:
 ```bash
@@ -117,6 +117,18 @@ So never write `sellingCosts: 0` when you mean "unset" — that masks the global
 The property→deal migration used to do exactly this; `ensureFields` now strips those
 auto-generated zeros once, behind the `S._migSellCosts` flag.
 
+**Volatility drag applies ONLY to the flat `S.yieldRate`.** A per-age `S.yieldCurve`
+value is a *realized* path — its own ups and downs already drag compounding below the
+arithmetic mean, so applying σ²/2 on top double-penalizes. `getYield` returns curve
+values untouched. T17d guards this.
+
+**`_mcParams` blends, never falls back wholesale.** The MC mean is the average of the
+rate the sim would actually use at each age (curve value where present, `S.yieldRate`
+where absent). The old version only trusted the curve at *full* coverage, so pushing
+`endAge` one year past the end of a 30-year curve silently reverted the whole MC to a
+stale `yieldRate` — which is how a scenario with `yieldRate: 20` behind a curve reported
+100% success while the deterministic line went bankrupt. T19 guards this.
+
 **Volatility drag must not stack with the Monte Carlo.** MC draws around the *arithmetic*
 mean, and its spread already produces the median path. `runMonteCarlo` sets `_mcActive`
 so `volDrag()` returns 0 for the duration of the run. Restore it in a `finally`.
@@ -151,7 +163,7 @@ For any month: `Δ(liq + iliq)` should equal `income - expenses + mktGain`.
 At a manual exit: liq += net, iliq -= cv (which was snapped to manualPrice) → Δ = 0. ✓
 T12a/T12b regression tests enforce this.
 
-## Self-test suite — 39 assertions
+## Self-test suite — 41 assertions
 T1–T10: existing (yield, rent, property sale, market, inflation, ensureFields)
 T11/T11b: annual tooltip shows full annual amount
 T12a: manualPrice exit conserves net worth (Δ(liq+iliq) ≈ 0 at exit month)
@@ -160,8 +172,9 @@ T13a–d: in-progress installment plans fire all REMAINING payments, numbered co
 T14a–c: selling costs — none / global default / per-asset override
 T15a–c: property tax charged while held, stops at sale, silent at 0%
 T16a–b: recurring expenses inflate, and identically to recurring incomes
-T17a–c: volatility drag puts the median line below the mean line by ≈σ²/2
+T17a–d: volatility drag puts the median below the mean by ≈σ²/2; an explicit curve is exempt
 T18a–b: negative balances accrue at `borrowRate`, not the portfolio yield
+T19: MC mean blends a partial yield curve with `S.yieldRate` instead of ignoring one
 
 **BASE fixture opts out of the new defaults** (`useMedianReturn:false`, `borrowRate:0`,
 `sellCostRate:0`, `propertyTaxRate:0`) so T1–T12 keep asserting raw engine mechanics.
