@@ -38,6 +38,9 @@ drives it with `contentWindow.eval(...)`.
 - Controls: spend, return, volatility, early crash, inflation, horizon, median toggle,
   cost toggle, per-asset sale price + year steppers, per-income switches, add/remove
   businesses. Removals and additions are working-scenario only — Reset restores them.
+- A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
+  It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
+  IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
 - ⚠ Text-input handlers must NOT call `renderLists()`: replacing the node that is mid-blur
   throws "node to be removed is no longer a child". Update the field in place, then
   `render(true)`. Only button clicks may re-render the list.

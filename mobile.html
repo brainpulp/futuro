@@ -24,6 +24,21 @@
     padding:max(12px,env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));
     max-width:560px;margin-inline:auto;-webkit-text-size-adjust:100%}
   .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  /* Condensed result bar. Fixed rather than sticky so it never occupies layout space,
+     and only revealed once the full summary card has scrolled out of view. */
+  .stick{position:fixed;z-index:20;left:12px;right:12px;max-width:536px;margin-inline:auto;
+    top:calc(8px + env(safe-area-inset-top));
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:7px 12px;border-radius:11px;border:1px solid var(--line);background:var(--card);
+    box-shadow:0 4px 16px rgba(16,24,40,.16);
+    opacity:0;transform:translateY(-12px);pointer-events:none;
+    transition:opacity .18s ease,transform .18s ease}
+  .stick.on{opacity:1;transform:none}
+  .stick .sv{font-size:13px;font-weight:700;letter-spacing:-.01em;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .stick .sv.ok{color:var(--good)} .stick .sv.bad{color:var(--bad)} .stick .sv.warn{color:var(--warn)}
+  .stick .sn{font-size:12px;font-weight:700;color:var(--dim);flex-shrink:0;white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){.stick{transition:none}}
   header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
   h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
   .scen{font-size:12px;color:var(--dim);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -110,6 +125,13 @@
   <h1>Futuro</h1>
   <div class="scen mono" id="scen">loading…</div>
 </header>
+
+<!-- Duplicates the summary card, so it is hidden from screen readers to avoid
+     announcing the same result twice. -->
+<div class="stick" id="stick" aria-hidden="true">
+  <span class="sv" id="sVerdict">—</span>
+  <span class="sn mono" id="sNums"></span>
+</div>
 
 <div class="card" id="head">
   <p class="verdict" id="verdict">Starting engine…</p>
@@ -537,6 +559,10 @@
     $('kMin').style.color = r.minLiq < 0 ? 'var(--bad)' : '';
     $('kMC').textContent = r.mc == null ? '…' : r.mc + '%';
     $('kMC').classList.toggle('sk', !withMC && r.mc == null);
+    // Mirror into the condensed bar so the outcome stays readable while scrolling.
+    $('sVerdict').textContent = v.textContent;
+    $('sVerdict').className = 'sv ' + v.className.replace('verdict', '').trim();
+    $('sNums').textContent = fmt(r.finalNW) + (r.mc == null ? '' : ' · ' + r.mc + '%');
     chart(r.series);
   }
 
@@ -625,6 +651,15 @@
     } catch (e) { $('msg').innerHTML = '<span class="err">Could not create link: ' + e.message + '</span>'; }
     setTimeout(() => { $('msg').textContent = ''; }, 4000);
   });
+
+  // Reveal the condensed bar only while the full summary card is off screen.
+  // rootMargin trims the bar's own height so the two never overlap during the handover.
+  if (window.IntersectionObserver) {
+    new IntersectionObserver(
+      ([e]) => $('stick').classList.toggle('on', !e.isIntersecting),
+      { rootMargin: '-46px 0px 0px 0px', threshold: 0 }
+    ).observe($('head'));
+  }
 
   // ── go ──
   ready.then(async () => {
