@@ -8292,7 +8292,8 @@ function buildPopoverForm(ev, type) {
 // simulation, and supplies its own scenario. Skip scenario loading, network sync and UI
 // init so nothing races with or overwrites the injected S. Everything the engine needs
 // (EMPTY, S, ensureFields, runSim, runMonteCarlo) is already defined by this point.
-const _engineOnly = /[?&]engineonly=1/.test(location.search);
+// window.__engineOnly covers the srcdoc case, where there is no query string to read.
+const _engineOnly = window.__engineOnly === 1 || /[?&]engineonly=1/.test(location.search);
 if (_engineOnly) {
   window._engineReady = true;
 } else {

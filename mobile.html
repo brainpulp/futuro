@@ -152,6 +152,9 @@
 
   // ── engine bridge: index.html?engineonly=1 in a hidden iframe ──
   const frame = $('engine');
+  // Self-contained builds (e.g. a shared single-file copy) inline the engine instead of
+  // fetching index.html, and hand it over through this global. Inert when served normally.
+  if (window.__ENGINE_SRCDOC) { frame.removeAttribute('src'); frame.srcdoc = window.__ENGINE_SRCDOC; }
   let win = null;
   const ready = new Promise((res, rej) => {
     const t0 = Date.now();
@@ -188,6 +191,11 @@
   // ── scenario sources, best first ──
   let saved = null, source = '';
   async function loadScenario() {
+    if (window.__EMBEDDED_SCENARIO) {
+      saved = window.__EMBEDDED_SCENARIO;
+      source = window.__EMBEDDED_NAME || 'embedded scenario';
+      return;
+    }
     const h = location.hash.match(/[#&]s=([^&]+)/);
     if (h) {
       try { saved = await unpack(decodeURIComponent(h[1])); source = 'shared link'; return; }
