@@ -8288,15 +8288,24 @@ function buildPopoverForm(ev, type) {
     document.body.classList.add('year-mode');
   }
 })();
-loadScenarios()
-  .then(() => {
-    const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
-    if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
-    gastosSync();
-    projectActualsSync();
-    initSections();
-  })
-  .catch(e => console.error('loadScenarios failed', e));
+// Engine-only mode: mobile.html embeds this page in a hidden iframe purely to reuse the
+// simulation, and supplies its own scenario. Skip scenario loading, network sync and UI
+// init so nothing races with or overwrites the injected S. Everything the engine needs
+// (EMPTY, S, ensureFields, runSim, runMonteCarlo) is already defined by this point.
+const _engineOnly = /[?&]engineonly=1/.test(location.search);
+if (_engineOnly) {
+  window._engineReady = true;
+} else {
+  loadScenarios()
+    .then(() => {
+      const autoOn = localStorage.getItem('futuro-ibkr-auto') === '1';
+      if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
+      gastosSync();
+      projectActualsSync();
+      initSections();
+    })
+    .catch(e => console.error('loadScenarios failed', e));
+}
 
 // Save immediately to localStorage (sync) before page unloads so changes survive a reload.
 // Supabase (async) gets synced on the next load via _applyScenarios → saveActive.

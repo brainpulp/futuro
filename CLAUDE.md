@@ -21,7 +21,21 @@ Single-file HTML/JS retirement net-worth projector. No build step.
 - Repo: https://github.com/brainpulp/futuro
 - Deployed: https://brainpulp.github.io/futuro/
 - Local dev: `python3 -m http.server 8765 --directory ~/futuro` (or node save-server.js)
-- Edit only: `~/futuro/index.html` (~6800 lines)
+- Edit only: `~/futuro/index.html` (~8000 lines) — plus `mobile.html` (phone view)
+
+## mobile.html — phone view
+A separate lightweight page that **reuses index.html as its engine** rather than
+duplicating the simulation. It loads `index.html?engineonly=1` in a hidden iframe and
+drives it with `contentWindow.eval(...)`.
+- `engineonly=1` makes index.html skip `loadScenarios()`, all network sync and UI init,
+  and set `window._engineReady`. Nothing then races with or overwrites the injected `S`.
+- Never duplicate sim logic into mobile.html — inject `S` and call `runSim()` in the frame.
+- Scenario sources, in order: `#s=` URL hash (gzip+base64url, stays client-side) →
+  `localStorage.futuro_scenarios` → `EMPTY`.
+- The phone has no localStorage copy and Supabase sync may be paused, so the
+  **hash link is the real transfer path**. "Copy link for another device" builds it.
+- No CDN and no chart library: the area chart is hand-rolled inline SVG.
+- ⚠ Never commit real scenario data into mobile.html — the repo is public and deployed.
 
 ## Pre-commit UI review (ALWAYS before committing any UI change)
 Before declaring a UI change done, scan for obvious gaps:
