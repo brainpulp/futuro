@@ -3,7 +3,7 @@
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
-3. If 41/41 passed → continue. If any fail → fix before touching anything else.
+3. If 46/46 passed → continue. If any fail → fix before touching anything else.
 
 **No browser available?** (remote/CI sessions) Run the suite headlessly with jsdom:
 ```bash
@@ -35,6 +35,10 @@ drives it with `contentWindow.eval(...)`.
 - The phone has no localStorage copy and Supabase sync may be paused, so the
   **hash link is the real transfer path**. "Copy link for another device" builds it.
 - No CDN and no chart library: the area chart is hand-rolled inline SVG.
+- Controls: spend, return, volatility, early crash, inflation, horizon, median toggle,
+  cost toggle, per-asset sale year steppers, per-income switches.
+- Sale-year steppers must handle BOTH shapes: plain `S.properties` (`saleAge`/`hold`) and
+  migrated deals (`exit.date` as `YYYY-MM`, year 2100 = hold). `assetsOf`/`applyEdits`.
 - ⚠ Never commit real scenario data into mobile.html — the repo is public and deployed.
 
 ## Pre-commit UI review (ALWAYS before committing any UI change)
@@ -122,7 +126,20 @@ S.propertyTaxRate   // annual % of carrying value, charged monthly. Override: de
 S.mcVol             // assumed annual σ of market returns (was hardcoded 15 inside _mcParams)
 S.useMedianReturn   // default TRUE — applies σ²/2 volatility drag to the deterministic line
 S.borrowRate        // annual % at which a NEGATIVE liquid balance grows (default 10)
+S.crashYears        // sequence-of-returns stress: N years from startAge pinned to…
+S.crashPct          // …this annual return. crashYears:0 disables. Set together.
 ```
+
+**Crash years outrank everything, including the Monte Carlo.** `getYield` checks
+`_crashRate(age)` *before* the yield curve, so `runMonteCarlo` — which overwrites
+`S.yieldCurve` wholesale on every run — cannot sample the crash away. That is the point:
+the MC then measures "bad start, then randomness", which is the actual retirement risk.
+`_mcParams` counts pinned years in its mean too. Drag never applies to them (specified
+path, not an expectation). T20 guards all of this.
+
+⚠ `Object.assign` only copies keys that are *present*. Clearing a flag between two test
+arms needs it set explicitly (`{...FIX, crashYears: 0}`) — omitting it leaks the previous
+arm's value and silently makes both arms identical.
 Helpers: `_sellCostPct(ex)` / `_netOfSellCosts(gross, ex)` / `_taxPct(obj)` /
 `_monthlyPropTax(cv, obj)` / `_propTaxThisMonth(props, dealAssets)` / `_liqMonthlyRate(liq, yld)` / `volDrag()`.
 
@@ -177,7 +194,7 @@ For any month: `Δ(liq + iliq)` should equal `income - expenses + mktGain`.
 At a manual exit: liq += net, iliq -= cv (which was snapped to manualPrice) → Δ = 0. ✓
 T12a/T12b regression tests enforce this.
 
-## Self-test suite — 41 assertions
+## Self-test suite — 46 assertions
 T1–T10: existing (yield, rent, property sale, market, inflation, ensureFields)
 T11/T11b: annual tooltip shows full annual amount
 T12a: manualPrice exit conserves net worth (Δ(liq+iliq) ≈ 0 at exit month)
@@ -189,6 +206,7 @@ T16a–b: recurring expenses inflate, and identically to recurring incomes
 T17a–d: volatility drag puts the median below the mean by ≈σ²/2; an explicit curve is exempt
 T18a–b: negative balances accrue at `borrowRate`, not the portfolio yield
 T19: MC mean blends a partial yield curve with `S.yieldRate` instead of ignoring one
+T20a–e: early-crash years are pinned, recover after the window, and survive the MC
 
 **BASE fixture opts out of the new defaults** (`useMedianReturn:false`, `borrowRate:0`,
 `sellCostRate:0`, `propertyTaxRate:0`) so T1–T12 keep asserting raw engine mechanics.

@@ -1475,6 +1475,10 @@ const EMPTY = {
   // the headline line is the MEDIAN path rather than the (higher) mean path.
   mcVol: 15,
   useMedianReturn: true,
+  // Sequence-of-returns stress: crashYears years from startAge are pinned to crashPct.
+  // crashYears: 0 disables it. Pinned years outrank the yield curve AND the MC's draws.
+  crashYears: 0,
+  crashPct: -25,
   // Annual rate at which a negative liquid balance grows. A shortfall is debt, not
   // an investment, so it must not compound at the portfolio yield.
   borrowRate: 10,
@@ -2146,6 +2150,8 @@ function ensureFields() {
   if (S.mcVol           == null) S.mcVol           = 15;
   if (S.borrowRate      == null) S.borrowRate      = 10;
   if (S.useMedianReturn == null) S.useMedianReturn = true;
+  if (S.crashYears      == null) S.crashYears      = 0;
+  if (S.crashPct        == null) S.crashPct        = -25;
   // One-time: the property→deal migration stamped exit.sellingCosts = 0 on every
   // auto-generated deal. That literal 0 masks the S.sellCostRate default, so strip it
   // (only from auto-generated deals — a user-set 0 on a hand-made deal is respected).
@@ -2581,8 +2587,24 @@ function volDrag() {
   return (sd * sd) / 2;
 }
 
+// Sequence-of-returns risk: a crash in the first years of drawdown is far more damaging
+// than the same crash later, because losses compound against a portfolio that is also
+// being spent. `crashYears` years starting at startAge are pinned to `crashPct`.
+// Returns null when no crash is configured or `age` falls outside the window.
+function _crashRate(age) {
+  const n = S.crashYears || 0;
+  if (n <= 0 || S.crashPct == null) return null;
+  const sa = S.startAge || 57;
+  return (age >= sa && age < sa + n) ? S.crashPct : null;
+}
+
 function getYield(age, overrideRate) {
   if (overrideRate !== undefined) return overrideRate / 100;
+  // Crash years outrank everything, INCLUDING the Monte Carlo's random curve — the whole
+  // point is that every sampled future still contains the crash, so the MC measures
+  // "bad start, then randomness" rather than quietly sampling the crash away.
+  const c = _crashRate(age);
+  if (c !== null) return c / 100;
   // An explicit per-age curve value is a REALIZED path, not an expectation: its own
   // ups and downs already drag compounding below the arithmetic mean. Applying the
   // mean→median correction on top of it would subtract the same penalty twice, so
@@ -3489,6 +3511,36 @@ window._selfTest = function() {
       `expected ${(6/11*10).toFixed(2)} got ${p.mean.toFixed(2)} (stale yieldRate would give 0)`);
   } catch(e) { err('T19 mc mean', e.message); }
 
+  // ── T20: early-crash pinning (sequence-of-returns risk) ──
+  try {
+    const c20 = { ...BASE, monthlyExpenses: 0, liquidBase: 100000, yieldRate: 10, endAge: 62 };
+    const none  = simWith(c20);
+    const crash = simWith({ ...c20, crashYears: 2, crashPct: -30 });
+    // Two pinned years at -30% then 10%: first full year must be a loss, not a gain.
+    const y58 = crash.find(r => r.age === 58), n58 = none.find(r => r.age === 58);
+    assert('T20a crash years pin the return', y58 && n58 && y58.liq < n58.liq * 0.8,
+      `crash58=${y58 && y58.liq} none58=${n58 && n58.liq}`);
+    // Age 60 is past the 2-year window (57,58) → back to the normal rate.
+    const g59 = crash.find(r => r.age === 59), g60 = crash.find(r => r.age === 60);
+    assert('T20b returns recover after the window', g59 && g60 && g60.liq > g59.liq,
+      `59=${g59 && g59.liq} 60=${g60 && g60.liq}`);
+    assert('T20c crashYears:0 is a no-op',
+      simWith({ ...c20, crashYears: 0, crashPct: -30 })[none.length-1].liq === none[none.length-1].liq);
+    // The crash must survive the Monte Carlo: every sampled path keeps the pinned years,
+    // so the MC mean has to fall when a crash is configured.
+    const saved20 = deepCopy(S);
+    Object.assign(S, deepCopy({ ...c20, crashYears: 2, crashPct: -30 })); ensureFields();
+    const mCrash = _mcParams().mean;
+    const yPinned = getYield(57);
+    // Object.assign only copies keys that are present, so crashYears must be cleared
+    // explicitly — otherwise the previous arm's value leaks into this one.
+    Object.assign(S, deepCopy({ ...c20, crashYears: 0 })); ensureFields();
+    const mPlain = _mcParams().mean;
+    Object.assign(S, saved20); ensureFields();
+    assert('T20d MC mean reflects the crash', mCrash < mPlain, `crash=${mCrash} plain=${mPlain}`);
+    assert('T20e pinned year beats a random MC curve', near(yPinned, -0.30, 1e-9), `got ${yPinned}`);
+  } catch(e) { err('T20 early crash', e.message); }
+
   const total = pass.length + fail.length;
   const summary = `_selfTest: ${pass.length}/${total} passed${fail.length ? '\nFAILED:\n  ' + fail.join('\n  ') : ''}`;
   console.log(summary);
@@ -3534,7 +3586,11 @@ function _mcParams() {
   const curve = S.yieldCurve || {};
   const fallback = S.yieldRate ?? 7;
   let sum = 0, n = 0;
-  for (let a = sa; a <= ea; a++) { sum += (curve[a] !== undefined ? curve[a] : fallback); n++; }
+  for (let a = sa; a <= ea; a++) {
+    const c = _crashRate(a);   // pinned crash years are part of the assumption too
+    sum += c !== null ? c : (curve[a] !== undefined ? curve[a] : fallback);
+    n++;
+  }
   const mean = n ? sum / n : fallback;
   const std = (S.mcVol == null ? 15 : S.mcVol); // annual std dev; 15 ≈ historical S&P
   return { mean, std };

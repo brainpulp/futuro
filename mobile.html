@@ -45,6 +45,27 @@
   .row label{font-size:13px;font-weight:600}
   .row .val{font-size:13px;font-weight:700}
   input[type=range]{width:100%;margin:0 0 16px;accent-color:var(--liq);height:26px}
+  .hint{font-size:11px;color:var(--dim);margin:-8px 0 14px;line-height:1.4}
+  /* segmented control — one tap, four states, no dropdown to fight on a phone */
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+  .seg button{padding:8px 2px;font-size:12px;font-weight:700;line-height:1.15;
+    border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:9px}
+  .seg button small{display:block;font-size:9px;font-weight:500;opacity:.8;margin-top:1px}
+  .seg button[aria-pressed=true]{background:var(--liq);border-color:var(--liq);color:#fff}
+  /* asset rows: name, then a stepper for the year it is sold */
+  .as{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+  .as:first-of-type{border-top:none}
+  .as .nm{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .as .nm small{display:block;font-weight:400;color:var(--dim);font-size:11px}
+  .stp{display:flex;align-items:center;gap:0;flex-shrink:0}
+  .stp button{width:32px;height:32px;padding:0;font-size:17px;font-weight:600;border-radius:8px;
+    color:var(--ink);display:flex;align-items:center;justify-content:center}
+  .stp button:disabled{opacity:.3}
+  .stp .n{width:52px;text-align:center;font-size:13px;font-weight:700;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  .stp .n.hold{font-size:11px;color:var(--dim);font-weight:600}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);
+    margin:0 0 8px;font-weight:700}
   .sw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;
     border-top:1px solid var(--line)}
   .sw:first-child{border-top:none}
@@ -95,6 +116,19 @@
   <div class="row"><label for="yr">Market return</label><span class="val mono" id="yrV">—</span></div>
   <input type="range" id="yr" min="0" max="14" step="0.25">
 
+  <div class="row"><label for="vol">Market swings</label><span class="val mono" id="volV">—</span></div>
+  <input type="range" id="vol" min="0" max="30" step="1">
+  <p class="hint" id="volH"></p>
+
+  <div class="row"><label>Crash right after you stop working</label></div>
+  <div class="seg" id="crash" role="group" aria-label="Early crash severity">
+    <button type="button" data-y="0" data-p="0">None</button>
+    <button type="button" data-y="1" data-p="-15">−15%<small>1 yr</small></button>
+    <button type="button" data-y="2" data-p="-25">−25%<small>2 yrs</small></button>
+    <button type="button" data-y="3" data-p="-35">−35%<small>3 yrs</small></button>
+  </div>
+  <p class="hint">Losses early in retirement hurt far more than the same losses later, because you are selling into them.</p>
+
   <div class="row"><label for="inf">Inflation</label><span class="val mono" id="infV">—</span></div>
   <input type="range" id="inf" min="0" max="8" step="0.25">
 
@@ -109,6 +143,17 @@
     <span>Sale costs &amp; property tax<small>8% per sale, 0.5%/yr carrying cost</small></span>
     <input type="checkbox" id="cost">
   </div>
+</div>
+
+<div class="card" id="assetsCard" hidden>
+  <h2>When you sell</h2>
+  <div id="assets"></div>
+  <p class="hint" style="margin:8px 0 0">Push a sale past your plan's end and it becomes “hold” — the property stays yours and never turns into cash.</p>
+</div>
+
+<div class="card" id="incomeCard" hidden>
+  <h2>Income</h2>
+  <div id="incomes"></div>
 </div>
 
 <div class="card">
@@ -218,6 +263,57 @@
   let cur = null;
   const eff = s => Math.round((s.monthlyExpenses || 0) * (s.expMultiplier || 1));
 
+  // Per-asset sale ages and per-income switches, keyed so they survive a re-render.
+  // null age = hold (never sold). Empty until the user actually changes something.
+  let edits = { sales: {}, income: {} };
+  let crash = { y: 0, p: 0 };
+
+  // Sellable assets come from two places: plain properties, and deals that have an exit.
+  // Older scenarios use the first, migrated ones the second, so handle both.
+  function assetsOf(s) {
+    const sa = s.startAge || 57, sy = s.startYear || 2026, ea = s.endAge || 87;
+    const out = [];
+    (s.properties || []).forEach(p => {
+      if (p.enabled === false) return;
+      out.push({ key: 'p:' + p.id, name: p.name || 'Property', value: p.value || 0,
+                 age: p.hold ? null : (p.saleAge ?? null) });
+    });
+    (s.deals || []).forEach(d => {
+      const ex = d.exit || {};
+      if (d.enabled === false || ex.type === 'none' || !ex.date) return;
+      const [y, m] = String(ex.date).split('-').map(Number);
+      const age = sa + (y - sy);
+      out.push({ key: 'd:' + d.id, name: d.name || 'Deal', value: ex.basis || 0,
+                 age: age > ea ? null : age, mo: m || 6 });
+    });
+    return out;
+  }
+
+  function applyEdits(s) {
+    const sa = s.startAge || 57, sy = s.startYear || 2026, ea = s.endAge || 87;
+    (s.properties || []).forEach(p => {
+      const e = edits.sales['p:' + p.id];
+      if (e !== undefined) { if (e === null) { p.hold = true; } else { p.hold = false; p.saleAge = e; } }
+      // A sale scheduled past the horizon can never fire — treat it as a hold instead
+      // of leaving a sale stranded one year beyond the end of the simulation.
+      if (!p.hold && p.saleAge > ea) { p.hold = true; }
+    });
+    (s.deals || []).forEach(d => {
+      const ex = d.exit || {};
+      if (!ex.date) return;
+      const e = edits.sales['d:' + d.id];
+      const mo = String(ex.date).split('-')[1] || '06';
+      if (e !== undefined) ex.date = (e === null ? 2100 : sy + (e - sa)) + '-' + mo;
+      const y = +String(ex.date).split('-')[0];
+      if (sa + (y - sy) > ea && y !== 2100) ex.date = '2100-' + mo;
+    });
+    (s.incomes || []).forEach(i => {
+      const e = edits.income[i.id];
+      if (e !== undefined) i.enabled = e;
+    });
+    return s;
+  }
+
   function readControls() {
     const s = JSON.parse(JSON.stringify(saved));
     s.monthlyExpenses = +$('sp').value;
@@ -225,13 +321,15 @@
     s.expenseCurve = {};              // a baked curve would override the slider
     s.yieldRate = +$('yr').value;
     s.yieldCurve = {};                // flat assumption: the slider is the whole story here
+    s.mcVol = +$('vol').value;
+    s.crashYears = crash.y;
+    s.crashPct = crash.p;
     s.inflationRate = +$('inf').value;
     s.endAge = +$('ea').value;
     s.useMedianReturn = $('med').checked;
     if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
     else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
-    (s.properties || []).forEach(p => { if (p.saleAge > s.endAge) { p.saleAge = s.endAge; p.hold = true; } });
-    return s;
+    return applyEdits(s);
   }
 
   function syncLabels() {
@@ -239,7 +337,64 @@
     $('yrV').textContent = (+$('yr').value).toFixed(2).replace(/\.?0+$/, '') + '%';
     $('infV').textContent = (+$('inf').value).toFixed(2).replace(/\.?0+$/, '') + '%';
     $('eaV').textContent = $('ea').value;
+    const v = +$('vol').value;
+    $('volV').textContent = '±' + v + '%';
+    $('volH').textContent = v === 0 ? 'A perfectly steady return every year — unrealistic, but a useful floor.'
+      : v <= 8  ? 'Calm: a bond-heavy or very diversified portfolio.'
+      : v <= 17 ? 'Normal: roughly how a broad stock market has actually behaved.'
+      : 'Wild: concentrated or aggressive holdings.';
+    Array.from($('crash').children).forEach(b =>
+      b.setAttribute('aria-pressed', String(+b.dataset.y === crash.y)));
   }
+
+  // ── asset + income lists ──
+  function renderLists() {
+    const list = assetsOf(readControls());
+    const ea = +$('ea').value, sa = saved.startAge || 57;
+    $('assetsCard').hidden = list.length === 0;
+    $('assets').innerHTML = list.map(a => {
+      const held = a.age === null;
+      return `<div class="as">
+        <div class="nm">${esc(a.name)}${a.value ? `<small>${fmt(a.value)}</small>` : ''}</div>
+        <div class="stp">
+          <button type="button" data-k="${esc(a.key)}" data-d="-1" aria-label="Sell ${esc(a.name)} earlier"${(!held && a.age <= sa + 1) ? ' disabled' : ''}>−</button>
+          <span class="n${held ? ' hold' : ''}">${held ? 'hold' : a.age}</span>
+          <button type="button" data-k="${esc(a.key)}" data-d="1" aria-label="Sell ${esc(a.name)} later"${held ? ' disabled' : ''}>+</button>
+        </div>
+      </div>`;
+    }).join('');
+    $('assets').querySelectorAll('button[data-k]').forEach(b => {
+      b.onclick = () => {
+        const a = assetsOf(readControls()).find(x => x.key === b.dataset.k);
+        if (!a) return;
+        const d = +b.dataset.d;
+        let next = a.age === null ? null : a.age + d;
+        if (next !== null && next > ea) next = null;               // past the end → hold
+        if (a.age === null && d === -1) next = ea;                 // step back out of hold
+        edits.sales[b.dataset.k] = next;
+        renderLists(); render(false);
+      };
+    });
+
+    const inc = (saved.incomes || []);
+    $('incomeCard').hidden = inc.length === 0;
+    $('incomes').innerHTML = inc.map(i => {
+      const on = edits.income[i.id] !== undefined ? edits.income[i.id] : i.enabled !== false;
+      const per = i.type === 'oneoff' ? 'one-off'
+        : i.type === 'annual' ? `${fmt(i.amount || i.monthly || 0)}/yr`
+        : `${fmt(i.monthly || 0)}/mo`;
+      const span = (i.from && i.to) ? ` · age ${i.from}–${i.to}` : '';
+      return `<label class="sw"><span>${esc(i.name || 'Income')}<small>${per}${span}</small></span>
+        <input type="checkbox" data-i="${esc(String(i.id))}"${on ? ' checked' : ''}></label>`;
+    }).join('');
+    $('incomes').querySelectorAll('input[data-i]').forEach(c => {
+      c.onchange = () => {
+        const inc2 = (saved.incomes || []).find(x => String(x.id) === c.dataset.i);
+        if (inc2) { edits.income[inc2.id] = c.checked; render(true); }
+      };
+    });
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   let mcTimer = null, seq = 0;
   function render(withMC) {
@@ -327,14 +482,27 @@
   function applySaved() {
     $('sp').value = Math.min(Math.max(eff(saved) || 7000, 2000), 25000);
     $('yr').value = saved.yieldRate ?? 7;
+    $('vol').value = saved.mcVol ?? 15;
     $('inf').value = saved.inflationRate ?? 3;
     $('ea').value = saved.endAge ?? 87;
     $('med').checked = saved.useMedianReturn !== false;
     $('cost').checked = !!(saved.sellCostRate || saved.propertyTaxRate);
-    render(false);
+    crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0 };
+    edits = { sales: {}, income: {} };
+    renderLists();
+    render(true);
   }
-  ['sp','yr','inf','ea'].forEach(id => $(id).addEventListener('input', () => render(false)));
+  ['sp','yr','vol','inf','ea'].forEach(id => $(id).addEventListener('input', () => {
+    render(false);
+    if (id === 'ea') renderLists();   // horizon changes which sales can still happen
+  }));
   ['med','cost'].forEach(id => $(id).addEventListener('change', () => render(true)));
+  $('crash').addEventListener('click', e => {
+    const b = e.target.closest('button[data-y]');
+    if (!b) return;
+    crash = { y: +b.dataset.y, p: +b.dataset.p };
+    render(true);
+  });
   $('reset').addEventListener('click', applySaved);
 
   $('link').addEventListener('click', async () => {
