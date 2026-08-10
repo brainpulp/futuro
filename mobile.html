@@ -102,6 +102,39 @@
   .stp .n.hold{font-size:11px;color:var(--dim);font-weight:600}
   h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);
     margin:0 0 8px;font-weight:700}
+  /* Collapsible detail cards — everything past the headline levers starts closed,
+     so the full input surface is reachable without burying the result. */
+  details.card{padding:0}
+  details.card>summary{padding:13px 14px;display:flex;align-items:center;gap:8px;
+    cursor:pointer;list-style:none;user-select:none}
+  details.card>summary::-webkit-details-marker{display:none}
+  details.card>summary h2{margin:0;flex-shrink:0}
+  details.card>summary .cnt{font-size:11px;color:var(--dim);
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  details.card>summary::after{content:'';margin-left:auto;flex-shrink:0;
+    width:7px;height:7px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);
+    transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+  details.card[open]>summary::after{transform:rotate(-135deg)}
+  details.card>summary:focus-visible{outline:2px solid var(--liq);outline-offset:-2px;border-radius:14px}
+  details.card>.body{padding:0 14px 14px}
+  @media (prefers-reduced-motion:reduce){details.card>summary::after{transition:none}}
+  /* generic labelled field grid, shared by the expense and advanced sections */
+  .fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .fg .wide{grid-column:1 / -1}
+  .fg label{display:block;min-width:0}
+  .fg input,.fg select{border:1px solid var(--line);border-radius:9px;padding:0 9px;height:36px;
+    background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%}
+  .fg input:focus,.fg select:focus{outline:2px solid var(--liq);outline-offset:-1px}
+  .ex{padding:9px 0;border-top:1px solid var(--line)}
+  .ex:first-of-type{border-top:none}
+  .ex .top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .ex .nm{flex:1;min-width:0;font-size:13px;font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ex .nm small{display:block;font-weight:400;color:var(--dim);font-size:11px}
+  .ex.off .nm{opacity:.45;text-decoration:line-through}
+  .ex.past{opacity:.6}
+  .ex.past .nm small{color:var(--warn)}
   .sw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;
     border-top:1px solid var(--line)}
   .sw:first-child{border-top:none}
@@ -188,19 +221,57 @@
   </div>
 </div>
 
-<div class="card" id="assetsCard" hidden>
-  <h2>When you sell</h2>
-  <div id="assets"></div>
-  <p class="hint" style="margin:8px 0 0">Leave a price blank to let it appreciate on its own. Push a sale past your plan's end and it becomes “hold” — the property stays yours and never turns into cash.</p>
-</div>
+<details class="card" id="assetsCard" hidden>
+  <summary><h2>When you sell</h2><span class="cnt" id="assetsSum"></span></summary>
+  <div class="body">
+    <div id="assets"></div>
+    <p class="hint" style="margin:8px 0 0">Leave a price blank to let it appreciate on its own. Push a sale past your plan's end and it becomes “hold” — the property stays yours and never turns into cash.</p>
+  </div>
+</details>
 
-<div class="card" id="incomeCard" hidden>
-  <h2>Income &amp; businesses</h2>
-  <div id="incomes"></div>
-  <div style="height:10px"></div>
-  <button type="button" id="addBiz">+ Add a business</button>
-  <p class="hint" style="margin:8px 0 0">Removing one takes it out of this projection entirely. “Reset” brings it back — nothing here changes your saved plan.</p>
-</div>
+<details class="card" id="expCard">
+  <summary><h2>Project costs</h2><span class="cnt" id="expSum"></span></summary>
+  <div class="body">
+    <div id="expenses"></div>
+    <div style="height:10px"></div>
+    <div class="fg">
+      <button type="button" id="addOneoff">+ One-off cost</button>
+      <button type="button" id="addRecur">+ Recurring cost</button>
+    </div>
+    <p class="hint" style="margin:8px 0 0">Obras, investments and purchases. These are on top of your monthly spending, and are entered in today's money.</p>
+  </div>
+</details>
+
+<details class="card" id="incomeCard" hidden>
+  <summary><h2>Income &amp; businesses</h2><span class="cnt" id="incSum"></span></summary>
+  <div class="body">
+    <div id="incomes"></div>
+    <div style="height:10px"></div>
+    <button type="button" id="addBiz">+ Add a business</button>
+    <p class="hint" style="margin:8px 0 0">Removing one takes it out of this projection entirely. “Reset” brings it back — nothing here changes your saved plan.</p>
+  </div>
+</details>
+
+<details class="card" id="advCard">
+  <summary><h2>Everything else</h2><span class="cnt" id="advSum"></span></summary>
+  <div class="body">
+    <div class="fg">
+      <label class="wide"><span class="fl">Cash &amp; investments today</span>
+        <input type="text" inputmode="numeric" data-s="liquidBase"></label>
+      <label><span class="fl">Your age now</span>
+        <input type="number" data-s="startAge" min="30" max="90"></label>
+      <label><span class="fl">Property growth %/yr</span>
+        <input type="number" data-s="assetAppreciation" step="0.25" min="-10" max="20"></label>
+      <label><span class="fl">Selling costs %</span>
+        <input type="number" data-s="sellCostRate" step="0.5" min="0" max="30"></label>
+      <label><span class="fl">Property tax %/yr</span>
+        <input type="number" data-s="propertyTaxRate" step="0.05" min="0" max="5"></label>
+      <label class="wide"><span class="fl">Borrowing rate %/yr, if you run short</span>
+        <input type="number" data-s="borrowRate" step="0.5" min="0" max="40"></label>
+    </div>
+    <p class="hint" style="margin:10px 0 0">Selling costs and property tax here override the quick toggle above. Leave them at 0 if those costs are already inside your monthly spending.</p>
+  </div>
+</details>
 
 <div class="card">
   <button id="reset">Reset to saved scenario</button>
@@ -311,9 +382,12 @@
 
   // Per-asset sale ages and per-income switches, keyed so they survive a re-render.
   // null age = hold (never sold). Empty until the user actually changes something.
-  let edits = { sales: {}, price: {}, income: {}, gone: [], added: [] };
+  let edits = { sales: {}, price: {}, income: {}, gone: [], added: [],
+                exp: {}, expGone: [], expAdded: [], scen: {} };
   let crash = { y: 0, p: 0 };
   let nextBizId = 1;
+  const blank = () => ({ sales: {}, price: {}, income: {}, gone: [], added: [],
+                         exp: {}, expGone: [], expAdded: [], scen: {} });
 
   // Sellable assets come from two places: plain properties, and deals that have an exit.
   // Older scenarios use the first, migrated ones the second, so handle both.
@@ -374,6 +448,22 @@
         id: a.id, name: a.name, type: 'monthly', monthly: a.monthly,
         from: a.from, to: a.to, fromMonth: 1, toMonth: 12, enabled: true,
       })));
+    s.expenses = (s.expenses || [])
+      .filter(e => !edits.expGone.includes(String(e.id)))
+      .map(e => {
+        const o = edits.exp[e.id];
+        if (!o) return e;
+        const m = { ...e, ...o };
+        // atAge and from track together for one-offs, so a date edit reaches both.
+        if (o.atAge !== undefined && m.type === 'oneoff') m.from = m.to = o.atAge;
+        return m;
+      })
+      .concat(edits.expAdded.map(a => a.type === 'oneoff'
+        ? { id: a.id, name: a.name, type: 'oneoff', amount: a.amount,
+            atAge: a.from, atMonth: 1, from: a.from, to: a.from, enabled: true }
+        : { id: a.id, name: a.name, type: 'monthly', amount: a.amount,
+            from: a.from, to: a.to, fromMonth: 1, toMonth: 12, enabled: true }));
+    Object.keys(edits.scen).forEach(k => { s[k] = edits.scen[k]; });
     return s;
   }
 
@@ -412,9 +502,12 @@
 
   // ── asset + income lists ──
   function renderLists() {
-    const list = assetsOf(readControls());
-    const ea = +$('ea').value, sa = saved.startAge || 57;
+    const cur = readControls();
+    const list = assetsOf(cur);
+    const ea = +$('ea').value, sa = cur.startAge || saved.startAge || 57;
     $('assetsCard').hidden = list.length === 0;
+    const nSell = list.filter(a => a.age !== null).length;
+    $('assetsSum').textContent = `${list.length} ${list.length === 1 ? 'property' : 'properties'} · ${nSell} sold`;
     $('assets').innerHTML = list.map(a => {
       const held = a.age === null;
       return `<div class="as">
@@ -496,6 +589,13 @@
       </div>`);
     $('incomes').innerHTML = (rows.concat(news).join('')) ||
       '<p class="hint" style="margin:0">No income streams. Add one below.</p>';
+    const liveInc = cur.incomes || [];
+    const perMo = liveInc.filter(i => i.type !== 'oneoff' && i.type !== 'annual')
+      .reduce((s, i) => s + (i.monthly || 0), 0);
+    $('incSum').textContent = liveInc.length
+      ? `${liveInc.length} active · ${fmt(perMo)}/mo` : 'none active';
+    $('advSum').textContent = `${fmt(cur.liquidBase || 0)} · ${cur.assetAppreciation ?? 0}% growth`
+      + ((cur.sellCostRate || cur.propertyTaxRate) ? ' · costs on' : '');
 
     $('incomes').querySelectorAll('input[data-i]').forEach(c => {
       c.onchange = () => { edits.income[c.dataset.i] = c.checked; render(true); };
@@ -509,6 +609,8 @@
         renderLists(); render(true);
       };
     });
+    renderExpenses();
+
     $('incomes').querySelectorAll('[data-f]').forEach(inp => {
       inp.onchange = () => {
         const a = edits.added.find(x => String(x.id) === inp.dataset.id);
@@ -522,6 +624,99 @@
     });
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ── project costs / expenses ──
+  // Every expense in the scenario, including the obras and one-off investments that
+  // previously only existed on the desktop app.
+  function expensesOf() {
+    const live = readControls().expenses || [];
+    return live.map(e => {
+      const isOneoff = e.type === 'oneoff';
+      const isRecur = e.type === 'monthly' || e.type === 'annual';
+      const amt = e.type === 'installments' ? (e.installTotal || e.budget || e.amount || 0) : (e.amount || 0);
+      // The simulation opens at the CURRENT month of the start year, so a one-off dated
+      // earlier in that year can never fire — its money was already spent in real life.
+      // Without saying so, editing its amount silently does nothing.
+      const sa = readControls().startAge || saved.startAge || 57;
+      const past = isOneoff && (e.atAge ?? e.from ?? sa) === sa
+        && (e.atMonth || 1) < (new Date().getMonth() + 1);
+      return { ...e, _oneoff: isOneoff, _recur: isRecur, _amt: amt, _past: past,
+               _added: edits.expAdded.some(a => String(a.id) === String(e.id)) };
+    });
+  }
+
+  function renderExpenses() {
+    const list = expensesOf();
+    const sa = saved.startAge || 57, ea = +$('ea').value;
+    const oneoffTotal = list.filter(e => e._oneoff && e.enabled !== false && !e._past).reduce((s, e) => s + e._amt, 0);
+    const nOn = list.filter(e => e.enabled !== false).length;
+    const nPast = list.filter(e => e._past).length;
+    $('expSum').textContent = list.length
+      ? `${nOn} of ${list.length} · ${fmt(oneoffTotal)} ahead` + (nPast ? ` · ${nPast} spent` : '')
+      : 'none yet';
+    $('expenses').innerHTML = list.length ? list.map(e => {
+      const on = e.enabled !== false;
+      const when = e._past ? `already spent · not in the projection`
+        : e._oneoff ? `one-off · age ${e.atAge ?? e.from ?? sa}`
+        : e.type === 'installments' ? `${e.installN || 1} payments from age ${e.atAge ?? e.from ?? sa}`
+        : `${e.type === 'annual' ? 'per year' : 'per month'} · age ${e.from ?? sa}–${e.to ?? ea}`;
+      const ageFields = e._oneoff
+        ? `<label><span class="fl">Age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>`
+        : e._recur
+          ? `<label><span class="fl">From age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="from" value="${e.from ?? sa}" min="${sa}" max="${ea}"></label>
+             <label><span class="fl">Until age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="to" value="${e.to ?? ea}" min="${sa}" max="${ea}"></label>`
+          : `<label><span class="fl">Starts at age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>`;
+      return `<div class="ex${on ? '' : ' off'}${e._past ? ' past' : ''}">
+        <div class="top">
+          <span class="nm">${esc(e.name || 'Cost')}<small>${when}</small></span>
+          <input type="checkbox" data-et="${esc(String(e.id))}"${on ? ' checked' : ''} aria-label="Include ${esc(e.name || 'cost')}">
+          <button type="button" class="del" data-erm="${esc(String(e.id))}" aria-label="Remove ${esc(e.name || 'cost')}">✕</button>
+        </div>
+        <div class="fg">
+          ${e._added ? `<label class="wide"><span class="fl">Name</span><input type="text" data-e="${esc(String(e.id))}" data-ef="name" value="${esc(e.name || '')}"></label>` : ''}
+          <label${e._recur ? '' : ' class="wide"'}><span class="fl">Amount</span>
+            <input type="text" inputmode="numeric" data-e="${esc(String(e.id))}" data-ef="amount" value="${e._amt.toLocaleString()}"></label>
+          ${ageFields}
+        </div>
+      </div>`;
+    }).join('') : '<p class="hint" style="margin:0">No project costs. Add one below.</p>';
+
+    $('expenses').querySelectorAll('input[data-et]').forEach(c => {
+      c.onchange = () => { setExp(c.dataset.et, { enabled: c.checked }); renderLists(); render(true); };
+    });
+    $('expenses').querySelectorAll('button[data-erm]').forEach(b => {
+      b.onclick = () => {
+        const id = b.dataset.erm;
+        edits.expAdded = edits.expAdded.filter(a => String(a.id) !== id);
+        if (!edits.expGone.includes(id)) edits.expGone.push(id);
+        renderLists(); render(true);
+      };
+    });
+    // In-place only — re-rendering from a change handler kills the blurring node.
+    $('expenses').querySelectorAll('[data-ef]').forEach(inp => {
+      inp.onchange = () => {
+        const f = inp.dataset.ef;
+        let v;
+        if (f === 'name') { v = inp.value.trim() || 'Cost'; inp.value = v; }
+        else if (f === 'amount') { v = +inp.value.replace(/[^0-9-]/g, '') || 0; inp.value = v.toLocaleString(); }
+        else { v = Math.max(sa, Math.min(+inp.value || sa, ea)); inp.value = v; }
+        const patch = { [f]: v };
+        if (f === 'amount') { patch.installTotal = v; patch.budget = v; }
+        setExp(inp.dataset.e, patch);
+        render(true);
+      };
+    });
+  }
+
+  function setExp(id, patch) {
+    const added = edits.expAdded.find(a => String(a.id) === String(id));
+    if (added) {
+      Object.assign(added, patch);
+      if (patch.atAge !== undefined) added.from = patch.atAge;
+      return;
+    }
+    edits.exp[id] = { ...(edits.exp[id] || {}), ...patch };
+  }
 
   let mcTimer = null, seq = 0;
   function render(withMC) {
@@ -619,7 +814,11 @@
     $('med').checked = saved.useMedianReturn !== false;
     $('cost').checked = !!(saved.sellCostRate || saved.propertyTaxRate);
     crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0 };
-    edits = { sales: {}, price: {}, income: {}, gone: [], added: [] };
+    edits = blank();
+    $('advCard').querySelectorAll('[data-s]').forEach(inp => {
+      const v = saved[inp.dataset.s] ?? 0;
+      inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
+    });
     renderLists();
     render(true);
   }
@@ -627,7 +826,29 @@
     const sa = saved.startAge || 57;
     edits.added.push({ id: 'biz' + (nextBizId++), name: 'New business',
       monthly: 2000, from: sa, to: Math.min(sa + 10, +$('ea').value), enabled: true });
+    $('incomeCard').open = true;
     renderLists(); render(true);
+  });
+  const addExp = kind => {
+    const sa = saved.startAge || 57;
+    edits.expAdded.push({ id: 'exp' + (nextBizId++), name: kind === 'oneoff' ? 'New cost' : 'New recurring cost',
+      type: kind, amount: kind === 'oneoff' ? 50000 : 500,
+      from: sa, to: kind === 'oneoff' ? sa : Math.min(sa + 10, +$('ea').value) });
+    renderLists(); render(true);
+  };
+  $('addOneoff').addEventListener('click', () => addExp('oneoff'));
+  $('addRecur').addEventListener('click', () => addExp('monthly'));
+  // Scenario-level fields. These write straight through to S on the next run.
+  $('advCard').querySelectorAll('[data-s]').forEach(inp => {
+    inp.onchange = () => {
+      const k = inp.dataset.s;
+      let v = +String(inp.value).replace(/[^0-9.-]/g, '') || 0;
+      if (k === 'startAge') v = Math.max(30, Math.min(v, (+$('ea').value) - 1));
+      edits.scen[k] = v;
+      inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
+      if (k === 'startAge') renderLists();   // asset ages are relative to it
+      render(true);
+    };
   });
   ['sp','yr','vol','inf','ea'].forEach(id => $(id).addEventListener('input', () => {
     render(false);

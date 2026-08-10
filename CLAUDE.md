@@ -37,7 +37,16 @@ drives it with `contentWindow.eval(...)`.
 - No CDN and no chart library: the area chart is hand-rolled inline SVG.
 - Controls: spend, return, volatility, early crash, inflation, horizon, median toggle,
   cost toggle, per-asset sale price + year steppers, per-income switches, add/remove
-  businesses. Removals and additions are working-scenario only — Reset restores them.
+  businesses, per-expense amount/date/enable/delete + add, and scenario-level fields
+  (liquidBase, startAge, assetAppreciation, sellCostRate, propertyTaxRate, borrowRate).
+  All edits are working-scenario only — Reset restores them.
+- Detail sections are `<details class="card">`, collapsed by default, each with a `.cnt`
+  summary so the closed state still says what is inside. Browser tests must open them
+  (`d.open = true`) before interacting, and again after clicking Reset.
+- ⚠ A one-off dated earlier in the START year never fires: the sim opens at the *current*
+  month. `renderExpenses` flags those `_past` ("already spent") — without it, editing the
+  amount silently does nothing and looks broken. Four of the sample scenario's five
+  project costs are in this state.
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
