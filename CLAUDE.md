@@ -249,5 +249,14 @@ passes it. Never assert on a fixed early month in the start year.
 
 ## Persistence
 - localStorage key: `futuro_scenarios`
-- Supabase: project `kbatdnrxfrltcmqvsmyy`, table `futuro_state`
+- Supabase: project `fnzdkqrkranedtgysqcf` (**gastos**), table `futuro_state`
+  - ⚠ Scenario sync and the Gastos actuals share ONE project on purpose. `futuro_state`
+    used to live in `alphabiotec` (`kbatdnrxfrltcmqvsmyy`); creating a third project
+    crossed the free-tier cap of two, so alphabiotec was auto-paused and sync died
+    **silently** — the app kept serving localStorage, so nothing looked broken.
+    Never split them back apart.
+  - `futuro_state` is the only anon-readable table in gastos. Everything else is
+    `auth.uid() = user_id`, and the app reads actuals through Edge Functions
+    (`/functions/v1/monthly-actuals`, `/functions/v1/project-actuals`), never
+    PostgREST — so anon has no path to `transactions`. Verified with `set local role anon`.
 - `saveActive()` → deepCopy(S) into SCENARIOS → lsSave() → sbSave()

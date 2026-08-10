@@ -1567,10 +1567,16 @@ window.addEventListener('unhandledrejection', function(e) {
   b.textContent = '⚠ Unhandled promise: ' + (e.reason?.message || e.reason);
 });
 
-const SB_URL = 'https://kbatdnrxfrltcmqvsmyy.supabase.co';
-const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYXRkbnJ4ZnJsdGNtcXZzbXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MjYzMjcsImV4cCI6MjA5MzUwMjMyN30.4HUYkjuCk3doWShF-h0CzHS-9pC4ST5uz9yd2HHbayc';
+// Scenario sync and the Gastos actuals now share ONE Supabase project.
+// `futuro_state` used to live in the separate `alphabiotec` project
+// (kbatdnrxfrltcmqvsmyy). Adding a third project crossed the free-tier cap of two,
+// so alphabiotec was auto-paused and cloud sync silently died — the app kept working
+// off localStorage, which is why the failure went unnoticed. Consolidating into
+// `gastos` puts futuro back under the cap permanently.
 const GASTOS_URL  = 'https://fnzdkqrkranedtgysqcf.supabase.co';
 const GASTOS_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuemRrcXJrcmFuZWR0Z3lzcWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDM0NTcsImV4cCI6MjA5MzkxOTQ1N30.gh38kLWluvd9Z4cHo4fwm-hv0BNYeN0D-fOD_qR4gXE';
+const SB_URL  = GASTOS_URL;   // same project — see note above
+const SB_ANON = GASTOS_ANON;
 const _currentYM  = new Date().toISOString().slice(0, 7); // "YYYY-MM" — months before this use gastos actuals
 const SB_ID_KEY = 'futuro_sb_id';
 const _sb = (typeof supabase !== 'undefined') ? supabase.createClient(SB_URL, SB_ANON) : null;
