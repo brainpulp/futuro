@@ -260,3 +260,22 @@ passes it. Never assert on a fixed early month in the start year.
     (`/functions/v1/monthly-actuals`, `/functions/v1/project-actuals`), never
     PostgREST — so anon has no path to `transactions`. Verified with `set local role anon`.
 - `saveActive()` → deepCopy(S) into SCENARIOS → lsSave() → sbSave()
+
+## Gastos actuals — `project_actuals_agg()`
+`renderProjectBudgets()` compares budgeted project costs against this function, via the
+`project-actuals` Edge Function (which only reshapes `(tag,ym,amount)` into
+`{tag:{byMonth}}` — so changing the SQL needs no redeploy, but changing its SIGNATURE does).
+
+- **`tag` = `project` if non-empty, else `cat`.** The `project` column is empty on all
+  10,485 rows today, so in practice every tag is a *category*. Set `gastosCategory` on an
+  expense to the category name, not to some project label that exists only in your head.
+- ⚠ **`xfer` means "paid by bank transfer", NOT "internal movement".** Contractors are paid
+  by transferencia, so filtering `xfer = false` deleted most construction spend — Arcos
+  read $206 for 2026 against a true $9,167, and ~$52k of 2026 project spend was invisible.
+  Internal movement is identified by CATEGORY instead: `interbank outgoing` ($8.59M),
+  `transfers` ($965k), `interbank incoming`. Those three stay excluded; nothing else does.
+- **Amounts are GROSS outflows — inflows are deliberately not netted off.** `roca deptos`
+  has $35.5k of inflows that are rental revenue, not cost refunds; subtracting them would
+  understate budget consumed.
+- Blind spot: ~$31k of 2026 outflows (156 rows) have neither `cat` nor `project` and so
+  appear under no tag at all. Categorize them in Gastos, not here.
