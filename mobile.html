@@ -487,11 +487,14 @@
     else if (ls && (ls.scenarios || []).length) adopt(ls, 'this device');
     else if (cloud && cloud.scenarios.length) adopt(cloud, 'cloud');
     else {
+      // ⚠ The built-in example is NOT the user's data, so it is read-only for exactly the
+      // same reason a shared link is. Persisting it would push a demo scenario named
+      // "Base" into futuro_state, and because scenarios merge by NAME that demo can then
+      // outrank the real "Base" on the desktop. This happens easily: an iOS home-screen
+      // app gets a fresh storage partition, so the phone legitimately starts with nothing.
       saved = JSON.parse(win.eval('JSON.stringify(EMPTY)'));
-      source = 'built-in example (nothing saved yet)';
-      const id = 'sc_' + Date.now();
-      payload = { scenarios: [{ id, name: 'Base', data: saved }], activeId: id, savedAt: '' };
-      activeId = id;
+      source = 'built-in example — not saved';
+      readOnly = true;
     }
   }
 
@@ -653,7 +656,7 @@
       })
       .concat(edits.expAdded.map(a => a.type === 'oneoff'
         ? { id: a.id, name: a.name, type: 'oneoff', amount: a.amount,
-            atAge: a.from, atMonth: 1, from: a.from, to: a.from, enabled: true }
+            atAge: a.from, atMonth: a.atMonth || 1, from: a.from, to: a.from, enabled: true }
         : { id: a.id, name: a.name, type: 'monthly', amount: a.amount,
             from: a.from, to: a.to, fromMonth: 1, toMonth: 12, enabled: true }));
     Object.keys(edits.scen).forEach(k => { s[k] = edits.scen[k]; });
@@ -849,6 +852,8 @@
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
   // ── project costs / expenses ──
   // Every expense in the scenario, including the obras and one-off investments that
   // previously only existed on the desktop app.
@@ -882,14 +887,26 @@
       const on = e.enabled !== false;
       const when = e._past ? `already spent · not in the projection`
         : e._oneoff ? `one-off · age ${e.atAge ?? e.from ?? sa}`
-        : e.type === 'installments' ? `${e.installN || 1} payments from age ${e.atAge ?? e.from ?? sa}`
+        : e.type === 'installments' ? `${e.installN || 1} payments from ${MONTHS[(+(e.atMonth || 1)) - 1]} · age ${e.atAge ?? e.from ?? sa}`
         : `${e.type === 'annual' ? 'per year' : 'per month'} · age ${e.from ?? sa}–${e.to ?? ea}`;
+      // A one-off needs a MONTH as well as an age. Without it every cost at the start age
+      // lands in January, which is already behind the sim's opening month for most of the
+      // year — the money is then never spent and no edit can rescue it.
       const ageFields = e._oneoff
-        ? `<label><span class="fl">Age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>`
+        ? `<label><span class="fl">Age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>
+           <label><span class="fl">Month</span><select data-e="${esc(String(e.id))}" data-ef="atMonth">${
+             MONTHS.map((m, ix) => `<option value="${ix + 1}"${(+(e.atMonth || 1)) === ix + 1 ? ' selected' : ''}>${m}</option>`).join('')
+           }</select></label>`
         : e._recur
           ? `<label><span class="fl">From age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="from" value="${e.from ?? sa}" min="${sa}" max="${ea}"></label>
              <label><span class="fl">Until age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="to" value="${e.to ?? ea}" min="${sa}" max="${ea}"></label>`
-          : `<label><span class="fl">Starts at age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>`;
+          // Installments are how the real plan holds staged construction spend, so they
+          // need the whole schedule: when it starts (age AND month) and how many payments.
+          : `<label><span class="fl">Starts at age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>
+             <label><span class="fl">Month</span><select data-e="${esc(String(e.id))}" data-ef="atMonth">${
+               MONTHS.map((m, ix) => `<option value="${ix + 1}"${(+(e.atMonth || 1)) === ix + 1 ? ' selected' : ''}>${m}</option>`).join('')
+             }</select></label>
+             <label><span class="fl">Payments</span><input type="number" data-e="${esc(String(e.id))}" data-ef="installN" value="${e.installN || 1}" min="1" max="360"></label>`;
       return `<div class="ex${on ? '' : ' off'}${e._past ? ' past' : ''}">
         <div class="top">
           <span class="nm">${esc(e.name || 'Cost')}<small>${when}</small></span>
@@ -923,10 +940,16 @@
         let v;
         if (f === 'name') { v = inp.value.trim() || 'Cost'; inp.value = v; }
         else if (f === 'amount') { v = +inp.value.replace(/[^0-9-]/g, '') || 0; inp.value = v.toLocaleString(); }
+        else if (f === 'atMonth') { v = Math.max(1, Math.min(+inp.value || 1, 12)); }
+        else if (f === 'installN') { v = Math.max(1, Math.min(+inp.value || 1, 360)); inp.value = v; }
         else { v = Math.max(sa, Math.min(+inp.value || sa, ea)); inp.value = v; }
         const patch = { [f]: v };
         if (f === 'amount') { patch.installTotal = v; patch.budget = v; }
         setExp(inp.dataset.e, patch);
+        // A date change can flip an item in or out of "already spent", so the row has to
+        // be rebuilt — but deferred past this turn, because replacing a node that is still
+        // blurring throws "node to be removed is no longer a child".
+        if (f === 'atMonth' || f === 'atAge' || f === 'installN') setTimeout(renderExpenses, 0);
         render(true);
       };
     });
@@ -1144,11 +1167,11 @@
     $('src').textContent = 'Scenario from ' + source +
       '. Everything is simulated on this device with the same engine as the desktop app. ' +
       (readOnly
-        ? 'This one arrived as a link, so edits stay on this screen and are never saved over your own plan.'
+        ? 'It is not your saved plan, so edits stay on this screen and are never written to the cloud.'
         : 'Edits save automatically and sync with the web app.');
     applySaved();
     booted = true;                       // from here on, edits persist
-    if (readOnly) setSync('', 'preview', 'Shared link — nothing is saved');
+    if (readOnly) setSync('', 'preview', 'Not your saved plan — nothing is written');
     else if (!SB) setSync('', 'on device', 'Saved here — no cloud configured');
     else if ($('sync').textContent === 'loading…') setSync('ok', 'synced', 'Up to date with the web app');
   }).catch(e => {
