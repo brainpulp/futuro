@@ -279,3 +279,27 @@ passes it. Never assert on a fixed early month in the start year.
   understate budget consumed.
 - Blind spot: ~$31k of 2026 outflows (156 rows) have neither `cat` nor `project` and so
   appear under no tag at all. Categorize them in Gastos, not here.
+
+## Gastos actuals — `monthly-actuals` Edge Function
+Feeds the baseline "what do I actually spend" line for past months. Sums outflows whose
+`cat` is in the **`monthly expenses`** group defined in `settings.groups` (gastos).
+- It carried the SAME `xfer` bug as `project_actuals_agg` (`if (tx.xfer) continue`), which
+  dropped living costs paid by transferencia — healthcare, boat maintenance, sports, pets.
+  Historical baseline was understated by ~$8.2k; recent months were off by far more in
+  relative terms (2026-06: $2,912 → $5,286; 2026-04: $3,659 → $6,455). Fixed in v5.
+- `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
+  strings in `settings.groups` match the stored case exactly. Renaming a category in one
+  place and not the other will silently drop it from the baseline — check both.
+- ⚠ Both actuals functions are deployed `verify_jwt: false` **on purpose**. With it enabled
+  the gateway rejects the CORS preflight `OPTIONS` (no Authorization header) before the
+  function's own CORS handler runs, so the browser call fails. Do not "harden" this.
+
+## Supabase security posture (gastos)
+- `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —
+  the anon key ships in a public repo, so that path let anyone dump spend-by-category.
+  ⚠ A role-level `REVOKE ... FROM anon` is a NO-OP while PUBLIC still holds the grant;
+  revoke from `PUBLIC`, then re-`GRANT` to `service_role` (the Edge Function path).
+- `authenticated` deliberately keeps EXECUTE — a real login, not a public exposure, and
+  other clients in this project can't be inspected from here. Lint 0029 stays by choice.
+- `upwork_staging` has RLS on with no policy = deny-all except service_role. That is the
+  correct state for a service-role-only staging table; lint 0008 is a false positive here.
