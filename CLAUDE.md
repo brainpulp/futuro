@@ -58,6 +58,12 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   baked per-age curve overrides the edit on the desktop and the change looks ignored.
 - A scenario from `#s=` or an inlined build is `readOnly`: it renders and simulates but
   never saves, so opening someone's shared link cannot overwrite your own plan.
+- ⚠ **The built-in `EMPTY` fallback is `readOnly` too, and must stay that way.** It is not
+  user data, and merge-by-name means a demo scenario called "Base" outranks the real
+  "Base" once it is newer. This is easy to hit: an iOS home-screen app gets a fresh
+  storage partition, so the phone legitimately starts with nothing, falls back to the
+  sample, and any edit would otherwise publish the sample as the user's plan. It already
+  happened once — the cloud row had to be backdated to 2000-01-01 to defuse it.
 - ⚠ **index.html's `beforeunload`/`visibilitychange` savers MUST stay inside
   `if (!_engineOnly)`.** In engine-only mode `loadScenarios()` never runs, so `SCENARIOS`
   is `[]` — persisting that writes an empty scenario list over the real one. Because
@@ -75,6 +81,11 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   month. `renderExpenses` flags those `_past` ("already spent") — without it, editing the
   amount silently does nothing and looks broken. Four of the sample scenario's five
   project costs are in this state.
+  - One-offs therefore expose a **month** select as well as an age. Without it every cost
+    at the start age lands in January, which is behind the sim's opening month for most of
+    the year, and no amount of editing can rescue the money. The desktop shows those costs
+    as ordinary future spending while equally never spending them — mobile is the only
+    place that says so, which reads as "the phone has the wrong data".
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
