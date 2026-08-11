@@ -2348,10 +2348,21 @@ function _applyScenarios(saved) {
 
 async function loadScenarios() {
   badge('loading…', 'no');
-  // Always fetch both sources in parallel — pick the newest
+  // Always fetch both sources in parallel — pick the newest.
+  //
+  // ⚠ sbLoad() MUST be time-boxed. It awaits a network call with no deadline of its own,
+  // and a Supabase project that is paused (rather than down) accepts the connection and
+  // then never answers. That hangs this await forever, so loadScenarios() never settles,
+  // the .then() that calls initSections() never runs, and the app sits on an empty shell
+  // with no error — indistinguishable from "the page is broken". localStorage alone is a
+  // perfectly good render, so treat a slow cloud as no cloud.
+  const withDeadline = (p, ms) => Promise.race([
+    p,
+    new Promise(res => setTimeout(() => { console.warn('sbLoad timed out — using local data'); res(null); }, ms)),
+  ]);
   const [lsData, sbData] = await Promise.all([
     Promise.resolve(lsLoad()),
-    sbLoad(),
+    withDeadline(sbLoad(), 8000).catch(e => { console.warn('sbLoad failed', e); return null; }),
   ]);
   const lsTime = lsData?.savedAt ? new Date(lsData.savedAt).getTime() : 0;
   const sbTime = sbData?._sbUpdatedAt ? new Date(sbData._sbUpdatedAt).getTime() : 0;
