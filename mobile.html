@@ -150,6 +150,15 @@
   .err{color:var(--bad)}
   iframe{position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;left:-9999px}
   .sk{opacity:.45;transition:opacity .15s}
+  /* sync chip — the header is the only place a save state is always visible */
+  .sync{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
+        color:var(--dim);white-space:nowrap;flex:none}
+  .sync.ok{color:var(--good);border-color:var(--good)}
+  .sync.bad{color:var(--bad);border-color:var(--bad)}
+  .sync.busy{opacity:.6}
+  .scenbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .scenbar select{flex:1;min-width:0;font:inherit;font-size:13px;padding:8px 10px;
+    border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 </style>
 </head>
 <body>
@@ -157,7 +166,13 @@
 <header>
   <h1>Futuro</h1>
   <div class="scen mono" id="scen">loading…</div>
+  <span class="sync" id="sync" title="Sync status">…</span>
 </header>
+
+<!-- Only shown when the account actually holds more than one scenario. -->
+<div class="scenbar" id="scenbar" hidden>
+  <select id="scenpick" aria-label="Active scenario"></select>
+</div>
 
 <!-- Duplicates the summary card, so it is hidden from screen readers to avoid
      announcing the same result twice. -->
@@ -248,7 +263,7 @@
     <div id="incomes"></div>
     <div style="height:10px"></div>
     <button type="button" id="addBiz">+ Add a business</button>
-    <p class="hint" style="margin:8px 0 0">Removing one takes it out of this projection entirely. “Reset” brings it back — nothing here changes your saved plan.</p>
+    <p class="hint" style="margin:8px 0 0">Removing one takes it out of the plan entirely. “Undo my changes” brings it back.</p>
   </div>
 </details>
 
@@ -274,7 +289,7 @@
 </details>
 
 <div class="card">
-  <button id="reset">Reset to saved scenario</button>
+  <button id="reset">Undo my changes</button>
   <div style="height:8px"></div>
   <button id="link" class="p">Copy link for another device</button>
   <div class="msg" id="msg"></div>
@@ -350,30 +365,198 @@
     })()`);
   }
 
+  // ── cloud sync ────────────────────────────────────────────────
+  // Same `futuro_state` table as the desktop, over plain REST: this page ships no CDN,
+  // so there is no supabase-js to lean on. Credentials are read out of the engine frame
+  // rather than copied, so the repo keeps exactly one set.
+  let SB = null, deviceId = null;
+  function sbInit() {
+    try {
+      const cfg = JSON.parse(win.eval('JSON.stringify({url:SB_URL,key:SB_ANON})'));
+      if (cfg.url && cfg.key) SB = cfg;
+    } catch (e) { console.warn('engine exposes no supabase config', e); }
+    try {
+      deviceId = localStorage.getItem('futuro_sb_id');
+      if (!deviceId && window.crypto && crypto.randomUUID) {
+        deviceId = crypto.randomUUID();
+        localStorage.setItem('futuro_sb_id', deviceId);
+      }
+    } catch (e) { deviceId = null; }
+  }
+  const sbHeaders = () => ({ apikey: SB.key, Authorization: 'Bearer ' + SB.key });
+
+  // Mirrors index.html's sbLoad(): every device owns one row, so scenarios are merged
+  // by NAME with the newest version of each winning. A scenario created on the desktop
+  // is never lost just because the phone happened to save afterwards.
+  async function sbGet() {
+    if (!SB) return null;
+    const r = await fetch(SB.url + '/rest/v1/futuro_state?select=data,updated_at&order=updated_at.desc&limit=30',
+                          { headers: sbHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (!rows.length) return null;
+    const byName = {};
+    let newest = null, newestAt = '';
+    rows.forEach(row => {
+      if (!row.data || !row.data.scenarios) return;
+      if (row.updated_at > newestAt) { newestAt = row.updated_at; newest = row.data; }
+      row.data.scenarios.forEach(sc => {
+        if (!byName[sc.name] || row.updated_at > byName[sc.name].at) byName[sc.name] = { sc, at: row.updated_at };
+      });
+    });
+    if (!newest) return null;
+    const scenarios = Object.values(byName).sort((a, b) => a.at < b.at ? 1 : -1).map(x => x.sc);
+    return { ...newest, scenarios, _at: newestAt };
+  }
+
+  async function sbPut(data) {
+    if (!SB || !deviceId) throw new Error('no cloud configured');
+    const r = await fetch(SB.url + '/rest/v1/futuro_state', {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Content-Type': 'application/json',
+                 Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id: deviceId, data, updated_at: new Date().toISOString() }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 120));
+  }
+
+  function setSync(cls, text, title) {
+    const el = $('sync');
+    el.className = 'sync' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+    el.title = title || text;
+  }
+
   // ── scenario sources, best first ──
-  let saved = null, source = '';
+  let saved = null, source = '', payload = null, activeId = null, readOnly = false;
+
+  function localPayload() {
+    try {
+      const raw = localStorage.getItem('futuro_scenarios');
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      // Very old copies stored a bare array rather than the {scenarios,…} envelope.
+      if (Array.isArray(p)) return { scenarios: p, activeId: (p[p.length - 1] || {}).id, savedAt: '' };
+      return p && p.scenarios ? p : null;
+    } catch (e) { console.warn('localStorage read failed', e); return null; }
+  }
+
+  function adopt(p, why) {
+    payload = p;
+    const list = payload.scenarios || [];
+    const act = list.find(s => s.id === payload.activeId) || list[list.length - 1];
+    activeId = act ? act.id : null;
+    saved = act ? (act.data || act) : JSON.parse(win.eval('JSON.stringify(EMPTY)'));
+    source = why + (act && act.name ? ' — ' + act.name : '');
+  }
+
   async function loadScenario() {
+    // A shared link or an inlined build is someone else's snapshot. Show it, but never
+    // let it autosave over the scenarios this device already owns.
     if (window.__EMBEDDED_SCENARIO) {
       saved = window.__EMBEDDED_SCENARIO;
       source = window.__EMBEDDED_NAME || 'embedded scenario';
-      return;
+      readOnly = true; return;
     }
     const h = location.hash.match(/[#&]s=([^&]+)/);
     if (h) {
-      try { saved = await unpack(decodeURIComponent(h[1])); source = 'shared link'; return; }
-      catch (e) { console.warn('hash decode failed', e); }
+      try {
+        saved = await unpack(decodeURIComponent(h[1]));
+        source = 'shared link'; readOnly = true; return;
+      } catch (e) { console.warn('hash decode failed', e); }
     }
+    const ls = localPayload();
+    let cloud = null;
+    try { cloud = await sbGet(); }
+    catch (e) {
+      console.warn('cloud load failed', e);
+      setSync('bad', 'offline', 'Could not reach the cloud: ' + e.message);
+    }
+    const lsAt = ls && ls.savedAt ? Date.parse(ls.savedAt) : 0;
+    const cAt  = cloud && cloud._at ? Date.parse(cloud._at) : 0;
+    // The cloud wins only when STRICTLY newer — the same rule index.html applies, so the
+    // two apps can never disagree about which copy is authoritative.
+    if (cloud && cloud.scenarios.length && cAt > lsAt) adopt(cloud, 'cloud');
+    else if (ls && (ls.scenarios || []).length) adopt(ls, 'this device');
+    else if (cloud && cloud.scenarios.length) adopt(cloud, 'cloud');
+    else {
+      saved = JSON.parse(win.eval('JSON.stringify(EMPTY)'));
+      source = 'built-in example (nothing saved yet)';
+      const id = 'sc_' + Date.now();
+      payload = { scenarios: [{ id, name: 'Base', data: saved }], activeId: id, savedAt: '' };
+      activeId = id;
+    }
+  }
+
+  // ── persistence ───────────────────────────────────────────────
+  let saveTimer = null, booted = false;
+  const touched = new Set();
+
+  function markDirty() {
+    if (!booted || readOnly) return;
+    setSync('busy', 'saving…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, 700);
+  }
+
+  // What gets SAVED — deliberately NOT readControls(). That one flattens expMultiplier,
+  // expenseCurve and yieldCurve so the phone's sliders are the whole story, which is
+  // right for simulating but would silently destroy a baked curve the desktop owns.
+  // Here only fields the user actually touched are written back, so merely opening the
+  // phone can never rewrite anything.
+  function materialize() {
+    const s = JSON.parse(JSON.stringify(saved));
+    if (touched.has('sp')) {
+      const mult = s.expMultiplier || 1;
+      s.monthlyExpenses = Math.round((+$('sp').value) / mult);
+      // An explicit spend edit has to bite: a baked per-age curve would otherwise
+      // override it back on the desktop and the change would look ignored.
+      s.expenseCurve = {};
+      delete s.expenseAnchor;
+    }
+    if (touched.has('yr'))  { s.yieldRate = +$('yr').value; s.yieldCurve = {}; }
+    if (touched.has('vol')) s.mcVol = +$('vol').value;
+    if (touched.has('inf')) s.inflationRate = +$('inf').value;
+    if (touched.has('ea'))  s.endAge = +$('ea').value;
+    if (touched.has('med')) s.useMedianReturn = $('med').checked;
+    if (touched.has('crash')) { s.crashYears = crash.y; s.crashPct = crash.p; }
+    if (touched.has('cost')) {
+      if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
+      else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
+    }
+    return applyEdits(s);
+  }
+
+  async function persist() {
+    if (!payload || readOnly) return;
+    const data = materialize();
+    let sc = (payload.scenarios || []).find(s => s.id === activeId);
+    if (!sc) {
+      sc = { id: activeId || ('sc_' + Date.now()), name: 'Base', data };
+      payload.scenarios = (payload.scenarios || []).concat([sc]);
+      activeId = sc.id;
+    }
+    sc.data = data;
+    payload.activeId = activeId;
+    payload.savedAt = new Date().toISOString();
+    try { localStorage.setItem('futuro_scenarios', JSON.stringify(payload)); }
+    catch (e) { console.warn('localStorage write failed', e); }
+    if (!SB) { setSync('', 'on device', 'Saved here — no cloud configured'); return; }
     try {
-      const raw = localStorage.getItem('futuro_scenarios');
-      if (raw) {
-        const p = JSON.parse(raw);
-        const list = p.scenarios || p;
-        const act = list.find(s => s.id === p.activeId) || list[list.length - 1];
-        if (act) { saved = act.data || act; source = 'this device' + (act.name ? ' — ' + act.name : ''); return; }
-      }
-    } catch (e) { console.warn('localStorage read failed', e); }
-    saved = JSON.parse(win.eval('JSON.stringify(EMPTY)'));
-    source = 'built-in example (no saved data found on this device)';
+      await sbPut(payload);
+      setSync('ok', 'synced', 'Saved and synced with the web app');
+    } catch (e) {
+      setSync('bad', 'offline', 'Saved on this device; cloud failed: ' + e.message);
+    }
+  }
+
+  function renderScenPick() {
+    const list = (payload && payload.scenarios) || [];
+    $('scenbar').hidden = readOnly || list.length < 2;
+    if ($('scenbar').hidden) return;
+    $('scenpick').innerHTML = list.map(s =>
+      `<option value="${esc(String(s.id))}"${String(s.id) === String(activeId) ? ' selected' : ''}>${esc(s.name || 'Scenario')}</option>`
+    ).join('');
   }
 
   // ── live state ──
@@ -382,11 +565,11 @@
 
   // Per-asset sale ages and per-income switches, keyed so they survive a re-render.
   // null age = hold (never sold). Empty until the user actually changes something.
-  let edits = { sales: {}, price: {}, income: {}, gone: [], added: [],
+  let edits = { sales: {}, price: {}, income: {}, incVal: {}, gone: [], added: [],
                 exp: {}, expGone: [], expAdded: [], scen: {} };
   let crash = { y: 0, p: 0 };
   let nextBizId = 1;
-  const blank = () => ({ sales: {}, price: {}, income: {}, gone: [], added: [],
+  const blank = () => ({ sales: {}, price: {}, income: {}, incVal: {}, gone: [], added: [],
                          exp: {}, expGone: [], expAdded: [], scen: {} });
 
   // Sellable assets come from two places: plain properties, and deals that have an exit.
@@ -442,7 +625,10 @@
       .filter(i => !edits.gone.includes(String(i.id)))
       .map(i => {
         const e = edits.income[i.id];
-        return e === undefined ? i : { ...i, enabled: e };
+        const v = edits.incVal[i.id];
+        let out = e === undefined ? i : { ...i, enabled: e };
+        if (v) out = { ...out, ...v };
+        return out;
       })
       .concat(edits.added.filter(a => a.enabled !== false).map(a => ({
         id: a.id, name: a.name, type: 'monthly', monthly: a.monthly,
@@ -558,17 +744,36 @@
     // Existing incomes: switch on/off, or remove from the projection entirely.
     const inc = (saved.incomes || []).filter(i => !edits.gone.includes(String(i.id)));
     $('incomeCard').hidden = false;
+    // Existing incomes are editable in place — amount and age span, not just on/off.
     const rows = inc.map(i => {
-      const on = edits.income[i.id] !== undefined ? edits.income[i.id] : i.enabled !== false;
-      const per = i.type === 'oneoff' ? 'one-off'
-        : i.type === 'annual' ? `${fmt(i.amount || i.monthly || 0)}/yr`
-        : `${fmt(i.monthly || 0)}/mo`;
-      const span = (i.from && i.to) ? ` · age ${i.from}–${i.to}` : '';
-      return `<div class="sw"><span>${esc(i.name || 'Income')}<small>${per}${span}</small></span>
-        <span style="display:flex;align-items:center;gap:4px">
-          <input type="checkbox" data-i="${esc(String(i.id))}"${on ? ' checked' : ''} aria-label="Include ${esc(i.name || 'income')}">
-          <button type="button" class="del" data-rm="${esc(String(i.id))}" aria-label="Remove ${esc(i.name || 'income')}">✕</button>
-        </span></div>`;
+      const ov = edits.incVal[i.id] || {};
+      const it = { ...i, ...ov };
+      const on = edits.income[i.id] !== undefined ? edits.income[i.id] : it.enabled !== false;
+      const isOne = it.type === 'oneoff';
+      const amtF = (it.type === 'annual' || isOne) ? 'amount' : 'monthly';
+      const amtV = +(it[amtF] ?? it.monthly ?? it.amount ?? 0);
+      const per = isOne ? 'one-off' : it.type === 'annual' ? `${fmt(amtV)}/yr` : `${fmt(amtV)}/mo`;
+      const span = (it.from && it.to) ? ` · age ${it.from}–${it.to}` : '';
+      const id = esc(String(i.id));
+      return `<div class="sw" style="display:block">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span>${esc(it.name || 'Income')}<small>${per}${span}</small></span>
+          <span style="display:flex;align-items:center;gap:4px">
+            <input type="checkbox" data-i="${id}"${on ? ' checked' : ''} aria-label="Include ${esc(it.name || 'income')}">
+            <button type="button" class="del" data-rm="${id}" aria-label="Remove ${esc(it.name || 'income')}">✕</button>
+          </span>
+        </div>
+        <div class="fg" style="margin-top:7px">
+          <label class="wide"><span class="fl">Name</span>
+            <input type="text" data-in="${id}" data-inf="name" value="${esc(it.name || '')}"></label>
+          <label${isOne ? ' class="wide"' : ''}><span class="fl">${isOne ? 'Amount' : it.type === 'annual' ? 'Per year' : 'Per month'}</span>
+            <input type="text" inputmode="numeric" data-in="${id}" data-inf="${amtF}" value="${amtV.toLocaleString()}"></label>
+          ${isOne ? '' : `<label><span class="fl">From age</span>
+            <input type="number" data-in="${id}" data-inf="from" value="${it.from ?? sa}" min="${sa}" max="${ea}"></label>
+          <label><span class="fl">Until age</span>
+            <input type="number" data-in="${id}" data-inf="to" value="${it.to ?? ea}" min="${sa}" max="${ea}"></label>`}
+        </div>
+      </div>`;
     });
     // Businesses added here are fully editable — they have no saved counterpart.
     const news = edits.added.map(a => `<div class="sw" style="display:block">
@@ -602,6 +807,18 @@
     });
     $('incomes').querySelectorAll('button[data-rm]').forEach(b => {
       b.onclick = () => { edits.gone.push(b.dataset.rm); renderLists(); render(true); };
+    });
+    // In-place only — re-rendering the list from a change handler kills the blurring node.
+    $('incomes').querySelectorAll('[data-inf]').forEach(inp => {
+      inp.onchange = () => {
+        const id = inp.dataset.in, f = inp.dataset.inf;
+        let v;
+        if (f === 'name') { v = inp.value.trim() || 'Income'; inp.value = v; }
+        else if (f === 'from' || f === 'to') { v = Math.max(sa, Math.min(+inp.value || sa, ea)); inp.value = v; }
+        else { v = +inp.value.replace(/[^0-9-]/g, '') || 0; inp.value = v.toLocaleString(); }
+        edits.incVal[id] = { ...(edits.incVal[id] || {}), [f]: v };
+        render(true);
+      };
     });
     $('incomes').querySelectorAll('button[data-rmnew]').forEach(b => {
       b.onclick = () => {
@@ -673,7 +890,7 @@
           <button type="button" class="del" data-erm="${esc(String(e.id))}" aria-label="Remove ${esc(e.name || 'cost')}">✕</button>
         </div>
         <div class="fg">
-          ${e._added ? `<label class="wide"><span class="fl">Name</span><input type="text" data-e="${esc(String(e.id))}" data-ef="name" value="${esc(e.name || '')}"></label>` : ''}
+          <label class="wide"><span class="fl">Name</span><input type="text" data-e="${esc(String(e.id))}" data-ef="name" value="${esc(e.name || '')}"></label>
           <label${e._recur ? '' : ' class="wide"'}><span class="fl">Amount</span>
             <input type="text" inputmode="numeric" data-e="${esc(String(e.id))}" data-ef="amount" value="${e._amt.toLocaleString()}"></label>
           ${ageFields}
@@ -721,6 +938,7 @@
   let mcTimer = null, seq = 0;
   function render(withMC) {
     syncLabels();
+    markDirty();          // no-op until the first paint has happened, and for shared links
     const mine = ++seq;
     let r;
     try { r = JSON.parse(simulate(readControls(), withMC)); }
@@ -806,6 +1024,9 @@
 
   // ── controls ──
   function applySaved() {
+    // Repopulating every control fires change handlers; suppress saving while it happens
+    // so re-reading a scenario can never write it straight back out.
+    const was = booted; booted = false;
     $('sp').value = Math.min(Math.max(eff(saved) || 7000, 2000), 25000);
     $('yr').value = saved.yieldRate ?? 7;
     $('vol').value = saved.mcVol ?? 15;
@@ -819,9 +1040,24 @@
       const v = saved[inp.dataset.s] ?? 0;
       inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
     });
+    renderScenPick();
     renderLists();
     render(true);
+    booted = was;
   }
+  $('scenpick').addEventListener('change', async () => {
+    await persist();                       // don't strand edits on the scenario being left
+    const list = (payload && payload.scenarios) || [];
+    const sc = list.find(s => String(s.id) === $('scenpick').value);
+    if (!sc) return;
+    activeId = sc.id;
+    saved = sc.data || sc;
+    touched.clear();
+    edits = blank();
+    source = 'this device — ' + (sc.name || 'Scenario');
+    $('scen').textContent = source.length > 34 ? source.slice(0, 33) + '…' : source;
+    applySaved();
+  });
   $('addBiz').addEventListener('click', () => {
     const sa = saved.startAge || 57;
     edits.added.push({ id: 'biz' + (nextBizId++), name: 'New business',
@@ -850,18 +1086,28 @@
       render(true);
     };
   });
+  // `touched` is what makes saving safe: only controls the user actually moved get
+  // written back, so untouched fields keep whatever the desktop put there.
   ['sp','yr','vol','inf','ea'].forEach(id => $(id).addEventListener('input', () => {
+    touched.add(id);
     render(false);
     if (id === 'ea') renderLists();   // horizon changes which sales can still happen
   }));
-  ['med','cost'].forEach(id => $(id).addEventListener('change', () => render(true)));
+  ['med','cost'].forEach(id => $(id).addEventListener('change', () => { touched.add(id); render(true); }));
   $('crash').addEventListener('click', e => {
     const b = e.target.closest('button[data-y]');
     if (!b) return;
     crash = { y: +b.dataset.y, p: +b.dataset.p };
+    touched.add('crash');
     render(true);
   });
-  $('reset').addEventListener('click', applySaved);
+  // Reset discards this session's edits and saves that reverted state, so the phone
+  // and the web app do not end up disagreeing about what "reset" meant.
+  $('reset').addEventListener('click', () => {
+    touched.clear();
+    applySaved();
+    markDirty();
+  });
 
   $('link').addEventListener('click', async () => {
     try {
@@ -884,12 +1130,20 @@
 
   // ── go ──
   ready.then(async () => {
+    sbInit();
+    setSync('busy', 'loading…');
     await loadScenario();
     $('scen').textContent = source.length > 34 ? source.slice(0, 33) + '…' : source;
     $('src').textContent = 'Scenario from ' + source +
-      '. Everything is simulated on this device with the same engine as the desktop app; ' +
-      'the sliders never change your saved data.';
+      '. Everything is simulated on this device with the same engine as the desktop app. ' +
+      (readOnly
+        ? 'This one arrived as a link, so edits stay on this screen and are never saved over your own plan.'
+        : 'Edits save automatically and sync with the web app.');
     applySaved();
+    booted = true;                       // from here on, edits persist
+    if (readOnly) setSync('', 'preview', 'Shared link — nothing is saved');
+    else if (!SB) setSync('', 'on device', 'Saved here — no cloud configured');
+    else if ($('sync').textContent === 'loading…') setSync('ok', 'synced', 'Up to date with the web app');
   }).catch(e => {
     fail('Engine unavailable', e.message + ' — open this page from the same site as index.html.');
     $('src').textContent = '';

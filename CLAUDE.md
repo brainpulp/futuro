@@ -30,19 +30,47 @@ drives it with `contentWindow.eval(...)`.
 - `engineonly=1` makes index.html skip `loadScenarios()`, all network sync and UI init,
   and set `window._engineReady`. Nothing then races with or overwrites the injected `S`.
 - Never duplicate sim logic into mobile.html — inject `S` and call `runSim()` in the frame.
-- Scenario sources, in order: `#s=` URL hash (gzip+base64url, stays client-side) →
-  `localStorage.futuro_scenarios` → `EMPTY`.
-- The phone has no localStorage copy and Supabase sync may be paused, so the
-  **hash link is the real transfer path**. "Copy link for another device" builds it.
+- Scenario sources, in order: `#s=` URL hash (gzip+base64url) → newest of
+  (`futuro_state` in Supabase, `localStorage.futuro_scenarios`) → `EMPTY`.
 - No CDN and no chart library: the area chart is hand-rolled inline SVG.
 - Controls: spend, return, volatility, early crash, inflation, horizon, median toggle,
-  cost toggle, per-asset sale price + year steppers, per-income switches, add/remove
-  businesses, per-expense amount/date/enable/delete + add, and scenario-level fields
+  cost toggle, per-asset sale price + year steppers, per-income enable/remove **plus
+  name/amount/age-span**, add/remove businesses, per-expense name/amount/date/enable/
+  delete + add, a scenario picker when more than one exists, and scenario-level fields
   (liquidBase, startAge, assetAppreciation, sellCostRate, propertyTaxRate, borrowRate).
-  All edits are working-scenario only — Reset restores them.
+
+### mobile.html ↔ cloud sync
+Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
+`futuro_state` table the desktop uses, so the two apps round-trip.
+- Talks to PostgREST with plain `fetch` — no supabase-js, because this page ships no CDN.
+  `SB_URL`/`SB_ANON` are read out of the engine frame (`win.eval`), never copied, so the
+  repo holds one set of credentials.
+- Each device owns one row keyed by `localStorage.futuro_sb_id`; loading merges rows by
+  scenario NAME keeping the newest, exactly like index.html's `sbLoad()`. The cloud wins
+  only when **strictly newer** than localStorage — same tie-break as the desktop, so the
+  two can never disagree about which copy is authoritative.
+- ⚠ **Saving uses `materialize()`, NOT `readControls()`.** `readControls()` flattens
+  `expMultiplier`, `expenseCurve` and `yieldCurve` so the phone's sliders are the whole
+  story — correct for simulating, catastrophic if persisted, since it would wipe a baked
+  curve the desktop owns. `materialize()` writes back only fields in the `touched` set,
+  so merely opening the phone can never rewrite anything.
+- Touching spend clears `expenseCurve`, touching return clears `yieldCurve` — otherwise a
+  baked per-age curve overrides the edit on the desktop and the change looks ignored.
+- A scenario from `#s=` or an inlined build is `readOnly`: it renders and simulates but
+  never saves, so opening someone's shared link cannot overwrite your own plan.
+- ⚠ **index.html's `beforeunload`/`visibilitychange` savers MUST stay inside
+  `if (!_engineOnly)`.** In engine-only mode `loadScenarios()` never runs, so `SCENARIOS`
+  is `[]` — persisting that writes an empty scenario list over the real one. Because
+  mobile.html embeds index.html in a hidden iframe, every navigation away from the phone
+  view used to wipe `futuro_scenarios` on that device.
 - Detail sections are `<details class="card">`, collapsed by default, each with a `.cnt`
   summary so the closed state still says what is inside. Browser tests must open them
-  (`d.open = true`) before interacting, and again after clicking Reset.
+  (`d.open = true`) before interacting, and again after clicking "Undo my changes".
+- Browser tests: `#sp` has `step="250"`, so slider values snap — assert on aligned
+  numbers. Navigating to `mobile.html#s=…` from `mobile.html` is a same-document hash
+  change and does NOT reload; force a `reload()`. Build scenario fixtures from the
+  engine's own `EMPTY` — a hand-written sparse scenario makes `runSim()` return a final
+  row of `NaN`, which the UI then shows as a plausible-looking `$0k`.
 - ⚠ A one-off dated earlier in the START year never fires: the sim opens at the *current*
   month. `renderExpenses` flags those `_past` ("already spent") — without it, editing the
   amount silently does nothing and looks broken. Four of the sample scenario's five

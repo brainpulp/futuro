@@ -8433,20 +8433,27 @@ if (_engineOnly) {
 
 // Save immediately to localStorage (sync) before page unloads so changes survive a reload.
 // Supabase (async) gets synced on the next load via _applyScenarios → saveActive.
-window.addEventListener('beforeunload', () => {
-  clearTimeout(_saveTimer);
-  try {
-    const payload = JSON.stringify({ scenarios: SCENARIOS.map(sc =>
-      sc.id === activeScenarioId ? { ...sc, data: deepCopy(S) } : sc
-    ), activeId: activeScenarioId, savedAt: new Date().toISOString() });
-    localStorage.setItem(LS_KEY, payload);
-  } catch(e) {}
-});
+//
+// ⚠ Both handlers MUST stay behind _engineOnly. In engine-only mode loadScenarios() never
+// runs, so SCENARIOS is [] and S is EMPTY — persisting that writes an empty scenario list
+// over the real one. mobile.html embeds this file in a hidden iframe, so every time the
+// phone view unloaded it wiped `futuro_scenarios` on that device.
+if (!_engineOnly) {
+  window.addEventListener('beforeunload', () => {
+    clearTimeout(_saveTimer);
+    try {
+      const payload = JSON.stringify({ scenarios: SCENARIOS.map(sc =>
+        sc.id === activeScenarioId ? { ...sc, data: deepCopy(S) } : sc
+      ), activeId: activeScenarioId, savedAt: new Date().toISOString() });
+      localStorage.setItem(LS_KEY, payload);
+    } catch(e) {}
+  });
 
-// Also save when the tab loses visibility (user switches tabs before reloading)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveActive();
-});
+  // Also save when the tab loses visibility (user switches tabs before reloading)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveActive();
+  });
+}
 </script>
 
 
