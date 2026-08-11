@@ -1,3 +1,4 @@
 .claude/
 .superpowers/
 scenarios.json
+node_modules/
