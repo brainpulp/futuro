@@ -887,7 +887,7 @@
       const on = e.enabled !== false;
       const when = e._past ? `already spent · not in the projection`
         : e._oneoff ? `one-off · age ${e.atAge ?? e.from ?? sa}`
-        : e.type === 'installments' ? `${e.installN || 1} payments from age ${e.atAge ?? e.from ?? sa}`
+        : e.type === 'installments' ? `${e.installN || 1} payments from ${MONTHS[(+(e.atMonth || 1)) - 1]} · age ${e.atAge ?? e.from ?? sa}`
         : `${e.type === 'annual' ? 'per year' : 'per month'} · age ${e.from ?? sa}–${e.to ?? ea}`;
       // A one-off needs a MONTH as well as an age. Without it every cost at the start age
       // lands in January, which is already behind the sim's opening month for most of the
@@ -900,7 +900,13 @@
         : e._recur
           ? `<label><span class="fl">From age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="from" value="${e.from ?? sa}" min="${sa}" max="${ea}"></label>
              <label><span class="fl">Until age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="to" value="${e.to ?? ea}" min="${sa}" max="${ea}"></label>`
-          : `<label><span class="fl">Starts at age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>`;
+          // Installments are how the real plan holds staged construction spend, so they
+          // need the whole schedule: when it starts (age AND month) and how many payments.
+          : `<label><span class="fl">Starts at age</span><input type="number" data-e="${esc(String(e.id))}" data-ef="atAge" value="${e.atAge ?? e.from ?? sa}" min="${sa}" max="${ea}"></label>
+             <label><span class="fl">Month</span><select data-e="${esc(String(e.id))}" data-ef="atMonth">${
+               MONTHS.map((m, ix) => `<option value="${ix + 1}"${(+(e.atMonth || 1)) === ix + 1 ? ' selected' : ''}>${m}</option>`).join('')
+             }</select></label>
+             <label><span class="fl">Payments</span><input type="number" data-e="${esc(String(e.id))}" data-ef="installN" value="${e.installN || 1}" min="1" max="360"></label>`;
       return `<div class="ex${on ? '' : ' off'}${e._past ? ' past' : ''}">
         <div class="top">
           <span class="nm">${esc(e.name || 'Cost')}<small>${when}</small></span>
@@ -935,6 +941,7 @@
         if (f === 'name') { v = inp.value.trim() || 'Cost'; inp.value = v; }
         else if (f === 'amount') { v = +inp.value.replace(/[^0-9-]/g, '') || 0; inp.value = v.toLocaleString(); }
         else if (f === 'atMonth') { v = Math.max(1, Math.min(+inp.value || 1, 12)); }
+        else if (f === 'installN') { v = Math.max(1, Math.min(+inp.value || 1, 360)); inp.value = v; }
         else { v = Math.max(sa, Math.min(+inp.value || sa, ea)); inp.value = v; }
         const patch = { [f]: v };
         if (f === 'amount') { patch.installTotal = v; patch.budget = v; }
@@ -942,7 +949,7 @@
         // A date change can flip an item in or out of "already spent", so the row has to
         // be rebuilt — but deferred past this turn, because replacing a node that is still
         // blurring throws "node to be removed is no longer a child".
-        if (f === 'atMonth' || f === 'atAge') setTimeout(renderExpenses, 0);
+        if (f === 'atMonth' || f === 'atAge' || f === 'installN') setTimeout(renderExpenses, 0);
         render(true);
       };
     });
