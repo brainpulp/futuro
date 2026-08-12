@@ -86,6 +86,12 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
     the year, and no amount of editing can rescue the money. The desktop shows those costs
     as ordinary future spending while equally never spending them — mobile is the only
     place that says so, which reads as "the phone has the wrong data".
+- Chart range buttons (`#zoom`: 5/10/20 yr, All) clip the series to the next N years and
+  rescale both axes to that window. It is a VIEW preference: kept in
+  `localStorage.futuro_mobile_zoom`, never written into the scenario, and the handler
+  redraws via `chart(cur.series)` without re-simulating or calling `markDirty()`.
+  ⚠ `visible()` must feed BOTH the drawing and the pointermove readout — if only one uses
+  it the tooltip reports a different age than the point under your finger.
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
