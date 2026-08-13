@@ -86,6 +86,12 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
     the year, and no amount of editing can rescue the money. The desktop shows those costs
     as ordinary future spending while equally never spending them — mobile is the only
     place that says so, which reads as "the phone has the wrong data".
+- Chart range buttons (`#zoom`: 5/10/20 yr, All) clip the series to the next N years and
+  rescale both axes to that window. It is a VIEW preference: kept in
+  `localStorage.futuro_mobile_zoom`, never written into the scenario, and the handler
+  redraws via `chart(cur.series)` without re-simulating or calling `markDirty()`.
+  ⚠ `visible()` must feed BOTH the drawing and the pointermove readout — if only one uses
+  it the tooltip reports a different age than the point under your finger.
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
@@ -348,6 +354,23 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
 - ⚠ Both actuals functions are deployed `verify_jwt: false` **on purpose**. With it enabled
   the gateway rejects the CORS preflight `OPTIONS` (no Authorization header) before the
   function's own CORS handler runs, so the browser call fails. Do not "harden" this.
+
+## IBKR sync — `get-ibkr-liquid`
+`ibkrSync()` pulls Net Liquidation Value and writes it to `S.liquidBase`, caching it in
+`localStorage['futuro-ibkr-liquid']`. That cache is applied on EVERY load in
+`_applyScenarios` — IBKR is treated as the source of truth for current liquid, and the
+scenario's saved `liquidBase` is only a fallback.
+- The function lives in **gastos** (`SB_URL`), alongside everything else. It was in
+  `alphabiotec` and died when that project was paused; repointing `SB_URL` to gastos
+  without moving it left the call 404ing, so it was redeployed here. Source of truth for
+  the code is `supabase/functions/get-ibkr-liquid/index.ts` in this repo.
+- ⚠ Needs the `IBKR_FLEX_TOKEN` secret set **in gastos**. Without it the function returns
+  a 500 whose body names the missing secret. `QUERY_ID` is hardcoded (`1510170`).
+- `verify_jwt: false`, same CORS-preflight reason as the actuals functions.
+- Auto-sync only runs when `localStorage['futuro-ibkr-auto'] === '1'` (the "auto"
+  checkbox), then every 4h — the Flex API rate-limits frequent calls.
+- Failures are SILENT unless `{manual:true}`: auto-sync only does `console.warn`, so a
+  dead token shows up as a stale figure rather than an error. Click "↓ IBKR" to see it.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —

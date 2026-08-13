@@ -205,6 +205,14 @@
     <span><i class="dot" style="background:var(--iliq)"></i>Property</span>
     <span id="hover" class="mono"></span>
   </div>
+  <!-- Chart range. A view preference, not scenario data: it is kept in localStorage and
+       never written into the scenario, so changing it can't mark the plan dirty. -->
+  <div class="seg" id="zoom" role="group" aria-label="Chart range" style="margin-top:9px">
+    <button type="button" data-z="5">5 yr</button>
+    <button type="button" data-z="10">10 yr</button>
+    <button type="button" data-z="20">20 yr</button>
+    <button type="button" data-z="0">All</button>
+  </div>
 </div>
 
 <div class="card" id="ctrl">
@@ -1017,8 +1025,36 @@
 
   // ── stacked area chart, hand-rolled SVG (no chart library to ship to a phone) ──
   const W = 320, H = 150;
+  const ZOOM_KEY = 'futuro_mobile_zoom';
+  let zoom = 0;                                   // years shown; 0 = the whole plan
+  try { zoom = Math.max(0, +localStorage.getItem(ZOOM_KEY) || 0); } catch (e) { zoom = 0; }
+
+  // The visible window, used by BOTH the drawing and the hover readout — if they
+  // disagree the tooltip reports a different age than the point under your finger.
+  function visible(series) {
+    if (!zoom || !series || !series.length) return series;
+    const win = series.filter(d => d.age <= series[0].age + zoom);
+    return win.length >= 2 ? win : series;        // never render a degenerate window
+  }
+
+  function syncZoom() {
+    Array.from($('zoom').children).forEach(b =>
+      b.setAttribute('aria-pressed', String(+b.dataset.z === zoom)));
+  }
+
+  $('zoom').addEventListener('click', e => {
+    const b = e.target.closest('button[data-z]');
+    if (!b) return;
+    zoom = +b.dataset.z;
+    try { localStorage.setItem(ZOOM_KEY, String(zoom)); } catch (err) { /* private mode */ }
+    syncZoom();
+    if (cur) chart(cur.series);                   // redraw only — no re-simulation, no save
+  });
+  syncZoom();                                     // reflect the remembered choice on load
+
   function chart(series) {
     if (!series || series.length < 2) return;
+    series = visible(series);
     const xs = series.map(d => d.age);
     const tops = series.map(d => Math.max(d.liq, 0) + Math.max(d.iliq, 0));
     const lows = series.map(d => Math.min(d.liq, 0));
@@ -1047,7 +1083,8 @@
     if (!cur) return;
     const r = e.currentTarget.getBoundingClientRect();
     const t = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
-    const d = cur.series[Math.round(t * (cur.series.length - 1))];
+    const s = visible(cur.series);
+    const d = s[Math.round(t * (s.length - 1))];
     if (d) $('hover').textContent = `age ${d.age}: ${fmt(d.liq)} cash · ${fmt(d.iliq)} property`;
   });
   $('chart').addEventListener('pointerleave', () => { $('hover').textContent = ''; });
