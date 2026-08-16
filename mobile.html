@@ -1122,19 +1122,28 @@
     const md = markAge == null ? null : series.find(d => d.age === markAge);
     if (md) {
       const cx = x(md.age);
-      const total = Math.max(md.liq, 0) + Math.max(md.iliq, 0);
-      const cy = y(total);
-      const edge = 34;
+      const cash = Math.max(md.liq, 0), prop = Math.max(md.iliq, 0);
+      const yCash = y(cash), yTop = y(cash + prop);
+      const edge = 40;
       const anchor = cx < edge ? 'start' : cx > W - edge ? 'end' : 'middle';
       const tx = cx < edge ? 2 : cx > W - edge ? W - 2 : cx;
-      const ty = cy < 24 ? cy + 21 : cy - 9;      // flip under the point when near the top
+      const lbl = (yy, val, col, note) =>
+        `<text x="${tx.toFixed(1)}" y="${yy.toFixed(1)}" font-size="9.5" font-weight="700" text-anchor="${anchor}"` +
+        ` fill="${col}" paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round">` +
+        `${fmt(val)}<tspan font-size="7.5" font-weight="500" fill="var(--dim)"> ${note}</tspan></text>`;
+      // Property reads at the top of the stack, cash at the boundary between the bands —
+      // each label next to the value it describes. When the property band is too thin for
+      // two labels, lift the property one clear so they never overlap.
+      const tight = yCash - yTop < 15;
+      const yProp = (yTop < 14 ? yTop + 12 : yTop - 5) - (tight ? 9 : 0);
+      const yCashLbl = yCash < 14 ? yCash + 12 : yCash - 5;
       cross =
         `<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="0" y2="${H}" stroke="var(--dim)" stroke-width=".75" stroke-dasharray="2 2"/>` +
-        `<line x1="0" x2="${W}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="var(--dim)" stroke-width=".5" stroke-dasharray="2 3" opacity=".7"/>` +
-        `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.2" fill="var(--ink)" stroke="var(--card)" stroke-width="1.6"/>` +
-        `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="10.5" font-weight="700" text-anchor="${anchor}"` +
-        ` fill="var(--ink)" paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round">${fmt(total)}</text>` +
-        `<text x="${tx.toFixed(1)}" y="${(ty + (cy < 24 ? 10 : -10)).toFixed(1)}" font-size="8" text-anchor="${anchor}"` +
+        `<circle cx="${cx.toFixed(1)}" cy="${yTop.toFixed(1)}" r="2.8" fill="var(--iliq)" stroke="var(--card)" stroke-width="1.5"/>` +
+        `<circle cx="${cx.toFixed(1)}" cy="${yCash.toFixed(1)}" r="2.8" fill="var(--liq)" stroke="var(--card)" stroke-width="1.5"/>` +
+        lbl(yProp, prop, 'var(--iliq)', 'property') +
+        lbl(yCashLbl, cash, 'var(--liq)', 'cash') +
+        `<text x="${tx.toFixed(1)}" y="${(H - 12).toFixed(1)}" font-size="8" text-anchor="${anchor}"` +
         ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">age ${md.age}</text>`;
     }
     $('chart').innerHTML =
@@ -1165,7 +1174,7 @@
   function showMark() {
     const d = cur && visible(cur.series).find(p => p.age === markAge);
     $('hover').textContent = d
-      ? `age ${d.age} · ${fmt(d.liq)} cash · ${fmt(d.iliq)} property`
+      ? `age ${d.age} · ${fmt(Math.max(d.liq, 0) + Math.max(d.iliq, 0))} total`
       : '';
   }
 
