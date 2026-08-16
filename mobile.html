@@ -26,6 +26,8 @@
            --shadow:0 1px 3px rgba(0,0,0,.4); }
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* kills the double-tap-to-zoom gesture (and its 300ms delay) on things you tap */
+  button,summary,label,input,select,.ledhead,.stp button{touch-action:manipulation}
   body{margin:0;background:var(--bg);color:var(--ink);
     font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",Segoe UI,Roboto,sans-serif;
     padding:max(12px,env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));
@@ -88,7 +90,7 @@
     border-radius:9px;padding:0 8px;height:34px;background:transparent}
   .px span{font-size:12px;color:var(--dim);flex-shrink:0}
   .px input{flex:1;min-width:0;width:100%;border:0;background:transparent;color:var(--ink);
-    font:inherit;font-size:13px;font-weight:700;padding:0;
+    font:inherit;font-size:16px;font-weight:700;padding:0;
     font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
   .px input:focus{outline:none}
   .px.set{border-color:var(--liq)}
@@ -133,8 +135,10 @@
   .fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .fg .wide{grid-column:1 / -1}
   .fg label{display:block;min-width:0}
-  .fg input,.fg select{border:1px solid var(--line);border-radius:9px;padding:0 9px;height:36px;
-    background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%}
+  /* ⚠ 16px is not cosmetic: iOS Safari zooms the page whenever a focused field is
+     smaller, and the zoom does not come back on blur. Never drop these below 16px. */
+  .fg input,.fg select{border:1px solid var(--line);border-radius:9px;padding:0 9px;height:38px;
+    background:transparent;color:var(--ink);font:inherit;font-size:16px;width:100%}
   .fg input:focus,.fg select:focus{outline:2px solid var(--liq);outline-offset:-1px}
   .ex{padding:9px 0;border-top:1px solid var(--line)}
   .ex:first-of-type{border-top:none}
@@ -190,7 +194,7 @@
   .sync.bad{color:var(--bad);border-color:var(--bad)}
   .sync.busy{opacity:.6}
   .scenbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-  .scenbar select{flex:1;min-width:0;font:inherit;font-size:13px;padding:8px 10px;
+  .scenbar select{flex:1;min-width:0;font:inherit;font-size:16px;padding:8px 10px;
     border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 </style>
 </head>
