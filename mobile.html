@@ -1083,6 +1083,21 @@
     let lowMark = '';
     const lowAge = cur && cur.minAge != null ? cur.minAge : null;
     const ld = lowAge == null ? null : series.find(d => d.age === lowAge);
+    // Out of the zoom window: still print it, pinned to the edge it lies beyond with an
+    // arrow and its real age. Hiding it contradicted "show it regardless", and clamping
+    // it onto the curve would claim the trough happens at a year it does not.
+    if (lowAge != null && !ld) {
+      const past = lowAge > xs[xs.length - 1];
+      const col = cur.minLiq < 0 ? 'var(--bad)' : 'var(--warn)';
+      const ex = past ? W - 3 : 3;
+      lowMark =
+        `<line x1="${ex}" x2="${ex}" y1="${H - 34}" y2="${H - 12}" stroke="${col}" stroke-width="1.5"/>` +
+        `<text x="${past ? W - 6 : 6}" y="${H - 25}" font-size="9.5" font-weight="700" text-anchor="${past ? 'end' : 'start'}"` +
+        ` fill="${col}" paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round">${fmt(cur.minLiq)}</text>` +
+        `<text x="${past ? W - 6 : 6}" y="${H - 16}" font-size="7.5" text-anchor="${past ? 'end' : 'start'}"` +
+        ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">` +
+        `${past ? '' : '◂ '}lowest cash · ${lowAge}${past ? ' ▸' : ''}</text>`;
+    }
     if (ld) {
       // ⚠ minLiq/minAge come from the MONTHLY series; the yearly row at that age is a
       // different (higher) number because the trough is intra-year. Plot the real
