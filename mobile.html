@@ -178,6 +178,11 @@
   .ledrow.tot span:last-child{color:var(--iliq)}
   .ledsep{height:1px;background:var(--line);margin:6px 0}
   .pos{color:var(--good)} .neg{color:var(--bad)}
+  .budg{margin:6px 0 2px;font-size:11px;color:var(--dim)}
+  .budg .bar{height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:4px}
+  .budg .bar i{display:block;height:100%;background:var(--liq)}
+  .budg b{color:var(--ink)}
+  .budg .ovr{color:var(--bad);font-weight:700}
   /* sync chip — the header is the only place a save state is always visible */
   .sync{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
         color:var(--dim);white-space:nowrap;flex:none}
@@ -431,9 +436,21 @@
           .filter(i => i.amount !== 0)
           .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
       }));
+      // MONTHLY series. Drawing yearly rows put the lowest-cash dot off the line, because
+      // the trough is intra-year: the marker and the curve could not agree by
+      // construction. Age carries the month as a fraction so x positions stay honest.
       return JSON.stringify({
-        series: d.map(r => ({ age: r.age, liq: r.liq, iliq: r.iliq })),
-        finalNW: last.liq + last.iliq, minLiq: d.simMinLiq, minAge: d.simMinAge,
+        series: (d.monthly || []).map(m => ({
+          age: m.age + ((m.mo || 1) - 1) / 12, yr: m.age, mo: m.mo, liq: m.liq, iliq: m.iliq,
+        })),
+        // Read the end from the SAME record the chart's last point comes from. Taking it
+        // from the yearly roll-up while drawing monthly made the tile and the right-hand
+        // end of the curve disagree by ~$0.8M.
+        finalNW: (() => {
+          const lm = (d.monthly || [])[(d.monthly || []).length - 1];
+          return lm ? lm.liq + lm.iliq : last.liq + last.iliq;
+        })(),
+        minLiq: d.simMinLiq, minAge: d.simMinAge, minMo: d.simMinMo,
         ruin, mc, startAge: S.startAge, endAge: S.endAge, ledger,
       });
     })()`);
@@ -913,6 +930,25 @@
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  // ── Gastos actuals: what a project budget has ALREADY consumed ────────────
+  // A budget shown whole reads as money still to spend. Carhué's $130k is mostly gone —
+  // Gastos has the real figure, keyed by the expense's gastosCategory.
+  let actuals = null;
+  async function loadActuals() {
+    if (!SB) return;
+    try {
+      const r = await fetch(SB.url + '/functions/v1/project-actuals',
+                            { headers: { Authorization: 'Bearer ' + SB.key } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      actuals = await r.json();
+    } catch (e) { console.warn('project actuals unavailable', e); }
+  }
+  function spentOn(cat) {
+    const k = (cat || '').trim().toLowerCase();
+    if (!actuals || !k || !actuals[k] || !actuals[k].byMonth) return null;
+    return Object.values(actuals[k].byMonth).reduce((s, v) => s + (+v || 0), 0);
+  }
+
   // ── project costs / expenses ──
   // Every expense in the scenario, including the obras and one-off investments that
   // previously only existed on the desktop app.
@@ -966,12 +1002,24 @@
                MONTHS.map((m, ix) => `<option value="${ix + 1}"${(+(e.atMonth || 1)) === ix + 1 ? ' selected' : ''}>${m}</option>`).join('')
              }</select></label>
              <label><span class="fl">Payments</span><input type="number" data-e="${esc(String(e.id))}" data-ef="installN" value="${e.installN || 1}" min="1" max="360"></label>`;
+      // Budget vs what Gastos says is already spent. Without this the whole budget reads
+      // as future money, which is how a mostly-finished obra looks like a looming cost.
+      const budget = +(e.budget || e.installTotal || e.amount || 0);
+      const spent = spentOn(e.gastosCategory);
+      const pct = spent != null && budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : null;
+      const budgLine = pct == null ? '' :
+        `<div class="budg">
+           <div class="bar"><i style="width:${pct}%${pct >= 100 ? ';background:var(--bad)' : ''}"></i></div>
+           <span>${fmt(spent)} of ${fmt(budget)} spent · <b>${fmt(Math.max(budget - spent, 0))} left</b>${
+             spent > budget ? ` <span class="ovr">over by ${fmt(spent - budget)}</span>` : ''}</span>
+         </div>`;
       return `<div class="ex${on ? '' : ' off'}${e._past ? ' past' : ''}">
         <div class="top">
           <span class="nm">${esc(e.name || 'Cost')}<small>${when}</small></span>
           <input type="checkbox" data-et="${esc(String(e.id))}"${on ? ' checked' : ''} aria-label="Include ${esc(e.name || 'cost')}">
           <button type="button" class="del" data-erm="${esc(String(e.id))}" aria-label="Remove ${esc(e.name || 'cost')}">✕</button>
         </div>
+        ${budgLine}
         <div class="fg">
           <label class="wide"><span class="fl">Name</span><input type="text" data-e="${esc(String(e.id))}" data-ef="name" value="${esc(e.name || '')}"></label>
           <label${e._recur ? '' : ' class="wide"'}><span class="fl">Amount</span>
@@ -1159,6 +1207,17 @@
     return win.length >= 2 ? win : series;        // never render a degenerate window
   }
 
+  // Ages are fractional now (month carried as a twelfth), so points are matched by
+  // proximity rather than equality.
+  function nearest(series, age) {
+    if (!series || !series.length || age == null) return null;
+    let best = series[0];
+    for (const d of series) if (Math.abs(d.age - age) < Math.abs(best.age - age)) best = d;
+    return best;
+  }
+  const inWindow = (series, age) =>
+    series.length && age >= series[0].age - 0.5 && age <= series[series.length - 1].age + 0.5;
+
   // Age the crosshair is pinned to. Stored as an AGE rather than an index so it survives
   // a re-simulation or a zoom change — both rebuild the series under it.
   let markAge = null;
@@ -1202,8 +1261,11 @@
     // holds. Drawn on the LIQUID curve (not the total) because that is what runs out, and
     // always, independent of the finger crosshair.
     let lowMark = '';
-    const lowAge = cur && cur.minAge != null ? cur.minAge : null;
-    const ld = lowAge == null ? null : series.find(d => d.age === lowAge);
+    // The exact month of the trough, so the dot lands on the drawn line rather than
+    // floating under it.
+    const lowAge = cur && cur.minAge != null
+      ? cur.minAge + ((cur.minMo || 1) - 1) / 12 : null;
+    const ld = lowAge == null || !inWindow(series, lowAge) ? null : nearest(series, lowAge);
     // Out of the zoom window: still print it, pinned to the edge it lies beyond with an
     // arrow and its real age. Hiding it contradicted "show it regardless", and clamping
     // it onto the curve would claim the trough happens at a year it does not.
@@ -1217,7 +1279,7 @@
         ` fill="${col}" paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round">${fmt(cur.minLiq)}</text>` +
         `<text x="${past ? W - 6 : 6}" y="${H - 16}" font-size="7.5" text-anchor="${past ? 'end' : 'start'}"` +
         ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">` +
-        `${past ? '' : '◂ '}lowest cash · ${lowAge}${past ? ' ▸' : ''}</text>`;
+        `${past ? '' : '◂ '}lowest cash · ${Math.floor(lowAge)}${past ? ' ▸' : ''}</text>`;
     }
     if (ld) {
       // ⚠ minLiq/minAge come from the MONTHLY series; the yearly row at that age is a
@@ -1236,11 +1298,11 @@
         `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="9.5" font-weight="700" text-anchor="${anchor}"` +
         ` fill="${col}" paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round">${fmt(low)}</text>` +
         `<text x="${tx.toFixed(1)}" y="${(ty + 9).toFixed(1)}" font-size="7.5" text-anchor="${anchor}"` +
-        ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">lowest cash · ${ld.age}</text>`;
+        ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">lowest cash · ${Math.floor(ld.age)}</text>`;
     }
 
     let cross = '';
-    const md = markAge == null ? null : series.find(d => d.age === markAge);
+    const md = markAge == null || !inWindow(series, markAge) ? null : nearest(series, markAge);
     if (md) {
       const cx = x(md.age);
       // ⚠ Report the REAL values. Clamping with Math.max(...,0) is right for stacking the
@@ -1268,7 +1330,7 @@
         lbl(yProp, prop, 'var(--iliq)', 'property') +
         lbl(yCashLbl, cash, 'var(--liq)', 'cash') +
         `<text x="${tx.toFixed(1)}" y="${(H - 12).toFixed(1)}" font-size="8" text-anchor="${anchor}"` +
-        ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">age ${md.age}</text>`;
+        ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round">age ${Math.floor(md.age)}</text>`;
     }
     $('chart').innerHTML =
       gridY +
@@ -1276,8 +1338,8 @@
       `<path d="${area(d => d.liq, () => 0)}" fill="var(--liq)" opacity=".8"/>` +
       `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--dim)" stroke-width=".75" stroke-dasharray="3 3"/>` +
       `<text x="2" y="${Math.max(y(hi) + 9, 9).toFixed(1)}" font-size="8" fill="var(--dim)">${fmt(hi)}</text>` +
-      `<text x="2" y="${(H - 3).toFixed(1)}" font-size="8" fill="var(--dim)">age ${xs[0]}</text>` +
-      `<text x="${W - 2}" y="${(H - 3).toFixed(1)}" font-size="8" fill="var(--dim)" text-anchor="end">${xs[xs.length-1]}</text>` +
+      `<text x="2" y="${(H - 3).toFixed(1)}" font-size="8" fill="var(--dim)">age ${Math.floor(xs[0])}</text>` +
+      `<text x="${W - 2}" y="${(H - 3).toFixed(1)}" font-size="8" fill="var(--dim)" text-anchor="end">${Math.floor(xs[xs.length-1])}</text>` +
       lowMark + cross;   // crosshair last so a tapped point sits above the fixed marker
   }
 
@@ -1296,9 +1358,10 @@
   }
 
   function showMark() {
-    const d = cur && visible(cur.series).find(p => p.age === markAge);
+    const s = cur && visible(cur.series);
+    const d = s && inWindow(s, markAge) ? nearest(s, markAge) : null;
     $('hover').textContent = d
-      ? `age ${d.age} · ${fmt(d.liq + d.iliq)} total`
+      ? `age ${Math.floor(d.age)} · ${fmt(d.liq + d.iliq)} total`
       : '';
   }
 
@@ -1428,6 +1491,9 @@
         : 'Edits save automatically and sync with the web app.');
     applySaved();
     booted = true;                       // from here on, edits persist
+    // Actuals are decoration on top of a working page, so they are fetched after the
+    // first render and only redraw the list they affect.
+    loadActuals().then(() => { if (actuals) renderExpenses(); });
     if (readOnly) setSync('', 'preview', 'Not your saved plan — nothing is written');
     else if (!SB) setSync('', 'on device', 'Saved here — no cloud configured');
     else if ($('sync').textContent === 'loading…') setSync('ok', 'synced', 'Up to date with the web app');
