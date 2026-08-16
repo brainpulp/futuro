@@ -674,23 +674,15 @@
     return s;
   }
 
-  function readControls() {
-    const s = JSON.parse(JSON.stringify(saved));
-    s.monthlyExpenses = +$('sp').value;
-    s.expMultiplier = 1;              // slider is the effective figure, so fold the multiplier in
-    s.expenseCurve = {};              // a baked curve would override the slider
-    s.yieldRate = +$('yr').value;
-    s.yieldCurve = {};                // flat assumption: the slider is the whole story here
-    s.mcVol = +$('vol').value;
-    s.crashYears = crash.y;
-    s.crashPct = crash.p;
-    s.inflationRate = +$('inf').value;
-    s.endAge = +$('ea').value;
-    s.useMedianReturn = $('med').checked;
-    if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
-    else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
-    return applyEdits(s);
-  }
+  // What the phone SIMULATES is now exactly what it would SAVE.
+  //
+  // This used to overwrite monthlyExpenses with the slider and wipe expenseCurve /
+  // expMultiplier / yieldCurve on every run, on the theory that "the slider is the whole
+  // story". For a scenario carrying a baked per-age expense curve — the real one does —
+  // that silently simulated a different plan from the desktop, flat spending instead of
+  // the curve, a difference worth millions over a 35-year horizon. Untouched controls now
+  // leave the scenario exactly as saved; only a control you actually move overrides it.
+  function readControls() { return materialize(); }
 
   function syncLabels() {
     $('spV').textContent = '$' + (+$('sp').value).toLocaleString() + '/mo';
