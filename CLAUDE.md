@@ -114,6 +114,19 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
 - Sale-year steppers must handle BOTH shapes: plain `S.properties` (`saleAge`/`hold`) and
   migrated deals (`exit.date` as `YYYY-MM`, year 2100 = hold). `assetsOf`/`applyEdits`.
 - ⚠ Never commit real scenario data into mobile.html — the repo is public and deployed.
+- ⚠ **`engineonly=1` skips `projectActualsSync()`, which the SIMULATION depends on.**
+  `runSim` counts installments already paid as `floor(_projActual(cat) / perPayment)` for
+  any expense with a `gastosCategory`. With `_projectActuals` empty in the frame that
+  returns 0, the engine falls back to counting elapsed *time*, and re-spends budgets
+  Gastos shows were spent years ago — Carhué and Arcos alone made the next two years look
+  catastrophic. mobile.html therefore fetches `project-actuals` and injects it with
+  `win.eval('_projectActuals = …')` BEFORE the first `simulate()`. Anything else added to
+  the `if (!_engineOnly)` branch that the engine reads must be injected the same way.
+- The chart plots the MONTHLY series (`d.monthly`), not the yearly rows, so ages are
+  fractional (month as a twelfth) and points are matched by proximity, never equality.
+  `minLiq`/`minAge`/`minMo` are monthly, so a yearly chart could never put the trough
+  marker on the line. "Net worth at end" reads the last MONTHLY record for the same
+  reason — the yearly roll-up differs from the curve's right-hand end.
 
 ### Home-screen install (iOS)
 `mobile.html` is installable via Safari → Share → Add to Home Screen. It launches
