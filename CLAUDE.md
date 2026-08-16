@@ -92,6 +92,19 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   redraws via `chart(cur.series)` without re-simulating or calling `markDirty()`.
   ⚠ `visible()` must feed BOTH the drawing and the pointermove readout — if only one uses
   it the tooltip reports a different age than the point under your finger.
+- Dragging the chart pins a crosshair: dashed cross, a dot on the total curve, and the
+  amount + age drawn on the curve itself. It deliberately does NOT clear on
+  pointerup/pointerleave — reading the value after lifting your finger is the point.
+  - `markAge` stores an AGE, not an index, so the pin survives a re-simulation and a zoom
+    change. It is drawn inside `chart()`'s single `innerHTML` write, so any redraw keeps
+    it; drawing it separately would be wiped by the next `chart()` call.
+  - If the pinned age falls outside the zoom window it is hidden rather than clamped —
+    clamping would silently point at a different year.
+  - Labels use `paint-order="stroke"` with a `--card`-coloured stroke as a halo, otherwise
+    they are unreadable over the filled areas.
+  - The pointermove guard is `pointerType === 'mouse' || e.buttons`: touch only reports
+    moves while in contact, and a mouse should still track on hover. A synthetic
+    `PointerEvent` with neither set is correctly ignored — tests must set `pointerType`.
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
