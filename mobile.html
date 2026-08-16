@@ -943,6 +943,23 @@
       actuals = await r.json();
     } catch (e) { console.warn('project actuals unavailable', e); }
   }
+  // ⚠ The ENGINE needs these too, not just the display. runSim() counts installments
+  // already paid as floor(_projActual(cat) / perPayment) — but engineonly=1 skips
+  // projectActualsSync(), so in the frame _projectActuals is {} and _projActual() returns
+  // 0. It then falls back to counting elapsed time, concluding almost nothing has been
+  // paid, and re-spends the entire budget over the next couple of years.
+  let injected = false;
+  function injectActuals() {
+    if (!actuals || injected || !win) return false;
+    const low = {};
+    Object.entries(actuals).forEach(([k, v]) => { low[String(k).toLowerCase()] = v; });
+    try {
+      win.eval('_projectActuals = ' + JSON.stringify(low) + ';');
+      injected = true;
+      return true;
+    } catch (e) { console.warn('could not inject actuals', e); return false; }
+  }
+
   function spentOn(cat) {
     const k = (cat || '').trim().toLowerCase();
     if (!actuals || !k || !actuals[k] || !actuals[k].byMonth) return null;
@@ -1489,11 +1506,15 @@
       (readOnly
         ? 'It is not your saved plan, so edits stay on this screen and are never written to the cloud.'
         : 'Edits save automatically and sync with the web app.');
+    // Actuals change the SIMULATION, so wait briefly for them before the first render —
+    // but never let a slow call blank the page, which is the same trap sbLoad fell into.
+    const actualsReady = loadActuals();
+    await Promise.race([actualsReady, new Promise(r => setTimeout(r, 3000))]);
+    injectActuals();
     applySaved();
     booted = true;                       // from here on, edits persist
-    // Actuals are decoration on top of a working page, so they are fetched after the
-    // first render and only redraw the list they affect.
-    loadActuals().then(() => { if (actuals) renderExpenses(); });
+    // If they arrived after the deadline, apply them and re-run.
+    actualsReady.then(() => { if (injectActuals()) { renderExpenses(); render(true); } });
     if (readOnly) setSync('', 'preview', 'Not your saved plan — nothing is written');
     else if (!SB) setSync('', 'on device', 'Saved here — no cloud configured');
     else if ($('sync').textContent === 'loading…') setSync('ok', 'synced', 'Up to date with the web app');
