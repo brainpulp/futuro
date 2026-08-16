@@ -66,7 +66,10 @@
   .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
   .row label{font-size:13px;font-weight:600}
   .row .val{font-size:13px;font-weight:700}
-  input[type=range]{width:100%;margin:0 0 16px;accent-color:var(--liq);height:26px}
+  /* pan-y so a vertical scroll that happens to start on a slider scrolls the page instead
+     of dragging the value. Without it, scrolling past these silently rewrites the plan —
+     and since edits autosave, the wrong number becomes the saved one. */
+  input[type=range]{width:100%;margin:0 0 16px;accent-color:var(--liq);height:26px;touch-action:pan-y}
   .hint{font-size:11px;color:var(--dim);margin:-8px 0 14px;line-height:1.4}
   /* segmented control — one tap, four states, no dropdown to fight on a phone */
   .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
@@ -1122,8 +1125,11 @@
     const md = markAge == null ? null : series.find(d => d.age === markAge);
     if (md) {
       const cx = x(md.age);
-      const cash = Math.max(md.liq, 0), prop = Math.max(md.iliq, 0);
-      const yCash = y(cash), yTop = y(cash + prop);
+      // ⚠ Report the REAL values. Clamping with Math.max(...,0) is right for stacking the
+      // areas but wrong for labelling: once cash goes negative it reported $0 and the
+      // crosshair disagreed with the "Net worth at end" tile by millions.
+      const cash = md.liq, prop = md.iliq;
+      const yCash = y(cash), yTop = y(Math.max(cash, 0) + Math.max(prop, 0));
       const edge = 40;
       const anchor = cx < edge ? 'start' : cx > W - edge ? 'end' : 'middle';
       const tx = cx < edge ? 2 : cx > W - edge ? W - 2 : cx;
@@ -1174,7 +1180,7 @@
   function showMark() {
     const d = cur && visible(cur.series).find(p => p.age === markAge);
     $('hover').textContent = d
-      ? `age ${d.age} · ${fmt(Math.max(d.liq, 0) + Math.max(d.iliq, 0))} total`
+      ? `age ${d.age} · ${fmt(d.liq + d.iliq)} total`
       : '';
   }
 
