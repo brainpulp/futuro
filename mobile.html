@@ -1264,7 +1264,10 @@
     const xs = series.map(d => d.age);
     const tops = series.map(d => Math.max(d.liq, 0) + Math.max(d.iliq, 0));
     const lows = series.map(d => Math.min(d.liq, 0));
-    const hi = Math.max(...tops, 1), lo = Math.min(...lows, 0);
+    const hi = Math.max(...tops, 1), rawLo = Math.min(...lows, 0);
+    // Always keep a sliver below zero so the zero axis is a visible line inside the plot
+    // rather than being flush with the bottom edge, where it cannot be seen or labelled.
+    const lo = rawLo < 0 ? rawLo : -hi * 0.06;
     const x = a => (a - xs[0]) / Math.max(xs[xs.length - 1] - xs[0], 1) * W;
     const y = v => H - (v - lo) / Math.max(hi - lo, 1) * H;
     const area = (get, base) => {
@@ -1273,8 +1276,29 @@
       return up + dn + 'Z';
     };
     const zeroY = y(0).toFixed(1);
-    const gridY = [hi, hi / 2].map(v =>
-      `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width=".5"/>`).join('');
+    // Gridlines carry their VALUE, and zero is drawn as a real labelled axis rather than
+    // a faint dash — without a scale to read against, a dot's height cannot be checked
+    // against the number printed next to it. When nothing goes negative zero sits on the
+    // bottom edge, so its label is nudged above the line to stay visible.
+    const gridY = [hi, hi / 2].map(v => {
+      const gy = y(v);
+      return `<line x1="0" x2="${W}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}" stroke="var(--line)" stroke-width=".5"/>`;
+    }).join('');
+    // Labels are placed zero-first and anything that would land on top of an already
+    // placed one is dropped. When the scale spans a deep shortfall the gridlines bunch
+    // against the top and their labels would otherwise print over each other.
+    const placed = [];
+    const label = (v, gy, bold) => {
+      const ty = gy > H - 24 ? gy - 5 : gy + 13;   // near the floor, label above the line
+      if (placed.some(p => Math.abs(p - ty) < 14)) return '';
+      placed.push(ty);
+      return `<text x="2" y="${ty.toFixed(1)}" font-size="12"${bold ? ' font-weight="700"' : ''}` +
+        ` fill="var(--${bold ? 'ink' : 'dim'})"${bold ? ' opacity=".6"' : ''}` +
+        ` paint-order="stroke" stroke="var(--card)" stroke-width="4" stroke-linejoin="round">${bold ? '0' : fmt(v)}</text>`;
+    };
+    const zeroLine =
+      `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--ink)" stroke-width="1" opacity=".45"/>` +
+      label(0, +zeroY, true) + [hi, hi / 2].map(v => label(v, y(v), false)).join('');
     // Crosshair + on-curve value. Built into the same innerHTML write as the areas, so a
     // slider move or a zoom change redraws it instead of wiping it. The label carries a
     // card-coloured halo (paint-order:stroke) to stay readable on top of the fills.
@@ -1357,8 +1381,7 @@
       gridY +
       `<path d="${area(d => Math.max(d.liq,0) + Math.max(d.iliq,0), d => Math.max(d.liq,0))}" fill="var(--iliq)" opacity=".55"/>` +
       `<path d="${area(d => d.liq, () => 0)}" fill="var(--liq)" opacity=".8"/>` +
-      `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--dim)" stroke-width=".75" stroke-dasharray="3 3"/>` +
-      `<text x="2" y="${Math.max(y(hi) + 13, 13).toFixed(1)}" font-size="12" fill="var(--dim)">${fmt(hi)}</text>` +
+      zeroLine +
       `<text x="2" y="${(H - 3).toFixed(1)}" font-size="12" fill="var(--dim)">age ${Math.floor(xs[0])}</text>` +
       `<text x="${W - 2}" y="${(H - 3).toFixed(1)}" font-size="12" fill="var(--dim)" text-anchor="end">${Math.floor(xs[xs.length-1])}</text>` +
       lowMark + cross;   // crosshair last so a tapped point sits above the fixed marker
