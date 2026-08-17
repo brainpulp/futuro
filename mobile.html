@@ -1103,7 +1103,7 @@
         ${budgLine}
         <div class="fg">
           <label class="wide"><span class="fl">Name</span><input type="text" data-e="${esc(String(e.id))}" data-ef="name" value="${esc(e.name || '')}"></label>
-          <label${e._recur ? '' : ' class="wide"'}><span class="fl">Amount</span>
+          <label${e._recur ? '' : ' class="wide"'}><span class="fl">${e.type === 'installments' ? 'Total budget' : 'Amount'}</span>
             <input type="text" inputmode="numeric" data-e="${esc(String(e.id))}" data-ef="amount" value="${e._amt.toLocaleString()}"></label>
           ${ageFields}
         </div>
@@ -1132,7 +1132,14 @@
         else if (f === 'installN') { v = Math.max(1, Math.min(+inp.value || 1, 360)); inp.value = v; }
         else { v = Math.max(sa, Math.min(+inp.value || sa, ea)); inp.value = v; }
         const patch = { [f]: v };
-        if (f === 'amount') { patch.installTotal = v; patch.budget = v; }
+        // For an installment plan the engine spends `budget || installTotal`; `amount` is
+        // a separate contractual figure it does not read. Writing all three from one field
+        // silently destroyed that distinction — Carhué's 140,000 amount and 130,000 budget
+        // both became whatever was typed. Touch only what the plan actually uses.
+        if (f === 'amount') {
+          const row = expensesOf().find(x => String(x.id) === String(inp.dataset.e));
+          if (row && row.type === 'installments') { patch.installTotal = v; patch.budget = v; delete patch.amount; }
+        }
         setExp(inp.dataset.e, patch);
         // A date change can flip an item in or out of "already spent", so the row has to
         // be rebuilt — but deferred past this turn, because replacing a node that is still
