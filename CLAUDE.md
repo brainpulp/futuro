@@ -376,6 +376,10 @@ been spent**. Future spend must therefore be `budget - _projActual(gastosCategor
 - `_effInstall` therefore re-bases the MONEY, not the count: whatever is left is spread
   over the payments still scheduled (`installN - slotAtStart`), so the future total is
   exactly `budget - spent`. Plans with no `gastosCategory` keep the timing-only path.
+- Payment labels count within the REMAINING run (`_installLabel`), not the original
+  schedule. "11 of 11" described money already spent, at a payment size no longer being
+  charged; the remaining payments cover only the remaining budget, so they read 1..N of
+  what is actually left.
 - The phone's per-cost field edits `budget`/`installTotal` only. It must NOT write
   `amount` as well: for installments the engine reads `budget || installTotal` and
   `amount` is a separate contractual figure, so writing all three collapses them.
