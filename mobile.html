@@ -419,21 +419,34 @@
       // installments (with their payment number), sales, one-offs and property tax;
       // baseExp is the un-itemised living cost and is added as its own line.
       const led = {};
+      let prevLiq = null;
       for (const m of (d.monthly || [])) {
         const q = Math.ceil((m.mo || 1) / 3), key = m.year + 'Q' + q;
         const e = led[key] || (led[key] = { year: m.year, q, age: m.age,
-          inc: 0, exp: 0, gain: 0, liq: 0, iliq: 0, items: {} });
+          inc: 0, exp: 0, gain: 0, sale: 0, liq: 0, iliq: 0, open: null, items: {} });
+        // Opening balance = the month before this period. For the very first month there
+        // is none, so infer it from the flows.
+        if (e.open === null) {
+          e.open = prevLiq !== null ? prevLiq
+            : m.liq - ((m.inc || 0) - (m.totalExp || 0) + (m.mktGain || 0));
+        }
         e.inc  += m.inc || 0;
         e.exp  += m.totalExp || 0;
         e.gain += m.mktGain || 0;
+        // WARNING: sale proceeds go straight onto liq via liq += net and are NOT in m.inc,
+        // so without this the period's flows fall short of the balance change by the
+        // whole sale, which is exactly how a ledger stops adding up.
+        for (const t of (m.txns || [])) if (t.type === 'sale') e.sale += t.amount;
         e.liq   = m.liq;                      // last month wins = closing balance
         e.iliq  = m.iliq;
         if (m.baseExp) e.items['Living costs'] = (e.items['Living costs'] || 0) - m.baseExp;
         for (const t of (m.txns || [])) e.items[t.name] = (e.items[t.name] || 0) + t.amount;
+        prevLiq = m.liq;
       }
       const ledger = Object.values(led).map(e => ({
         year: e.year, q: e.q, age: e.age,
         inc: Math.round(e.inc), exp: Math.round(e.exp), gain: Math.round(e.gain),
+        sale: Math.round(e.sale), open: Math.round(e.open),
         liq: Math.round(e.liq), iliq: Math.round(e.iliq),
         items: Object.entries(e.items)
           .map(([name, amount]) => ({ name, amount: Math.round(amount) }))
@@ -1156,8 +1169,9 @@
     const byKey = new Map();
     rows.forEach(r => {
       const key = grain === 'year' ? String(r.year) : `${r.year} Q${r.q}`;
-      const g = byKey.get(key) || { key, age: r.age, inc: 0, exp: 0, gain: 0, liq: 0, iliq: 0, items: {} };
-      g.inc += r.inc; g.exp += r.exp; g.gain += r.gain;
+      const g = byKey.get(key) || { key, age: r.age, inc: 0, exp: 0, gain: 0, sale: 0,
+                                    open: r.open, liq: 0, iliq: 0, items: {} };
+      g.inc += r.inc; g.exp += r.exp; g.gain += r.gain; g.sale += r.sale || 0;
       g.liq = r.liq; g.iliq = r.iliq; g.age = r.age;
       r.items.forEach(i => { g.items[i.name] = (g.items[i.name] || 0) + i.amount; });
       byKey.set(key, g);
@@ -1167,7 +1181,11 @@
     $('ledSum').textContent = `${fmt(totIn)} in · ${fmt(totOut)} out`;
 
     $('ledger').innerHTML = list.map(g => {
-      const net = g.inc - g.exp + g.gain;
+      // The headline is the actual change in cash, so it can never quietly disagree with
+      // the balances either side of it.
+      const net = g.liq - g.open;
+      const flows = g.inc + g.sale - g.exp + g.gain;
+      const resid = net - flows;
       const items = Object.entries(g.items).map(([n, a]) => ({ n, a }))
         .filter(i => i.a !== 0).sort((x, y) => Math.abs(y.a) - Math.abs(x.a));
       const open = openPeriods.has(g.key);
@@ -1181,8 +1199,11 @@
         </button>
         ${open ? `<div class="leddet">
           <div class="ledrow"><span>Income</span><span class="pos">+${fmt(g.inc)}</span></div>
+          ${g.sale ? `<div class="ledrow"><span>Sale proceeds</span><span class="pos">+${fmt(g.sale)}</span></div>` : ''}
           <div class="ledrow"><span>Spending</span><span class="neg">−${fmt(g.exp)}</span></div>
           <div class="ledrow"><span>Market growth</span><span class="${g.gain < 0 ? 'neg' : 'pos'}">${g.gain < 0 ? '−' : '+'}${fmt(Math.abs(g.gain))}</span></div>
+          ${Math.abs(resid) > 1000 ? `<div class="ledrow"><span>Unexplained</span><span class="neg">${fmt(resid)}</span></div>` : ''}
+          <div class="ledrow"><span>Cash at start</span><span>${fmt(g.open)}</span></div>
           <div class="ledrow tot"><span>Property held</span><span>${fmt(g.iliq)}</span></div>
           ${items.length ? '<div class="ledsep"></div>' + items.map(i =>
             `<div class="ledrow"><span>${esc(i.n)}</span><span class="${i.a < 0 ? 'neg' : 'pos'}">${i.a < 0 ? '−' : '+'}${fmt(Math.abs(i.a))}</span></div>`).join('') : ''}
