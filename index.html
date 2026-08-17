@@ -7838,14 +7838,20 @@ async function gastosSync() {
     if (badge) {
       // Uncategorized rows count as monthly spending — say which months lean on them, so
       // an unfiled month of project payments is visible rather than baked into the line.
+      // `inferredOut` is unfiled money the vendor's own history kept out of living costs.
+      const _usd = k => Math.round(+k || 0).toLocaleString();
       const _unfiled = data.filter(r => r.complete !== false && (+r.unfiled || 0) > 0)
         .sort((a, b) => (+b.unfiled) - (+a.unfiled)).slice(0, 3);
+      const _routed = data.filter(r => r.complete !== false && (+r.inferredOut || 0) > 0)
+        .sort((a, b) => (+b.inferredOut) - (+a.inferredOut)).slice(0, 3);
       badge.textContent = n + ' mo';
       badge.title = 'Gastos actuals loaded: ' + n + ' months'
         + (_partial.length ? '\nSkipped as incomplete (upload stops before month end): '
             + _partial.map(p => `${p.ym} — to day ${p.lastDay} of ${p.days}`).join(', ') : '')
         + (_unfiled.length ? '\nIncludes uncategorized spend: '
-            + _unfiled.map(p => `${p.ym} $${Math.round(+p.unfiled).toLocaleString()}`).join(', ') : '');
+            + _unfiled.map(p => `${p.ym} $${_usd(p.unfiled)}`).join(', ') : '')
+        + (_routed.length ? '\nUncategorized matched to past vendors and left out: '
+            + _routed.map(p => `${p.ym} $${_usd(p.inferredOut)}`).join(', ') : '');
     }
     go();
     showTicker('📊', `Gastos · ${n} months loaded`

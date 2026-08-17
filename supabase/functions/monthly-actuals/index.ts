@@ -5,31 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Categories that represent money moving between the owner's own accounts rather
-// than being spent. Defence in depth: the 'monthly expenses' group should never
-// contain these, but if one is added by accident it must not inflate the baseline.
-const INTERNAL_CATS = new Set(['interbank outgoing', 'interbank incoming', 'transfers']);
-
-// Uncategorized outflows COUNT as monthly expenses. Nobody files every transaction, and
-// leaving them out silently understated the baseline by whatever was forgotten.
-//
-// The exceptions are the ones that are self-evidently not household consumption. Each
-// pattern below is here because it appears in this ledger and would otherwise land a
-// lump sum in a single month's living costs:
-//   pago proveedores      - a supplier payment run (2026-01: $4,924 to viamonte express)
-//   transfer to           - a move into an investment vehicle (2026-07: $10,000 to Lucord)
-//   pago + tarjeta de credito - the card BILL; the card's own purchases are separate rows,
-//                               so counting the bill too would charge the same money twice
-// Five rows in eleven months match. Keep this list short and evidence-based: guessing at
-// intent from free text is how the `xfer` bug happened.
-const NOT_CONSUMPTION: Array<(d: string) => boolean> = [
-  d => d.includes('pago proveedores'),
-  d => d.includes('transfer to '),
-  d => d.includes('tarjeta de credito') && d.includes('pago'),
-];
-
-const PAGE = 1000;
-
 // How many days short of the month's end still counts as a complete upload. A bank
 // statement usually has activity on the last day, but a quiet weekend at month end
 // should not condemn an otherwise finished month. Anything cut earlier than this is a
@@ -37,24 +12,14 @@ const PAGE = 1000;
 // understates real spending.
 const COVERAGE_SLACK_DAYS = 3;
 
-type Row = { ym: string; usd: number | null; cat: string | null; raw_desc?: string | null; merchant?: string | null };
-
-// PostgREST returns at most 1000 rows per request and says nothing about the rest. One
-// of these filters matches ~3000 rows and the other ~1300, so a single select silently
-// dropped most of them - and because rows come back roughly oldest-first, the months it
-// dropped were the RECENT ones. The baseline then read ~$1.5k/mo against a true ~$5k.
-async function pageAll(build: () => any): Promise<{ rows: Row[]; error: string | null }> {
-  const rows: Row[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build().order('id', { ascending: true }).range(from, from + PAGE - 1);
-    if (error) return { rows, error: error.message };
-    if (!data || data.length === 0) break;
-    rows.push(...data);
-    if (data.length < PAGE) break;
-  }
-  return { rows, error: null };
-}
-
+// All the arithmetic lives in monthly_actuals_agg() -- the category group, the internal
+// transfers, the vendor precedent for unfiled rows. Doing it in SQL keeps it to one pass
+// and, just as importantly, sidesteps PostgREST's silent 1000-row cap: this used to be
+// three paged selects, and before the paging existed it dropped two thirds of the ledger
+// without a word, taking the most recent months with it.
+//
+// This function only reshapes and attaches coverage. Changing the SQL needs no redeploy;
+// changing either function's SIGNATURE does.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -65,42 +30,13 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  // Read the 'monthly expenses' group categories from gastos settings
-  const { data: settingsRows } = await supabase
-    .from('settings')
-    .select('groups')
-    .limit(1);
+  const [agg, cov] = await Promise.all([
+    supabase.rpc('monthly_actuals_agg'),
+    supabase.rpc('monthly_coverage'),
+  ]);
 
-  const groups: Array<{ name: string; categories: string[] }> = settingsRows?.[0]?.groups ?? [];
-  const monthlyGroup = groups.find(g => g.name?.toLowerCase() === 'monthly expenses');
-  const cats: string[] = monthlyGroup?.categories ?? [];
-
-  if (cats.length === 0) {
-    return new Response(JSON.stringify({ error: 'No "monthly expenses" group defined in gastos settings' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const currentYM = new Date().toISOString().slice(0, 7);
-  const base = () => supabase.from('transactions')
-    .select('ym, usd, cat, raw_desc, merchant')
-    .is('deleted_at', null)
-    .not('usd', 'is', null)
-    .lt('ym', currentYM);
-
-  const filed = await pageAll(() => base().in('cat', cats));
-  if (filed.error) {
-    return new Response(JSON.stringify({ error: filed.error }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // `cat` is empty on rows that were never filed. PostgREST needs both spellings: a NULL
-  // and an empty string are different values and `is.null` will not match ''.
-  const unfiled = await pageAll(() => base().or('cat.is.null,cat.eq.'));
-  if (unfiled.error) {
-    return new Response(JSON.stringify({ error: unfiled.error }), {
+  if (agg.error) {
+    return new Response(JSON.stringify({ error: agg.error.message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -109,67 +45,39 @@ Deno.serve(async (req) => {
   // in the month, not the category subset: whether a statement was uploaded in full is a
   // property of the upload, and a month with no groceries in its last week is not the
   // same thing as a month that was cut short.
-  const { data: cov } = await supabase.rpc('monthly_coverage');
   const coverage: Record<string, { lastDay: number; days: number }> = {};
-  for (const c of (cov ?? []) as Array<Record<string, unknown>>) {
+  for (const c of ((cov.data ?? []) as Array<Record<string, unknown>>)) {
     coverage[String(c.ym)] = {
       lastDay: Number(c.last_day) || 0,
       days:    Number(c.days_in_month) || 0,
     };
   }
 
-  const monthly: Record<string, number> = {};   // total charged to monthly expenses
-  const unfiledSum: Record<string, number> = {}; // ...of which came from unfiled rows
-  const heldBack: Record<string, { usd: number; n: number }> = {};
+  const num = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100;
 
-  for (const tx of filed.rows) {
-    // NOTE: `xfer` marks HOW a payment was made (a bank transfer), not whether it
-    // was internal. Skipping xfer rows here dropped real living costs that happen
-    // to be paid by transferencia -- healthcare, boat maintenance, sports, pets --
-    // understating the historical baseline by ~$8.2k. Internal movement is
-    // identified by category instead, and the whitelist above already excludes it.
-    if (INTERNAL_CATS.has((tx.cat ?? '').trim().toLowerCase())) continue;
-    const usd = Number(tx.usd);
-    if (usd >= 0) continue; // outflows only
-    monthly[tx.ym] = (monthly[tx.ym] || 0) + Math.abs(usd);
-  }
-
-  for (const tx of unfiled.rows) {
-    const usd = Number(tx.usd);
-    if (usd >= 0) continue; // outflows only
-    const amt = Math.abs(usd);
-    const d = `${tx.raw_desc ?? ''} ${tx.merchant ?? ''}`.toLowerCase();
-    if (NOT_CONSUMPTION.some(f => f(d))) {
-      const h = heldBack[tx.ym] || (heldBack[tx.ym] = { usd: 0, n: 0 });
-      h.usd += amt; h.n += 1;
-      continue;
-    }
-    monthly[tx.ym] = (monthly[tx.ym] || 0) + amt;
-    unfiledSum[tx.ym] = (unfiledSum[tx.ym] || 0) + amt;
-  }
-
-  const r2 = (v: number) => Math.round(v * 100) / 100;
-
-  // Every month is still returned, flagged rather than dropped, so a caller can say WHICH
-  // month it skipped and why. Dropping them here would also have changed the response
-  // out from under the copy of the desktop already deployed.
-  const result = Object.entries(monthly)
-    .map(([ym, usd]) => {
+  const result = ((agg.data ?? []) as Array<Record<string, unknown>>)
+    .map(r => {
+      const ym = String(r.ym);
       const c = coverage[ym];
-      const complete = c ? c.lastDay >= c.days - COVERAGE_SLACK_DAYS : true;
-      const h = heldBack[ym];
       return {
         ym,
-        usd: r2(usd),
-        // How much of `usd` came from rows that were never categorized. Reported so a
-        // month carrying an unusual amount of unfiled spend is legible rather than
-        // silently folded into the baseline.
-        unfiled: r2(unfiledSum[ym] || 0),
-        heldBack: r2(h?.usd || 0),
-        heldBackN: h?.n || 0,
-        complete,
-        lastDay: c?.lastDay ?? null,
-        days:    c?.days ?? null,
+        usd: num(r.usd),
+        // Rows the owner never filed, which count as living costs unless their vendor has
+        // a precedent. Reported so a month resting on unfiled spend is legible rather
+        // than silently folded into the baseline.
+        unfiled:  num(r.unfiled),
+        unfiledN: Number(r.unfiled_n) || 0,
+        // Unfiled money the owner's own vendor history routed OUT of living costs --
+        // project labour, mostly. Worth showing: it is the difference between a baseline
+        // and a baseline with someone's construction crew in it.
+        inferredOut: num(r.inferred_out),
+        // Unfiled and no precedent either: counted, but nothing corroborates it.
+        unknown: num(r.unknown),
+        // Whether the month's statements reach its end. A partial month is not a cheap
+        // month, and both clients skip it rather than report a fraction of real costs.
+        complete: c ? c.lastDay >= c.days - COVERAGE_SLACK_DAYS : true,
+        lastDay:  c?.lastDay ?? null,
+        days:     c?.days ?? null,
       };
     })
     .sort((a, b) => a.ym.localeCompare(b.ym));
