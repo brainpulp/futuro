@@ -133,6 +133,8 @@
   @media (prefers-reduced-motion:reduce){details.card>summary::after{transition:none}}
   /* generic labelled field grid, shared by the expense and advanced sections */
   .fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  /* the UA's [hidden]{display:none} loses to display:grid, so say it explicitly */
+  .fg[hidden]{display:none}
   .fg .wide{grid-column:1 / -1}
   .fg label{display:block;min-width:0}
   /* ⚠ 16px is not cosmetic: iOS Safari zooms the page whenever a focused field is
@@ -261,14 +263,18 @@
   <input type="range" id="vol" min="0" max="30" step="1">
   <p class="hint" id="volH"></p>
 
-  <div class="row"><label>Crash right after you stop working</label></div>
+  <div class="row"><label>Market crash stress test</label><span class="val mono" id="crashV">—</span></div>
   <div class="seg" id="crash" role="group" aria-label="Early crash severity">
     <button type="button" data-y="0" data-p="0">None</button>
     <button type="button" data-y="1" data-p="-15">−15%<small>1 yr</small></button>
     <button type="button" data-y="2" data-p="-25">−25%<small>2 yrs</small></button>
     <button type="button" data-y="3" data-p="-35">−35%<small>3 yrs</small></button>
   </div>
-  <p class="hint">Losses early in retirement hurt far more than the same losses later, because you are selling into them.</p>
+  <div class="fg" id="crashWhen" hidden style="margin-top:8px">
+    <label><span class="fl">Starting at age</span>
+      <input type="number" id="crashAge" min="30" max="100"></label>
+  </div>
+  <p class="hint">A bad run of years pinned into the projection, wherever you put it. Losses hurt most while you are selling into them, so the damage depends far more on <em>when</em> it lands than on the headline percentage. This is a stress test, not a forecast — the market-success figure above is the one that models randomness.</p>
 
   <div class="row"><label for="inf">Inflation</label><span class="val mono" id="infV">—</span></div>
   <input type="range" id="inf" min="0" max="8" step="0.25">
@@ -647,7 +653,10 @@
     if (touched.has('inf')) s.inflationRate = +$('inf').value;
     if (touched.has('ea'))  s.endAge = +$('ea').value;
     if (touched.has('med')) s.useMedianReturn = $('med').checked;
-    if (touched.has('crash')) { s.crashYears = crash.y; s.crashPct = crash.p; }
+    if (touched.has('crash')) {
+      s.crashYears = crash.y; s.crashPct = crash.p;
+      s.crashStartAge = crash.y > 0 ? crash.from : null;
+    }
     if (touched.has('cost')) {
       if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
       else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
@@ -695,7 +704,7 @@
   // null age = hold (never sold). Empty until the user actually changes something.
   let edits = { sales: {}, price: {}, income: {}, incVal: {}, gone: [], added: [],
                 exp: {}, expGone: [], expAdded: [], scen: {} };
-  let crash = { y: 0, p: 0 };
+  let crash = { y: 0, p: 0, from: null };
   let nextBizId = 1;
   const blank = () => ({ sales: {}, price: {}, income: {}, incVal: {}, gone: [], added: [],
                          exp: {}, expGone: [], expAdded: [], scen: {} });
@@ -804,6 +813,10 @@
       : 'Wild: concentrated or aggressive holdings.';
     Array.from($('crash').children).forEach(b =>
       b.setAttribute('aria-pressed', String(+b.dataset.y === crash.y)));
+    $('crashWhen').hidden = !(crash.y > 0);
+    $('crashV').textContent = crash.y > 0
+      ? `${crash.p}% for ${crash.y} yr${crash.y === 1 ? '' : 's'} from ${crash.from}`
+      : 'off';
   }
 
   // ── asset + income lists ──
@@ -1604,7 +1617,9 @@
     $('ea').value = saved.endAge ?? 87;
     $('med').checked = saved.useMedianReturn !== false;
     $('cost').checked = !!(saved.sellCostRate || saved.propertyTaxRate);
-    crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0 };
+    crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0,
+              from: saved.crashStartAge ?? (saved.startAge || 57) };
+    $('crashAge').value = crash.from;
     edits = blank();
     $('advCard').querySelectorAll('[data-s]').forEach(inp => {
       const v = saved[inp.dataset.s] ?? 0;
@@ -1673,12 +1688,19 @@
   $('crash').addEventListener('click', e => {
     const b = e.target.closest('button[data-y]');
     if (!b) return;
-    crash = { y: +b.dataset.y, p: +b.dataset.p };
+    crash = { y: +b.dataset.y, p: +b.dataset.p, from: crash.from };
     touched.add('crash');
     render(true);
   });
   // Reset discards this session's edits and saves that reverted state, so the phone
   // and the web app do not end up disagreeing about what "reset" meant.
+  $('crashAge').addEventListener('change', () => {
+    const sa = +($('advCard').querySelector('[data-s="startAge"]') || {}).value || 57;
+    crash.from = Math.max(sa, Math.min(+$('crashAge').value || sa, +$('ea').value));
+    $('crashAge').value = crash.from;
+    touched.add('crash');
+    render(true);
+  });
   $('reset').addEventListener('click', () => {
     touched.clear();
     applySaved();

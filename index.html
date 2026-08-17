@@ -1475,7 +1475,8 @@ const EMPTY = {
   // the headline line is the MEDIAN path rather than the (higher) mean path.
   mcVol: 15,
   useMedianReturn: true,
-  // Sequence-of-returns stress: crashYears years from startAge are pinned to crashPct.
+  // Sequence-of-returns stress: crashYears years from crashStartAge (default startAge)
+  // are pinned to crashPct.
   // crashYears: 0 disables it. Pinned years outrank the yield curve AND the MC's draws.
   crashYears: 0,
   crashPct: -25,
@@ -2611,8 +2612,13 @@ function volDrag() {
 function _crashRate(age) {
   const n = S.crashYears || 0;
   if (n <= 0 || S.crashPct == null) return null;
-  const sa = S.startAge || 57;
-  return (age >= sa && age < sa + n) ? S.crashPct : null;
+  // The shock can be placed anywhere. It used to be pinned to startAge, which assumed the
+  // plan begins the moment you stop earning — not true for anyone who stopped years ago,
+  // or who intends to go back to work. Unset still means "from the start", so existing
+  // scenarios are unchanged.
+  const from = (S.crashStartAge == null || S.crashStartAge === '')
+    ? (S.startAge || 57) : +S.crashStartAge;
+  return (age >= from && age < from + n) ? S.crashPct : null;
 }
 
 function getYield(age, overrideRate) {
