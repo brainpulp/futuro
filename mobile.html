@@ -1238,7 +1238,8 @@
         : grain === 'quarter' ? `${r.year} Q${r.q}`
         : `${MONTHS[(r.mo || 1) - 1]} ${r.year}`;
       const g = byKey.get(key) || { key, age: r.age, inc: 0, exp: 0, gain: 0, sale: 0,
-                                    open: r.open, liq: 0, iliq: 0, items: {}, entries: [] };
+                                    open: r.open, liq: 0, iliq: 0, items: {}, entries: [], months: 0 };
+      g.months = (g.months || 0) + 1;   // each ledger row is one month
       g.inc += r.inc; g.exp += r.exp; g.gain += r.gain; g.sale += r.sale || 0;
       g.liq = r.liq; g.iliq = r.iliq; g.age = r.age;
       r.items.forEach(i => { g.items[i.name] = (g.items[i.name] || 0) + i.amount; });
@@ -1260,7 +1261,12 @@
       const open = openPeriods.has(g.key);
       return `<div class="led${open ? ' open' : ''}">
         <button type="button" class="ledhead" data-p="${esc(g.key)}" aria-expanded="${open}">
-          <span class="lk">${esc(g.key)}<small>age ${g.age}</small></span>
+          <span class="lk">${esc(g.key)}<small>age ${g.age}${
+            // The simulation opens at the CURRENT month, so the first year (and quarter)
+            // is short. Without saying so, an annual cost prorated across it reads as
+            // less than half the budgeted figure for no visible reason.
+            (grain === 'year' && g.months < 12) || (grain === 'quarter' && g.months < 3)
+              ? ` · ${g.months} month${g.months === 1 ? '' : 's'} only` : ''}</small></span>
           <span class="lv">
             <b class="${net < 0 ? 'neg' : 'pos'}">${net < 0 ? '' : '+'}${fmtL(net)}</b>
             <small>${fmtL(g.liq)} cash</small>
