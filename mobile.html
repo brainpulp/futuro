@@ -62,8 +62,14 @@
   .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);
      margin-bottom:3px;min-height:2.4em;display:flex;align-items:flex-start}
   .v{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  /* The tiles are WHOLE-PLAN figures while the chart can be zoomed to a few years, so
+     each one states the age it refers to. Without it "lowest cash −$3.99M" reads as a
+     contradiction of a curve that never goes near zero inside the visible window. */
+  .vat{font-size:10px;color:var(--dim);font-weight:600;margin-top:2px}
   svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
   .lg{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px;align-items:center;flex-wrap:wrap}
+  .rng{font-size:11px;color:var(--dim);margin:8px 0 0;line-height:1.35}
+  .rng b{color:var(--warn);font-weight:700}
   .dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
   .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
   .row label{font-size:13px;font-weight:600}
@@ -225,9 +231,12 @@
   <p class="verdict" id="verdict">Starting engine…</p>
   <p class="sub" id="sub">Reusing the desktop simulation.</p>
   <div class="grid">
-    <div><div class="k">Net worth<br>at end</div><div class="v mono" id="kNW">—</div></div>
-    <div><div class="k">Lowest<br>cash</div><div class="v mono" id="kMin">—</div></div>
-    <div><div class="k">Market<br>success</div><div class="v mono" id="kMC">—</div></div>
+    <div><div class="k">Net worth<br>at end</div><div class="v mono" id="kNW">—</div>
+         <div class="vat" id="kNWAt"></div></div>
+    <div><div class="k">Lowest<br>cash</div><div class="v mono" id="kMin">—</div>
+         <div class="vat" id="kMinAt"></div></div>
+    <div><div class="k">Market<br>success</div><div class="v mono" id="kMC">—</div>
+         <div class="vat" id="kMCAt"></div></div>
   </div>
 </div>
 
@@ -246,6 +255,8 @@
     <button type="button" data-z="20">20 yr</button>
     <button type="button" data-z="0">All</button>
   </div>
+  <!-- What the curve is actually showing, against what the tiles above measure. -->
+  <p class="rng" id="rng"></p>
 </div>
 
 <div class="card" id="ctrl">
@@ -1248,6 +1259,11 @@
     $('kNW').textContent = fmt(r.finalNW);
     $('kMin').textContent = fmt(r.minLiq);
     $('kMin').style.color = r.minLiq < 0 ? 'var(--bad)' : '';
+    // Every tile is a whole-plan figure. Say WHEN, because the chart below may be zoomed
+    // to a window that excludes the moment the number comes from.
+    $('kNWAt').textContent = r.endAge != null ? 'at ' + r.endAge : '';
+    $('kMinAt').textContent = r.minAge != null ? 'at ' + Math.floor(r.minAge) : '';
+    $('kMCAt').textContent = r.endAge != null ? 'through ' + r.endAge : '';
     $('kMC').textContent = r.mc == null ? '…' : r.mc + '%';
     $('kMC').classList.toggle('sk', !withMC && r.mc == null);
     // Mirror into the condensed bar so the outcome stays readable while scrolling.
@@ -1447,9 +1463,35 @@
   });
   syncZoom();                                     // reflect the remembered choice on load
 
+  // Caption the window. The tiles measure the WHOLE plan; the curve may show a slice of
+  // it. When the lowest-cash trough falls outside that slice the two look like they
+  // contradict each other — a curve that stays well above zero above a tile reading
+  // −$3.99M — so name the gap instead of leaving it to be inferred.
+  function syncRange(full, win) {
+    const el = $('rng');
+    if (!el) return;
+    if (!full || full.length < 2) { el.textContent = ''; return; }
+    // Floor, never round: the last monthly point is age N month 12, and rounding it to
+    // N+1 makes the caption say the plan runs a year past the age the tiles report.
+    const a0 = Math.floor(full[0].age), a1 = Math.floor(full[full.length - 1].age);
+    const w0 = Math.floor(win[0].age), w1 = Math.floor(win[win.length - 1].age);
+    if (w0 <= a0 && w1 >= a1) { el.textContent = 'Showing the whole plan, ages ' + a0 + '–' + a1 + '.'; return; }
+    let t = 'Showing ages ' + w0 + '–' + w1 + '. The plan runs to ' + a1 +
+            ' and the figures above cover all of it.';
+    const lowAge = cur && cur.minAge != null ? cur.minAge : null;
+    if (lowAge != null && (lowAge < w0 || lowAge > w1)) {
+      el.innerHTML = t.replace(/\.$/, '.') +
+        ' <b>Lowest cash is at ' + Math.floor(lowAge) + ', outside this view.</b>';
+      return;
+    }
+    el.textContent = t;
+  }
+
   function chart(series) {
     if (!series || series.length < 2) return;
+    const full = series;
     series = visible(series);
+    syncRange(full, series);
     const xs = series.map(d => d.age);
     const tops = series.map(d => Math.max(d.liq, 0) + Math.max(d.iliq, 0));
     const lows = series.map(d => Math.min(d.liq, 0));

@@ -103,6 +103,13 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   redraws via `chart(cur.series)` without re-simulating or calling `markDirty()`.
   ⚠ `visible()` must feed BOTH the drawing and the pointermove readout — if only one uses
   it the tooltip reports a different age than the point under your finger.
+- ⚠ **The three head tiles are WHOLE-PLAN figures; the curve below them is windowed.** That
+  reads as a contradiction — a curve that never nears zero above "Lowest cash −$3.99M",
+  whose trough is simply at age 95 outside a 20-yr view. It was reported three times as a
+  bug. Each tile therefore prints the age it refers to (`#kNWAt`/`#kMinAt`/`#kMCAt`), and
+  `syncRange()` captions the chart with the visible span vs the plan span, calling out in
+  `--warn` when the trough falls outside the window. Floor the ages, never round: the last
+  monthly point is age N month 12, and rounding says the plan runs a year past the tiles.
 - Dragging the chart pins a crosshair: dashed cross, a dot on the total curve, and the
   amount + age drawn on the curve itself. It deliberately does NOT clear on
   pointerup/pointerleave — reading the value after lifting your finger is the point.
@@ -405,6 +412,12 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
   dropped living costs paid by transferencia — healthcare, boat maintenance, sports, pets.
   Historical baseline was understated by ~$8.2k; recent months were off by far more in
   relative terms (2026-06: $2,912 → $5,286; 2026-04: $3,659 → $6,455). Fixed in v5.
+- ⚠ **PostgREST caps a select at 1000 rows and says nothing about the rest.** This filter
+  matches ~3,006, and rows come back roughly oldest-first, so a single `.select()` dropped
+  exactly the RECENT months the three-month average is built from — the baseline read
+  $1,495/mo against a true $5,026. v6 pages explicitly (`.order('id').range(...)`, loop
+  until a short page). Verified against SQL: 2026-05 $8,306 · 2026-06 $5,286 ·
+  2026-07 $1,487 → mean $5,026 (the phone clamps to the slider's $250 step → $5,000).
 - `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
   strings in `settings.groups` match the stored case exactly. Renaming a category in one
   place and not the other will silently drop it from the baseline — check both.
