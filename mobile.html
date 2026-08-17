@@ -187,6 +187,7 @@
   .budg .bar i{display:block;height:100%;background:var(--liq)}
   .budg b{color:var(--ink)}
   .budg .ovr{color:var(--bad);font-weight:700}
+  .ledrow .pay{font-style:normal;font-size:10px;color:var(--dim);opacity:.8}
   /* sync chip — the header is the only place a save state is always visible */
   .sync{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
         color:var(--dim);white-space:nowrap;flex:none}
@@ -336,9 +337,10 @@
 <details class="card" id="ledgerCard">
   <summary><h2>Where the money goes</h2><span class="cnt" id="ledSum"></span></summary>
   <div class="body">
-    <div class="seg" id="ledGrain" role="group" aria-label="Ledger grouping" style="grid-template-columns:repeat(2,1fr)">
-      <button type="button" data-g="year">Per year</button>
-      <button type="button" data-g="quarter">Per quarter</button>
+    <div class="seg" id="ledGrain" role="group" aria-label="Ledger grouping" style="grid-template-columns:repeat(3,1fr)">
+      <button type="button" data-g="year">Year</button>
+      <button type="button" data-g="quarter">Quarter</button>
+      <button type="button" data-g="month">Every entry</button>
     </div>
     <div id="ledger"></div>
     <p class="hint" style="margin:8px 0 0">Every line comes from the simulation itself. <b>In</b> is income and sales, <b>out</b> is spending, <b>growth</b> is market return on the liquid pot. Tap a period to see what made it up.</p>
@@ -404,7 +406,7 @@
   });
 
   // Runs inside the engine frame's scope, where S / runSim / ensureFields live.
-  function simulate(scenario, withMC) {
+  function simulate(scenario, withMC, wantLedger) {
     return win.eval(`(() => {
       S = ${JSON.stringify(scenario)};
       ensureFields();
@@ -420,10 +422,10 @@
       // baseExp is the un-itemised living cost and is added as its own line.
       const led = {};
       let prevLiq = null;
-      for (const m of (d.monthly || [])) {
-        const q = Math.ceil((m.mo || 1) / 3), key = m.year + 'Q' + q;
-        const e = led[key] || (led[key] = { year: m.year, q, age: m.age,
-          inc: 0, exp: 0, gain: 0, sale: 0, liq: 0, iliq: 0, open: null, items: {} });
+      for (const m of (${wantLedger ? 'true' : 'false'} ? (d.monthly || []) : [])) {
+        const q = Math.ceil((m.mo || 1) / 3), key = m.year + '-' + String(m.mo).padStart(2,'0');
+        const e = led[key] || (led[key] = { year: m.year, q, mo: m.mo, age: m.age,
+          inc: 0, exp: 0, gain: 0, sale: 0, liq: 0, iliq: 0, open: null, items: {}, entries: [] });
         // Opening balance = the month before this period. For the very first month there
         // is none, so infer it from the flows.
         if (e.open === null) {
@@ -439,12 +441,19 @@
         for (const t of (m.txns || [])) if (t.type === 'sale') e.sale += t.amount;
         e.liq   = m.liq;                      // last month wins = closing balance
         e.iliq  = m.iliq;
-        if (m.baseExp) e.items['Living costs'] = (e.items['Living costs'] || 0) - m.baseExp;
-        for (const t of (m.txns || [])) e.items[t.name] = (e.items[t.name] || 0) + t.amount;
+        if (m.baseExp) {
+          e.items['Living costs'] = (e.items['Living costs'] || 0) - m.baseExp;
+          e.entries.push({ mo: m.mo, n: 'Living costs', a: -Math.round(m.baseExp) });
+        }
+        for (const t of (m.txns || [])) {
+          e.items[t.name] = (e.items[t.name] || 0) + t.amount;
+          e.entries.push({ mo: m.mo, n: t.name, a: Math.round(t.amount),
+                           k: t.installNum ? (t.installNum + '/' + t.installTotal) : '' });
+        }
         prevLiq = m.liq;
       }
       const ledger = Object.values(led).map(e => ({
-        year: e.year, q: e.q, age: e.age,
+        year: e.year, q: e.q, mo: e.mo, age: e.age, entries: e.entries,
         inc: Math.round(e.inc), exp: Math.round(e.exp), gain: Math.round(e.gain),
         sale: Math.round(e.sale), open: Math.round(e.open),
         liq: Math.round(e.liq), iliq: Math.round(e.iliq),
@@ -1112,7 +1121,7 @@
     markDirty();          // no-op until the first paint has happened, and for shared links
     const mine = ++seq;
     let r;
-    try { r = JSON.parse(simulate(readControls(), withMC)); }
+    try { r = JSON.parse(simulate(readControls(), withMC, $('ledgerCard').open)); }
     catch (e) { fail('Simulation failed', e.message); return; }
     if (mine !== seq) return;
     cur = r;
@@ -1155,7 +1164,10 @@
   // ── ledger: where the money actually goes ─────────────────────────────────
   const LED_KEY = 'futuro_mobile_grain';
   let grain = 'year';
-  try { grain = localStorage.getItem(LED_KEY) === 'quarter' ? 'quarter' : 'year'; } catch (e) {}
+  try {
+    const g = localStorage.getItem(LED_KEY);
+    grain = (g === 'quarter' || g === 'month') ? g : 'year';
+  } catch (e) {}
   const openPeriods = new Set();
 
   function renderLedger() {
@@ -1168,12 +1180,15 @@
     // LAST quarter's, never a sum — balances do not add up.
     const byKey = new Map();
     rows.forEach(r => {
-      const key = grain === 'year' ? String(r.year) : `${r.year} Q${r.q}`;
+      const key = grain === 'year' ? String(r.year)
+        : grain === 'quarter' ? `${r.year} Q${r.q}`
+        : `${MONTHS[(r.mo || 1) - 1]} ${r.year}`;
       const g = byKey.get(key) || { key, age: r.age, inc: 0, exp: 0, gain: 0, sale: 0,
-                                    open: r.open, liq: 0, iliq: 0, items: {} };
+                                    open: r.open, liq: 0, iliq: 0, items: {}, entries: [] };
       g.inc += r.inc; g.exp += r.exp; g.gain += r.gain; g.sale += r.sale || 0;
       g.liq = r.liq; g.iliq = r.iliq; g.age = r.age;
       r.items.forEach(i => { g.items[i.name] = (g.items[i.name] || 0) + i.amount; });
+      (r.entries || []).forEach(e => g.entries.push({ ...e, year: r.year }));
       byKey.set(key, g);
     });
     const list = [...byKey.values()];
@@ -1205,8 +1220,11 @@
           ${Math.abs(resid) > 1000 ? `<div class="ledrow"><span>Unexplained</span><span class="neg">${fmt(resid)}</span></div>` : ''}
           <div class="ledrow"><span>Cash at start</span><span>${fmt(g.open)}</span></div>
           <div class="ledrow tot"><span>Property held</span><span>${fmt(g.iliq)}</span></div>
-          ${items.length ? '<div class="ledsep"></div>' + items.map(i =>
-            `<div class="ledrow"><span>${esc(i.n)}</span><span class="${i.a < 0 ? 'neg' : 'pos'}">${i.a < 0 ? '−' : '+'}${fmt(Math.abs(i.a))}</span></div>`).join('') : ''}
+          ${grain === 'month'
+            ? (g.entries.length ? '<div class="ledsep"></div>' + g.entries.map(e =>
+                `<div class="ledrow"><span>${esc(e.n)}${e.k ? ` <em class="pay">${esc(e.k)}</em>` : ''}</span><span class="${e.a < 0 ? 'neg' : 'pos'}">${e.a < 0 ? '−' : '+'}${fmt(Math.abs(e.a))}</span></div>`).join('') : '')
+            : (items.length ? '<div class="ledsep"></div>' + items.map(i =>
+                `<div class="ledrow"><span>${esc(i.n)}</span><span class="${i.a < 0 ? 'neg' : 'pos'}">${i.a < 0 ? '−' : '+'}${fmt(Math.abs(i.a))}</span></div>`).join('') : '')}
         </div>` : ''}
       </div>`;
     }).join('');
@@ -1220,6 +1238,7 @@
     });
   }
 
+  $('ledgerCard').addEventListener('toggle', () => render(true));
   $('ledGrain').addEventListener('click', e => {
     const b = e.target.closest('button[data-g]');
     if (!b) return;
