@@ -2795,15 +2795,25 @@ function runSim(monthlyOverride, yieldRateOverride) {
     // every month that elapsed between the plan start and today.
     const moElapsed  = Math.max(0, (sa - start) * 12 + (_curMo - 1) - ((e.atMonth || 1) - 1));
     const slotAtStart = Math.floor(moElapsed / moPerSlot);
-    let paidSoFar;
+    let paidSoFar, effPer = perPayment;
     if (gc && perPayment > 0) {
-      // Gastos tells us how many payment-sized chunks have been spent
-      paidSoFar = Math.min(Math.floor(_projActual(gc) / perPayment), installN);
+      // The budget is the WHOLE project, already-spent included, so what remains to spend
+      // is simply budget - spent. Counting whole payment-sized chunks
+      // (floor(spent / perPayment)) throws the part-payment away and spends it a second
+      // time: Carhué at 150,000 over 8 with 102,017 spent left 3 payments of 18,750
+      // = 56,250 against a true 47,983 remaining, an 8,267 overshoot.
+      //
+      // So re-base the MONEY, not the count: spread whatever is left over the payments
+      // still scheduled, which makes the future total exactly budget - spent.
+      const remainMoney = Math.max(installTotal - _projActual(gc), 0);
+      const remainSlots = Math.max(installN - slotAtStart, 0);
+      effPer     = remainSlots > 0 ? remainMoney / remainSlots : 0;
+      paidSoFar  = remainSlots > 0 ? slotAtStart : installN;
     } else {
       // Timing: how many slots elapsed from (atAge, atMonth) to the start of the current month
       paidSoFar = Math.min(slotAtStart, installN);
     }
-    _effInstall[e.id] = { perPayment, paidSoFar, installN, ppy, slotAtStart };
+    _effInstall[e.id] = { perPayment: effPer, paidSoFar, installN, ppy, slotAtStart };
   });
 
   // _effBudget is display-only (expand card summary). The simulation always uses

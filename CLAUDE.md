@@ -367,6 +367,19 @@ passes it. Never assert on a fixed early month in the start year.
 - Blind spot: ~$31k of 2026 outflows (156 rows) have neither `cat` nor `project` and so
   appear under no tag at all. Categorize them in Gastos, not here.
 
+### Installments vs Gastos: the budget is the WHOLE project
+`budget` (or `installTotal`) is the total for the project **including what has already
+been spent**. Future spend must therefore be `budget - _projActual(gastosCategory)`.
+- ⚠ Counting whole payment-sized chunks (`floor(spent / perPayment)`) throws the
+  part-payment away and spends it twice. Carhué at 150,000 over 8 payments with 102,017
+  spent left 3 x 18,750 = 56,250 against a true 47,983 remaining — an 8,267 overshoot.
+- `_effInstall` therefore re-bases the MONEY, not the count: whatever is left is spread
+  over the payments still scheduled (`installN - slotAtStart`), so the future total is
+  exactly `budget - spent`. Plans with no `gastosCategory` keep the timing-only path.
+- The phone's per-cost field edits `budget`/`installTotal` only. It must NOT write
+  `amount` as well: for installments the engine reads `budget || installTotal` and
+  `amount` is a separate contractual figure, so writing all three collapses them.
+
 ## Gastos actuals — `monthly-actuals` Edge Function
 Feeds the baseline "what do I actually spend" line for past months. Sums outflows whose
 `cat` is in the **`monthly expenses`** group defined in `settings.groups` (gastos).
