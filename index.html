@@ -7823,13 +7823,27 @@ async function gastosSync() {
       { headers: { 'Authorization': `Bearer ${GASTOS_ANON}` } });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
+    // A month whose statements were only uploaded to the 23rd is not a cheap month, it is
+    // an unfinished one — and the sim REPLACES projected spend with the actual, so taking
+    // it at face value quietly tells you that you lived on a fraction of your real costs.
+    // Skip it and fall back to the modelled spend for that month.
     _gastosActuals = {};
-    for (const row of data) _gastosActuals[row.ym] = row.usd;
+    const _partial = [];
+    for (const row of data) {
+      if (row.complete === false) { _partial.push(row); continue; }
+      _gastosActuals[row.ym] = row.usd;
+    }
     const n = Object.keys(_gastosActuals).length;
     const badge = document.getElementById('gastos-badge');
-    if (badge) { badge.textContent = n + ' mo'; badge.title = 'Gastos actuals loaded: ' + n + ' months'; }
+    if (badge) {
+      badge.textContent = n + ' mo';
+      badge.title = 'Gastos actuals loaded: ' + n + ' months'
+        + (_partial.length ? '\nSkipped as incomplete (upload stops before month end): '
+            + _partial.map(p => `${p.ym} — to day ${p.lastDay} of ${p.days}`).join(', ') : '');
+    }
     go();
-    showTicker('📊', `Gastos · ${n} months loaded`);
+    showTicker('📊', `Gastos · ${n} months loaded`
+      + (_partial.length ? ` · ${_partial.length} incomplete skipped` : ''));
   } catch(e) {
     console.warn('Gastos sync skipped:', e.message || e);
   }

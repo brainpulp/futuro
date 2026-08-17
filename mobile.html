@@ -139,7 +139,10 @@
   @media (prefers-reduced-motion:reduce){details.card>summary::after{transition:none}}
   /* generic labelled field grid, shared by the expense and advanced sections */
   .fg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  /* the UA's [hidden]{display:none} loses to display:grid, so say it explicitly */
+  /* The UA's [hidden]{display:none} loses to any class that sets display, so say it once
+     for everything. Without this a `.sw` row hidden because it had no data to show
+     stayed on screen with an empty caption. */
+  [hidden]{display:none !important}
   .fg[hidden]{display:none}
   .fg .wide{grid-column:1 / -1}
   .fg label{display:block;min-width:0}
@@ -1071,13 +1074,21 @@
     } catch (e) { console.warn('monthly actuals unavailable', e); }
   }
 
-  // Mean of the last three months on record. Fewer than three -> whatever there is, so a
-  // thin history still gives a figure rather than nothing.
+  // Mean of the last three COMPLETE months on record. A month whose statements only run
+  // to the 23rd is not a cheap month, it is one that has not finished being uploaded —
+  // averaging it in drags the baseline down by however much of the month is missing.
+  // Fewer than three complete months -> whatever there is, so a thin history still gives
+  // a figure rather than nothing.
   function gastosAvg() {
     if (!monthlyActuals || !monthlyActuals.length) return null;
-    const last = monthlyActuals.slice(-3);
+    const usable = monthlyActuals.filter(r => r.complete !== false);
+    if (!usable.length) return null;
+    const last = usable.slice(-3);
     const sum = last.reduce((s, r) => s + (+r.usd || 0), 0);
-    return { avg: Math.round(sum / last.length), months: last.map(r => r.ym) };
+    // Anything skipped that is NEWER than the oldest month we used — i.e. a month the
+    // average would have reached had it been finished. Older gaps are not news.
+    const skipped = monthlyActuals.filter(r => r.complete === false && r.ym > last[0].ym);
+    return { avg: Math.round(sum / last.length), months: last.map(r => r.ym), skipped };
   }
 
   function renderSpendSrc() {
@@ -1085,7 +1096,14 @@
     $('gRow').hidden = !g;
     if (!g) return;
     $('gUse').checked = useGastosSpend;
-    $('gNote').textContent = fmtL(g.avg) + '/mo · mean of ' + g.months.join(', ');
+    // Name the months, and say which were left out and why — otherwise a figure that
+    // jumps once a statement is finished uploading looks like the app changing its mind.
+    $('gNote').textContent = fmtL(g.avg) + '/mo · mean of ' + g.months.join(', ')
+      + (g.skipped.length
+          ? ' · skipped ' + g.skipped.map(r =>
+              r.ym + (r.lastDay ? ' (only to day ' + r.lastDay + ' of ' + r.days + ')' : ' (incomplete)')
+            ).join(', ')
+          : '');
   }
 
   function spentOn(cat) {

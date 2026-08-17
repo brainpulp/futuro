@@ -41,8 +41,10 @@ drives it with `contentWindow.eval(...)`.
 
 ### mobile.html — base spend from Gastos
 "Use what you actually spend" sets monthly spending to the mean of the **last three
-completed months** from `monthly-actuals`, which sums only the categories in the
-`monthly expenses` group in gastos settings.
+complete months** from `monthly-actuals`, which sums only the categories in the
+`monthly expenses` group in gastos settings. "Complete" means the month's statements
+reach its end — see the `monthly-actuals` section; a month cut short is skipped and named
+in the caption, never quietly averaged in.
 - Applying it marks `sp` as touched, so the figure PERSISTS and the desktop sees the same
   number. It is not a display-only overlay.
 - Dragging the spend slider is an explicit manual override and switches tracking off;
@@ -418,6 +420,25 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
   $1,495/mo against a true $5,026. v6 pages explicitly (`.order('id').range(...)`, loop
   until a short page). Verified against SQL: 2026-05 $8,306 · 2026-06 $5,286 ·
   2026-07 $1,487 → mean $5,026 (the phone clamps to the slider's $250 step → $5,000).
+- ⚠ **A month is only usable once its statements reach the end of the month.** An upload
+  cut on the 23rd is not a cheap month, it is an unfinished one, and BOTH consumers
+  replace projection with the actual — so a partial month silently claims you lived on a
+  fraction of your real costs. v7 attaches `complete`/`lastDay`/`days` per month from
+  `monthly_coverage()`; `gastosSync()` skips incomplete months (falling back to modelled
+  spend) and mobile's `gastosAvg()` averages the last three COMPLETE months, naming what
+  it skipped. 2026-06 is the live example: 140 rows, last one on the 23rd.
+  - Coverage is measured over EVERY transaction in the month, not the category subset —
+    "no groceries in the last week" is not the same as "the statement was cut short".
+  - Slack is 3 days (`COVERAGE_SLACK_DAYS`), so a quiet month-end weekend still counts.
+  - Rows are FLAGGED, not dropped: dropping them would have changed the response shape
+    under the copy of the desktop already deployed on Pages. Both clients filter.
+  - `monthly_coverage()` is SECURITY DEFINER, EXECUTE revoked from `public`, `anon` AND
+    `authenticated`. ⚠ Supabase's default privileges grant EXECUTE to anon/authenticated
+    *directly*, so `REVOKE ... FROM PUBLIC` alone leaves `has_function_privilege('anon',…)`
+    true. Name all three roles, then check.
+  - **Date coverage does not catch an unfiled month.** 2026-07 runs to the 31st but has
+    115 uncategorized outflows worth $20,075, so its "monthly expenses" total reads $1,487.
+    `uncatN`/`uncatUsd` ride along in the payload for this; nothing filters on them yet.
 - `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
   strings in `settings.groups` match the stored case exactly. Renaming a category in one
   place and not the other will silently drop it from the baseline — check both.
