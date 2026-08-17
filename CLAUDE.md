@@ -1,5 +1,13 @@
 # Futuro — Claude Instructions
 
+## READ MAP.md FIRST
+`MAP.md` is the conceptual map: the layers and who owns which number, the exact order of
+operations inside one simulated month, the conservation laws, the register of places the
+same money can be counted twice, and the units/scope mismatches. Read it before touching
+anything that moves money, and check a change against its §7 checklist before claiming a
+number is correct. This file is the history of what went wrong; MAP.md is the structure
+that must stay true.
+
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
