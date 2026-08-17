@@ -1088,7 +1088,8 @@
     // Anything skipped that is NEWER than the oldest month we used — i.e. a month the
     // average would have reached had it been finished. Older gaps are not news.
     const skipped = monthlyActuals.filter(r => r.complete === false && r.ym > last[0].ym);
-    return { avg: Math.round(sum / last.length), months: last.map(r => r.ym), skipped };
+    const unfiled = last.reduce((s, r) => s + (+r.unfiled || 0), 0);
+    return { avg: Math.round(sum / last.length), months: last.map(r => r.ym), skipped, unfiled };
   }
 
   function renderSpendSrc() {
@@ -1103,7 +1104,11 @@
           ? ' · skipped ' + g.skipped.map(r =>
               r.ym + (r.lastDay ? ' (only to day ' + r.lastDay + ' of ' + r.days + ')' : ' (incomplete)')
             ).join(', ')
-          : '');
+          : '')
+      // Uncategorized rows are counted as monthly spending, so say how much of the figure
+      // rests on them. A month that is mostly unfiled can be a genuine spending month or a
+      // month of project payments nobody got round to tagging, and only you can tell.
+      + (g.unfiled > 0 ? ' · incl. ' + fmtL(g.unfiled) + ' uncategorized' : '');
   }
 
   function spentOn(cat) {

@@ -7836,10 +7836,16 @@ async function gastosSync() {
     const n = Object.keys(_gastosActuals).length;
     const badge = document.getElementById('gastos-badge');
     if (badge) {
+      // Uncategorized rows count as monthly spending — say which months lean on them, so
+      // an unfiled month of project payments is visible rather than baked into the line.
+      const _unfiled = data.filter(r => r.complete !== false && (+r.unfiled || 0) > 0)
+        .sort((a, b) => (+b.unfiled) - (+a.unfiled)).slice(0, 3);
       badge.textContent = n + ' mo';
       badge.title = 'Gastos actuals loaded: ' + n + ' months'
         + (_partial.length ? '\nSkipped as incomplete (upload stops before month end): '
-            + _partial.map(p => `${p.ym} — to day ${p.lastDay} of ${p.days}`).join(', ') : '');
+            + _partial.map(p => `${p.ym} — to day ${p.lastDay} of ${p.days}`).join(', ') : '')
+        + (_unfiled.length ? '\nIncludes uncategorized spend: '
+            + _unfiled.map(p => `${p.ym} $${Math.round(+p.unfiled).toLocaleString()}`).join(', ') : '');
     }
     go();
     showTicker('📊', `Gastos · ${n} months loaded`

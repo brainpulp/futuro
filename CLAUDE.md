@@ -436,9 +436,22 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
     `authenticated`. ⚠ Supabase's default privileges grant EXECUTE to anon/authenticated
     *directly*, so `REVOKE ... FROM PUBLIC` alone leaves `has_function_privilege('anon',…)`
     true. Name all three roles, then check.
-  - **Date coverage does not catch an unfiled month.** 2026-07 runs to the 31st but has
-    115 uncategorized outflows worth $20,075, so its "monthly expenses" total reads $1,487.
-    `uncatN`/`uncatUsd` ride along in the payload for this; nothing filters on them yet.
+- **Uncategorized outflows COUNT as monthly expenses** (v8, user's call — nobody files
+  every transaction, so leaving them out understated the baseline by whatever was
+  forgotten). The exceptions are in `NOT_CONSUMPTION`: `pago proveedores` (supplier run),
+  `transfer to ` (move into an investment vehicle), and `pago …tarjeta de credito` (the
+  card BILL — its purchases are separate rows, so counting the bill double-charges).
+  Five rows in eleven months match; keep the list short and evidence-based.
+  - Each month reports `unfiled` (how much of `usd` came from untagged rows), shown in
+    the phone caption and the desktop badge tooltip. It is never silent.
+  - ⚠ **Date coverage does not catch an unfiled month, and folding in uncategorized rows
+    can import project spend.** 2026-07 runs to the 31st but 115 of its 212 rows are
+    untagged, $9,899 of which are the same payees filed as **Carhué obra** in every other
+    month (216 rows / $26,555 historically). Counting those as living costs double-counts
+    against the project budgets the sim already spends. Verify a month's `unfiled` share
+    before trusting a baseline built on it.
+  - ⚠ PostgREST: `cat` is NULL on some rows and `''` on others. `is.null` will not match
+    `''` — the unfiled query needs `.or('cat.is.null,cat.eq.')`.
 - `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
   strings in `settings.groups` match the stored case exactly. Renaming a category in one
   place and not the other will silently drop it from the baseline — check both.
