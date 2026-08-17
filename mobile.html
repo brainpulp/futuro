@@ -451,7 +451,7 @@
         }
         for (const t of (m.txns || [])) {
           e.items[t.name] = (e.items[t.name] || 0) + t.amount;
-          e.entries.push({ mo: m.mo, n: t.name, a: Math.round(t.amount),
+          e.entries.push({ mo: m.mo, n: t.name, a: Math.round(t.amount), ty: t.type,
                            k: t.installNum ? (t.installNum + '/' + t.installTotal) : '' });
         }
         prevLiq = m.liq;
@@ -1207,6 +1207,15 @@
   }
 
   // ── ledger: where the money actually goes ─────────────────────────────────
+  // The headline fmt() rounds to the nearest $1k, which turns a $417 monthly slice into
+  // "$0k". Ledger lines keep their resolution.
+  const fmtL = v => {
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v < 0 ? '−' : '') + '$' + (a / 1e6).toFixed(2) + 'M';
+    if (a >= 1e4) return (v < 0 ? '−' : '') + '$' + Math.round(a / 1000) + 'k';
+    return (v < 0 ? '−' : '') + '$' + Math.round(a).toLocaleString();
+  };
+
   const LED_KEY = 'futuro_mobile_grain';
   let grain = 'year';
   try {
@@ -1238,7 +1247,7 @@
     });
     const list = [...byKey.values()];
     const totIn = list.reduce((s, g) => s + g.inc, 0), totOut = list.reduce((s, g) => s + g.exp, 0);
-    $('ledSum').textContent = `${fmt(totIn)} in · ${fmt(totOut)} out`;
+    $('ledSum').textContent = `${fmtL(totIn)} in · ${fmtL(totOut)} out`;
 
     $('ledger').innerHTML = list.map(g => {
       // The headline is the actual change in cash, so it can never quietly disagree with
@@ -1253,23 +1262,24 @@
         <button type="button" class="ledhead" data-p="${esc(g.key)}" aria-expanded="${open}">
           <span class="lk">${esc(g.key)}<small>age ${g.age}</small></span>
           <span class="lv">
-            <b class="${net < 0 ? 'neg' : 'pos'}">${net < 0 ? '' : '+'}${fmt(net)}</b>
-            <small>${fmt(g.liq)} cash</small>
+            <b class="${net < 0 ? 'neg' : 'pos'}">${net < 0 ? '' : '+'}${fmtL(net)}</b>
+            <small>${fmtL(g.liq)} cash</small>
           </span>
         </button>
         ${open ? `<div class="leddet">
-          <div class="ledrow"><span>Income</span><span class="pos">+${fmt(g.inc)}</span></div>
-          ${g.sale ? `<div class="ledrow"><span>Sale proceeds</span><span class="pos">+${fmt(g.sale)}</span></div>` : ''}
-          <div class="ledrow"><span>Spending</span><span class="neg">−${fmt(g.exp)}</span></div>
-          <div class="ledrow"><span>Market growth</span><span class="${g.gain < 0 ? 'neg' : 'pos'}">${g.gain < 0 ? '−' : '+'}${fmt(Math.abs(g.gain))}</span></div>
-          ${Math.abs(resid) > 1000 ? `<div class="ledrow"><span>Unexplained</span><span class="neg">${fmt(resid)}</span></div>` : ''}
-          <div class="ledrow"><span>Cash at start</span><span>${fmt(g.open)}</span></div>
-          <div class="ledrow tot"><span>Property held</span><span>${fmt(g.iliq)}</span></div>
+          <div class="ledrow"><span>Income</span><span class="pos">+${fmtL(g.inc)}</span></div>
+          ${g.sale ? `<div class="ledrow"><span>Sale proceeds</span><span class="pos">+${fmtL(g.sale)}</span></div>` : ''}
+          <div class="ledrow"><span>Spending</span><span class="neg">−${fmtL(g.exp)}</span></div>
+          <div class="ledrow"><span>Market growth</span><span class="${g.gain < 0 ? 'neg' : 'pos'}">${g.gain < 0 ? '−' : '+'}${fmtL(Math.abs(g.gain))}</span></div>
+          ${Math.abs(resid) > 1000 ? `<div class="ledrow"><span>Unexplained</span><span class="neg">${fmtL(resid)}</span></div>` : ''}
+          <div class="ledrow"><span>Cash at start</span><span>${fmtL(g.open)}</span></div>
+          <div class="ledrow tot"><span>Property held</span><span>${fmtL(g.iliq)}</span></div>
           ${grain === 'month'
             ? (g.entries.length ? '<div class="ledsep"></div>' + g.entries.map(e =>
-                `<div class="ledrow"><span>${esc(e.n)}${e.k ? ` <em class="pay">${esc(e.k)}</em>` : ''}</span><span class="${e.a < 0 ? 'neg' : 'pos'}">${e.a < 0 ? '−' : '+'}${fmt(Math.abs(e.a))}</span></div>`).join('') : '')
+                `<div class="ledrow"><span>${esc(e.n)}${e.k ? ` <em class="pay">${esc(e.k)}</em>` : ''}${
+                  e.ty === 'annual' ? ` <em class="pay">1/12 of ${fmtL(Math.abs(e.a) * 12)}</em>` : ''}</span><span class="${e.a < 0 ? 'neg' : 'pos'}">${e.a < 0 ? '−' : '+'}${fmtL(Math.abs(e.a))}</span></div>`).join('') : '')
             : (items.length ? '<div class="ledsep"></div>' + items.map(i =>
-                `<div class="ledrow"><span>${esc(i.n)}</span><span class="${i.a < 0 ? 'neg' : 'pos'}">${i.a < 0 ? '−' : '+'}${fmt(Math.abs(i.a))}</span></div>`).join('') : '')}
+                `<div class="ledrow"><span>${esc(i.n)}</span><span class="${i.a < 0 ? 'neg' : 'pos'}">${i.a < 0 ? '−' : '+'}${fmtL(Math.abs(i.a))}</span></div>`).join('') : '')}
         </div>` : ''}
       </div>`;
     }).join('');
