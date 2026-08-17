@@ -319,6 +319,10 @@
     <div class="fg">
       <label class="wide"><span class="fl">Cash &amp; investments today</span>
         <input type="text" inputmode="numeric" data-s="liquidBase"></label>
+      <label class="wide" style="display:flex;gap:8px;align-items:center">
+        <button type="button" id="ibkr" class="p" style="flex:none;padding:9px 12px">↓ IBKR</button>
+        <span class="hint" id="ibkrMsg" style="margin:0;flex:1;min-width:0"></span>
+      </label>
       <label><span class="fl">Your age now</span>
         <input type="number" data-s="startAge" min="30" max="90"></label>
       <label><span class="fl">Property growth %/yr</span>
@@ -986,6 +990,40 @@
     } catch (e) { console.warn('could not inject actuals', e); return false; }
   }
 
+  // ── IBKR: pull Net Liquidation Value on demand ────────────────────────────
+  // Same Edge Function the desktop uses. Unlike the desktop's silent auto-sync this is
+  // always manual and always reports its error — a dead token showing up as a stale
+  // figure is exactly how this went unnoticed for months.
+  const IBKR_TS = 'futuro-ibkr-liquid-ts';
+  async function ibkrPull() {
+    const btn = $('ibkr'), msg = $('ibkrMsg');
+    if (!SB) { msg.innerHTML = '<span class="err">No cloud configured</span>'; return; }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(SB.url + '/functions/v1/get-ibkr-liquid',
+        { headers: { Authorization: 'Bearer ' + SB.key, apikey: SB.key } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      if (typeof d.liquid !== 'number') throw new Error(d.error || 'no value returned');
+      // Treated as a real edit so it persists and reaches the desktop, exactly as
+      // ibkrSync() does there.
+      edits.scen.liquidBase = d.liquid;
+      const inp = $('advCard').querySelector('[data-s="liquidBase"]');
+      if (inp) inp.value = Math.round(d.liquid).toLocaleString();
+      try {
+        localStorage.setItem('futuro-ibkr-liquid', String(d.liquid));
+        localStorage.setItem(IBKR_TS, new Date().toISOString());
+      } catch (e) {}
+      msg.textContent = fmt(d.liquid) + ' · just now';
+      renderLists();
+      render(true);
+    } catch (e) {
+      msg.innerHTML = '<span class="err">' + esc(e.message || String(e)) + '</span>';
+    } finally {
+      btn.disabled = false; btn.textContent = '↓ IBKR';
+    }
+  }
+
   function spentOn(cat) {
     const k = (cat || '').trim().toLowerCase();
     if (!actuals || !k || !actuals[k] || !actuals[k].byMonth) return null;
@@ -1238,6 +1276,20 @@
     });
   }
 
+  $('ibkr').addEventListener('click', ibkrPull);
+  // Show when the cached figure was last pulled. A number with no date beside it gives
+  // no hint that it might be months old.
+  (function showIbkrAge() {
+    try {
+      const v = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+      const ts = localStorage.getItem(IBKR_TS);
+      if (v > 0 && ts) {
+        const days = Math.floor((Date.now() - Date.parse(ts)) / 86400000);
+        $('ibkrMsg').textContent = fmt(v) + ' · ' +
+          (days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+      }
+    } catch (e) {}
+  })();
   $('ledgerCard').addEventListener('toggle', () => render(true));
   $('ledGrain').addEventListener('click', e => {
     const b = e.target.closest('button[data-g]');
