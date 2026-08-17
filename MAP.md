@@ -75,6 +75,16 @@ return, then removed from the main-loop credit.
 December, not from January. Any test asserting on a fixed early month in the start year
 breaks silently once the calendar passes it — assert on December.
 
+⚠ **Step 8 is unreachable for a plan that starts this year, and that is correct.** The
+partial loop never looks up a Gastos actual, and the main loop opens at `sa + 1`, so the
+earliest month it ever visits is January of `startYear + 1`. The branch needs
+`_simYM < _currentYM`, so it only fires when `startYear` is a *past* year. The months of
+the start year before today are skipped on purpose: `liquidBase` is the current portfolio
+value and already reflects them, so spending them again would double-count against IBKR.
+The desktop badge still reports how many months loaded — that count is real, it simply
+does not reach the projection for a current-year plan. Do not "fix" this by wiring the
+actuals into the partial loop.
+
 ---
 
 ## 3. Conservation laws
@@ -112,6 +122,7 @@ Every entry here is a live guard. Removing one reintroduces a bug that has alrea
 | Unfiled project labour **and** the project budget | vendor precedent routes it to the owner's own category, out of living costs |
 | A credit-card bill **and** the purchases on it | ⚠ nothing — both count if the bill is untagged. Tag it in Gastos |
 | Elapsed time **and** payments actually made | `slotAtStart` re-bases `slot` to the sim's first month (`_installNum`) |
+| An untagged Gastos row **and** a scenario item with no `gastosCategory` | ⚠ nothing — the skip at step 9 only covers items that *have* a category. Latent: step 8 cannot fire for a current-year plan. It becomes live the moment `startYear` is a past year |
 
 ---
 

@@ -18,6 +18,10 @@ Not in mobile.html: the phone ships no CDN and stays lean, and the map is a desk
 reference.
 
 ## Session start protocol (ALWAYS do this first)
+0. **Read `MAP.md` end to end.** Not skimmed, not "I remember it" — the recurring failures
+   have all come from working off recollection instead of the structure. Before any change
+   that moves a number, name the layer that owns it (§1), locate it in the month (§2), and
+   run §7 afterwards. Costs one file read; the alternative has cost far more.
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
 3. If 52/52 passed → continue. If any fail → fix before touching anything else.
