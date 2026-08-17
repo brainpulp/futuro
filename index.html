@@ -2795,7 +2795,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
     // every month that elapsed between the plan start and today.
     const moElapsed  = Math.max(0, (sa - start) * 12 + (_curMo - 1) - ((e.atMonth || 1) - 1));
     const slotAtStart = Math.floor(moElapsed / moPerSlot);
-    let paidSoFar, effPer = perPayment;
+    let paidSoFar, effPer = perPayment, remainN = installN, dispBase = 0;
     if (gc && perPayment > 0) {
       // The budget is the WHOLE project, already-spent included, so what remains to spend
       // is simply budget - spent. Counting whole payment-sized chunks
@@ -2809,15 +2809,26 @@ function runSim(monthlyOverride, yieldRateOverride) {
       const remainSlots = Math.max(installN - slotAtStart, 0);
       effPer     = remainSlots > 0 ? remainMoney / remainSlots : 0;
       paidSoFar  = remainSlots > 0 ? slotAtStart : installN;
+      remainN    = remainSlots;      // the run that is actually still to come
+      dispBase   = slotAtStart;      // so the first future payment is numbered 1
     } else {
       // Timing: how many slots elapsed from (atAge, atMonth) to the start of the current month
       paidSoFar = Math.min(slotAtStart, installN);
     }
-    _effInstall[e.id] = { perPayment: effPer, paidSoFar, installN, ppy, slotAtStart };
+    _effInstall[e.id] = { perPayment: effPer, paidSoFar, installN, ppy, slotAtStart, remainN, dispBase };
   });
 
   // _effBudget is display-only (expand card summary). The simulation always uses
   // e.amount / e.installTotal directly — budget is a tracking field, not a sim override.
+
+  // Payment label. For a Gastos-tracked plan the future payments cover only the REMAINING
+  // budget, so numbering them against the original schedule ("11 of 11") describes money
+  // that was already spent at a size no longer being charged. Count within what is left.
+  function _installLabel(e, moFromStart) {
+    const ei = _effInstall[e.id];
+    if (!ei) return { num: 1, total: e.installN || 1 };
+    return { num: _installNum(e, moFromStart) - ei.dispBase, total: ei.remainN || ei.installN };
+  }
 
   // Helper: should this installment fire at absolute month offset moFromStart?
   function _installFires(e, moFromStart) {
@@ -2932,7 +2943,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
           const moFromStart = (sa - start) * 12 + (mo - 1) - ((e.atMonth || 1) - 1);
           if (_installFires(e, moFromStart)) {
             _itemizedExp += _effInstall[e.id].perPayment;
-            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _installNum(e, moFromStart), installTotal: e.installN||1 });
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _installLabel(e, moFromStart).num, installTotal: _installLabel(e, moFromStart).total });
           }
         }
       });
@@ -3150,7 +3161,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
           const moFromStart = (age - start) * 12 + (mo - 1) - ((e.atAge||e.from||sa) === sa ? 0 : 0) - ((e.atMonth || 1) - 1);
           if (_installFires(e, moFromStart)) {
             exp += _effInstall[e.id].perPayment;
-            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _installNum(e, moFromStart), installTotal: e.installN||1 });
+            _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_effInstall[e.id].perPayment), type: 'installment', installNum: _installLabel(e, moFromStart).num, installTotal: _installLabel(e, moFromStart).total });
           }
         }
       });
