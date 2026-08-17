@@ -39,6 +39,17 @@ drives it with `contentWindow.eval(...)`.
   delete + add, a scenario picker when more than one exists, and scenario-level fields
   (liquidBase, startAge, assetAppreciation, sellCostRate, propertyTaxRate, borrowRate).
 
+### mobile.html — base spend from Gastos
+"Use what you actually spend" sets monthly spending to the mean of the **last three
+completed months** from `monthly-actuals`, which sums only the categories in the
+`monthly expenses` group in gastos settings.
+- Applying it marks `sp` as touched, so the figure PERSISTS and the desktop sees the same
+  number. It is not a display-only overlay.
+- Dragging the spend slider is an explicit manual override and switches tracking off;
+  the choice lives in `localStorage.futuro_mobile_spend_src`.
+- The value is clamped to the slider's own min/max/step, so the control and the number it
+  reports can never disagree.
+
 ### mobile.html ↔ cloud sync
 Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
 `futuro_state` table the desktop uses, so the two apps round-trip.

@@ -249,6 +249,10 @@
 <div class="card" id="ctrl">
   <div class="row"><label for="sp">Monthly spending</label><span class="val mono" id="spV">—</span></div>
   <input type="range" id="sp" min="2000" max="25000" step="250">
+  <div class="sw" id="gRow" hidden>
+    <span>Use what you actually spend<small id="gNote"></small></span>
+    <input type="checkbox" id="gUse" aria-label="Use the Gastos three-month average">
+  </div>
 
   <div class="row"><label for="yr">Market return</label><span class="val mono" id="yrV">—</span></div>
   <input type="range" id="yr" min="0" max="14" step="0.25">
@@ -1024,6 +1028,42 @@
     }
   }
 
+  // ── base spend from Gastos: mean of the last three completed months ───────
+  // Same monthly-actuals function the desktop uses, which sums only the categories in
+  // the "monthly expenses" group defined in gastos settings.
+  const SPEND_KEY = 'futuro_mobile_spend_src';
+  let monthlyActuals = null;
+  let useGastosSpend = false;
+  try { useGastosSpend = localStorage.getItem(SPEND_KEY) === 'gastos'; } catch (e) {}
+
+  async function loadMonthlyActuals() {
+    if (!SB) return;
+    try {
+      const r = await fetch(SB.url + '/functions/v1/monthly-actuals',
+                            { headers: { Authorization: 'Bearer ' + SB.key } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const rows = await r.json();
+      if (Array.isArray(rows)) monthlyActuals = rows.slice().sort((a, b) => a.ym < b.ym ? -1 : 1);
+    } catch (e) { console.warn('monthly actuals unavailable', e); }
+  }
+
+  // Mean of the last three months on record. Fewer than three -> whatever there is, so a
+  // thin history still gives a figure rather than nothing.
+  function gastosAvg() {
+    if (!monthlyActuals || !monthlyActuals.length) return null;
+    const last = monthlyActuals.slice(-3);
+    const sum = last.reduce((s, r) => s + (+r.usd || 0), 0);
+    return { avg: Math.round(sum / last.length), months: last.map(r => r.ym) };
+  }
+
+  function renderSpendSrc() {
+    const g = gastosAvg();
+    $('gRow').hidden = !g;
+    if (!g) return;
+    $('gUse').checked = useGastosSpend;
+    $('gNote').textContent = fmtL(g.avg) + '/mo · mean of ' + g.months.join(', ');
+  }
+
   function spentOn(cat) {
     const k = (cat || '').trim().toLowerCase();
     if (!actuals || !k || !actuals[k] || !actuals[k].byMonth) return null;
@@ -1298,6 +1338,27 @@
       };
     });
   }
+
+  function applyGastosSpend() {
+    const g = gastosAvg();
+    if (!g) return false;
+    // Clamp to the slider's range and step so the control and the value never disagree.
+    const el = $('sp');
+    const step = +el.step || 1, lo = +el.min, hi = +el.max;
+    const v = Math.min(hi, Math.max(lo, Math.round(g.avg / step) * step));
+    el.value = v;
+    touched.add('sp');          // a real edit: it persists, so the desktop sees it too
+    return true;
+  }
+
+  $('gUse').addEventListener('change', () => {
+    useGastosSpend = $('gUse').checked;
+    try { localStorage.setItem(SPEND_KEY, useGastosSpend ? 'gastos' : 'manual'); } catch (e) {}
+    if (useGastosSpend) applyGastosSpend();
+    renderSpendSrc();
+    renderLists();
+    render(true);
+  });
 
   $('ibkr').addEventListener('click', ibkrPull);
   // Show when the cached figure was last pulled. A number with no date beside it gives
@@ -1598,6 +1659,12 @@
   // `touched` is what makes saving safe: only controls the user actually moved get
   // written back, so untouched fields keep whatever the desktop put there.
   ['sp','yr','vol','inf','ea'].forEach(id => $(id).addEventListener('input', () => {
+    // Dragging the spend slider is an explicit manual override; stop tracking Gastos.
+    if (id === 'sp' && useGastosSpend) {
+      useGastosSpend = false;
+      try { localStorage.setItem(SPEND_KEY, 'manual'); } catch (e) {}
+      renderSpendSrc();
+    }
     touched.add(id);
     render(false);
     if (id === 'ea') renderLists();   // horizon changes which sales can still happen
@@ -1650,13 +1717,20 @@
         : 'Edits save automatically and sync with the web app.');
     // Actuals change the SIMULATION, so wait briefly for them before the first render —
     // but never let a slow call blank the page, which is the same trap sbLoad fell into.
-    const actualsReady = loadActuals();
+    const actualsReady = Promise.all([loadActuals(), loadMonthlyActuals()]);
     await Promise.race([actualsReady, new Promise(r => setTimeout(r, 3000))]);
     injectActuals();
     applySaved();
+    renderSpendSrc();
+    if (useGastosSpend && applyGastosSpend()) { syncLabels(); }
     booted = true;                       // from here on, edits persist
     // If they arrived after the deadline, apply them and re-run.
-    actualsReady.then(() => { if (injectActuals()) { renderExpenses(); render(true); } });
+    actualsReady.then(() => {
+      const gotProj = injectActuals();
+      renderSpendSrc();
+      const gotSpend = useGastosSpend && applyGastosSpend();
+      if (gotProj || gotSpend) { renderExpenses(); render(true); }
+    });
     if (readOnly) setSync('', 'preview', 'Not your saved plan — nothing is written');
     else if (!SB) setSync('', 'on device', 'Saved here — no cloud configured');
     else if ($('sync').textContent === 'loading…') setSync('ok', 'synced', 'Up to date with the web app');
