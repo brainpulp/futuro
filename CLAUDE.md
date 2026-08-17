@@ -240,7 +240,10 @@ S.propertyTaxRate   // annual % of carrying value, charged monthly. Override: de
 S.mcVol             // assumed annual σ of market returns (was hardcoded 15 inside _mcParams)
 S.useMedianReturn   // default TRUE — applies σ²/2 volatility drag to the deterministic line
 S.borrowRate        // annual % at which a NEGATIVE liquid balance grows (default 10)
-S.crashYears        // sequence-of-returns stress: N years from startAge pinned to…
+S.crashStartAge     // where the crash lands. Unset = startAge. It used to be pinned to
+                    // startAge, which assumed the plan begins when you stop earning —
+                    // wrong for anyone who stopped years ago or plans to work again.
+S.crashYears        // sequence-of-returns stress: N years from crashStartAge pinned to…
 S.crashPct          // …this annual return. crashYears:0 disables. Set together.
 property.salePrice  // agreed sale price for a plain property (deals: exit.manualPrice)
 ```
