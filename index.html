@@ -826,6 +826,79 @@ body[data-theme="graphite"] .freq-title:hover { background: rgba(255,255,255,0.0
   min-height: 26px; box-shadow: 0 1px 2px rgba(50,50,93,.06);
 }
 
+/* ── THE MAP ────────────────────────────────────────────── */
+#map-btn:hover { color: #666; }
+#map-sheet {
+  position: absolute; top: 3vh; left: 50%; transform: translateX(-50%);
+  width: min(920px, 94vw); max-height: 94vh; display: flex; flex-direction: column;
+  background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(20,24,28,.35);
+  overflow: hidden;
+}
+#map-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 20px; border-bottom: 1px solid #e5e9ee; flex-shrink: 0;
+}
+#map-title {
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: #6b7280; font-family: 'SF Mono', Menlo, monospace;
+}
+#map-x {
+  background: none; border: none; cursor: pointer; font-size: 22px; line-height: 1;
+  color: #9aa3ad; padding: 0 2px;
+}
+#map-x:hover { color: #374151; }
+#map-body {
+  overflow-y: auto; padding: 22px 30px 40px;
+  font: 14px/1.62 system-ui, -apple-system, sans-serif; color: #253039;
+}
+#map-body h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: -.01em; }
+#map-body h2 {
+  font-size: 15px; margin: 30px 0 8px; padding-top: 14px; border-top: 1px solid #e5e9ee;
+  letter-spacing: -.005em;
+}
+#map-body h1 + p, #map-body h2 + p { margin-top: 0; }
+#map-body h3 { font-size: 13px; margin: 18px 0 6px; color: #4b5563; }
+#map-body p { margin: 0 0 11px; max-width: 68ch; }
+#map-body hr { border: none; border-top: 1px solid #e5e9ee; margin: 22px 0; }
+#map-body ol, #map-body ul { max-width: 68ch; padding-left: 22px; margin: 0 0 11px; }
+#map-body li { margin-bottom: 5px; }
+#map-body code {
+  font-family: 'SF Mono', Menlo, monospace; font-size: 12px;
+  background: #f1f4f7; border: 1px solid #e5e9ee; border-radius: 3px; padding: 1px 4px;
+}
+#map-body pre {
+  background: #f7f9fb; border: 1px solid #e5e9ee; border-radius: 8px;
+  padding: 14px 16px; overflow-x: auto; margin: 0 0 14px;
+}
+#map-body pre code { background: none; border: none; padding: 0; font-size: 11.5px; line-height: 1.55; }
+#map-body .map-tw { overflow-x: auto; margin: 0 0 16px; }
+#map-body table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 13px; }
+#map-body th {
+  text-align: left; font-size: 10px; letter-spacing: .09em; text-transform: uppercase;
+  color: #8b95a1; font-weight: 700; padding: 0 14px 6px 0; border-bottom: 1px solid #253039;
+  white-space: nowrap;
+}
+#map-body td { padding: 8px 14px 8px 0; border-bottom: 1px solid #eef1f5; vertical-align: top; }
+#map-body th:last-child, #map-body td:last-child { padding-right: 0; }
+#map-body strong { font-weight: 700; color: #111827; }
+#map-body .map-loading, #map-body .map-fail { color: #8b95a1; font-size: 13px; }
+
+body[data-theme="graphite"] #map-sheet { background: #161b22; }
+body[data-theme="graphite"] #map-head { border-color: #30363d; }
+body[data-theme="graphite"] #map-title { color: #8b949e; }
+body[data-theme="graphite"] #map-x { color: #6e7681; }
+body[data-theme="graphite"] #map-x:hover { color: #e6edf3; }
+body[data-theme="graphite"] #map-body { color: #c9d1d9; }
+body[data-theme="graphite"] #map-body h2 { border-color: #30363d; }
+body[data-theme="graphite"] #map-body h3 { color: #8b949e; }
+body[data-theme="graphite"] #map-body hr { border-color: #30363d; }
+body[data-theme="graphite"] #map-body code { background: #21262d; border-color: #30363d; }
+body[data-theme="graphite"] #map-body pre { background: #0d1117; border-color: #30363d; }
+body[data-theme="graphite"] #map-body th { color: #6e7681; border-color: #c9d1d9; }
+body[data-theme="graphite"] #map-body td { border-color: #21262d; }
+body[data-theme="graphite"] #map-body strong { color: #f0f6fc; }
+body[data-theme="graphite"] #map-btn:hover { color: #c9d1d9; }
+
 /* ── GRAPHITE THEME ─────────────────────────────────────── */
 [data-theme="graphite"] body,
 body[data-theme="graphite"] {
@@ -1026,6 +1099,22 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
 <div id="js-error-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#C03030;color:#fff;font-size:12px;font-family:monospace;padding:6px 12px;cursor:pointer;" onclick="this.style.display='none'"></div>
 
 <!-- ══════════════════════════════════════════════════════════
+     THE MAP — rendered from MAP.md at the repo root.
+     Fetched rather than inlined ON PURPOSE: the map is the reference this code is
+     checked against, so a second copy that can drift from the first would be worse
+     than no copy at all. One file, two readers.
+══════════════════════════════════════════════════════════ -->
+<div id="map-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(20,24,28,.45);backdrop-filter:blur(2px);" onclick="if(event.target===this)closeMap()">
+  <div id="map-sheet">
+    <div id="map-head">
+      <span id="map-title">The map — where every number comes from</span>
+      <button onclick="closeMap()" title="Close (Esc)" id="map-x">×</button>
+    </div>
+    <div id="map-body"><p class="map-loading">Loading…</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      APP SCREEN
 ══════════════════════════════════════════════════════════ -->
 <div id="app-screen">
@@ -1056,6 +1145,8 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
       </div>
     </div>
     <span id="gastos-badge" title="Gastos actuals not loaded" onclick="gastosSync()" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;" title="Click to reload gastos actuals">gastos…</span>
+    <button id="map-btn" onclick="openMap()" title="How every number is computed — layers, the order of one month, what must stay true"
+      style="background:none;border:none;cursor:pointer;font-size:10px;color:#aaa;margin-right:6px;padding:2px 4px;font-family:'SF Mono',Menlo,monospace;">map</button>
     <label id="yr-toggle-wrap" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aaa;cursor:pointer;user-select:none;margin-right:4px;" title="Toggle age / year display">
       <span id="yr-lbl-age" style="font-weight:700;color:#666;">Age</span>
       <span onclick="toggleYearMode()" style="display:inline-block;width:30px;height:16px;border-radius:8px;background:#ccc;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;" id="yr-track">
@@ -7816,6 +7907,99 @@ async function ibkrSync({ manual = false } = {}) {
     }
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+//  THE MAP  —  MAP.md rendered in place
+// ══════════════════════════════════════════════════════════════
+// Just enough Markdown for MAP.md: headings, paragraphs, rules, fenced code, ordered and
+// unordered lists, and tables. Deliberately not a general parser — it renders one known
+// file, and anything it does not understand comes through as plain text rather than
+// disappearing.
+function _mdRender(src) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Inline: code first, so ** inside a code span is never mistaken for bold.
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, (_, c) => '<code>' + c + '</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*([^*]+)\*/g, '$1<em>$2</em>');
+  const cells = row => row.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+
+  const lines = src.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i];
+
+    if (/^```/.test(ln)) {                                  // fenced code
+      const buf = [];
+      for (i++; i < lines.length && !/^```/.test(lines[i]); i++) buf.push(lines[i]);
+      i++;
+      out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+      continue;
+    }
+    if (/^\s*$/.test(ln)) { i++; continue; }
+    if (/^---+\s*$/.test(ln)) { out.push('<hr>'); i++; continue; }
+
+    const h = ln.match(/^(#{1,3})\s+(.*)$/);
+    if (h) { const n = h[1].length; out.push(`<h${n}>${inline(h[2])}</h${n}>`); i++; continue; }
+
+    // Table: a header row followed by a |---|---| separator.
+    if (/^\|/.test(ln) && i + 1 < lines.length && /^\|[\s|:-]+\|?\s*$/.test(lines[i + 1])) {
+      const head = cells(ln);
+      const body = [];
+      for (i += 2; i < lines.length && /^\|/.test(lines[i]); i++) body.push(cells(lines[i]));
+      out.push('<div class="map-tw"><table><thead><tr>'
+        + head.map(c => '<th>' + inline(c) + '</th>').join('')
+        + '</tr></thead><tbody>'
+        + body.map(r => '<tr>' + r.map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('')
+        + '</tbody></table></div>');
+      continue;
+    }
+
+    if (/^\s*(\d+\.|[-*])\s+/.test(ln)) {                   // list
+      const ordered = /^\s*\d+\./.test(ln);
+      const items = [];
+      while (i < lines.length && /^\s*(\d+\.|[-*])\s+/.test(lines[i])) {
+        let text = lines[i].replace(/^\s*(?:\d+\.|[-*])\s+/, '');
+        // Continuation lines are indented and carry no marker of their own.
+        for (i++; i < lines.length && /^\s+\S/.test(lines[i]) && !/^\s*(\d+\.|[-*])\s+/.test(lines[i]); i++) {
+          text += ' ' + lines[i].trim();
+        }
+        items.push('<li>' + inline(text) + '</li>');
+      }
+      out.push((ordered ? '<ol>' : '<ul>') + items.join('') + (ordered ? '</ol>' : '</ul>'));
+      continue;
+    }
+
+    const para = [];                                        // paragraph
+    while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^(#{1,3}\s|\||```|---+\s*$)/.test(lines[i])
+           && !/^\s*(\d+\.|[-*])\s+/.test(lines[i])) { para.push(lines[i].trim()); i++; }
+    if (para.length) out.push('<p>' + inline(para.join(' ')) + '</p>');
+  }
+  return out.join('\n');
+}
+
+let _mapLoaded = false;
+async function openMap() {
+  document.getElementById('map-overlay').style.display = 'block';
+  if (_mapLoaded) return;
+  const body = document.getElementById('map-body');
+  try {
+    const r = await fetch('MAP.md', { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    body.innerHTML = _mdRender(await r.text());
+    _mapLoaded = true;
+  } catch (e) {
+    // Opening the app from the filesystem blocks the fetch. Say so rather than
+    // leaving "Loading…" on screen forever.
+    body.innerHTML = '<p class="map-fail">Could not load MAP.md (' + (e.message || e)
+      + '). It lives next to this file in the repo — serve the folder over http to read it here.</p>';
+  }
+}
+function closeMap() { document.getElementById('map-overlay').style.display = 'none'; }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('map-overlay').style.display === 'block') closeMap();
+});
 
 async function gastosSync() {
   try {

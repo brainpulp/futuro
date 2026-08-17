@@ -8,6 +8,15 @@ anything that moves money, and check a change against its §7 checklist before c
 number is correct. This file is the history of what went wrong; MAP.md is the structure
 that must stay true.
 
+⚠ **MAP.md is also the app's own map panel** — the "map" button in the desktop top bar
+fetches `MAP.md` and renders it with `_mdRender()`. There is deliberately no second copy:
+a map that can drift from the code it certifies is worse than none. Keep MAP.md to the
+Markdown subset the renderer handles (h1–h3, paragraphs, `---`, fenced code, ordered and
+unordered lists, tables, inline code/bold/italic) — anything else renders as plain text.
+`map.js` asserts the section, table and row counts, so adding a section means updating it.
+Not in mobile.html: the phone ships no CDN and stays lean, and the map is a desk-side
+reference.
+
 ## Session start protocol (ALWAYS do this first)
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
