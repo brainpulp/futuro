@@ -5,7 +5,9 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const QUERY_ID = '1510170';
+// The Flex Query to run. Overridable by secret so a new query does not need a redeploy --
+// a wrong id here fails as an IBKR error code, which reads like a broken token.
+const QUERY_ID = Deno.env.get('IBKR_QUERY_ID')?.trim() || '1510170';
 
 function extractLiquid(xml: string): number | null {
   const patterns = [
@@ -43,7 +45,15 @@ Deno.serve(async (req: Request) => {
   const raw = Deno.env.get('IBKR_FLEX_TOKEN');
   if (!raw) {
     return new Response(
-      JSON.stringify({ error: 'IBKR_FLEX_TOKEN not set in Supabase secrets' }),
+      JSON.stringify({
+        error: 'IBKR_FLEX_TOKEN is not set',
+        detail: {
+          step: 'config',
+          note: 'Set it in the gastos project: Supabase dashboard -> Project Settings -> '
+              + 'Edge Functions -> Secrets. The value is the Flex Web Service token from '
+              + 'IBKR Client Portal -> Settings -> Account Reporting -> Flex Web Service.',
+        },
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } }
     );
   }

@@ -7872,18 +7872,25 @@ async function requestSagePhrase() {
 // ── IBKR sync ──
 const IBKR_SYNC_MS = 4 * 60 * 60 * 1000; // auto-refresh every 4 hours (Flex API rate-limits on frequent calls)
 
+// ⚠ Do NOT gate this on `_sb`. The call is a plain fetch with the anon key and never
+// touches supabase-js, but the guard used to sit here anyway — so whenever the CDN was
+// slow or blocked, `_sb` was null and the button returned instantly and silently. No
+// request, no error, no change to the label: indistinguishable from a broken integration,
+// and invisible in the function logs because nothing was ever sent.
 async function ibkrSync({ manual = false } = {}) {
-  if (!_sb) return;
   const btn = document.getElementById('ibkr-sync-btn');
+  if (!btn) return;
   if (manual) { btn.textContent = '…'; btn.disabled = true; }
   try {
     const res = await fetch(
       `${SB_URL}/functions/v1/get-ibkr-liquid`,
       { headers: { 'Authorization': `Bearer ${SB_ANON}`, 'Content-Type': 'application/json' } }
     );
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || 'Status ' + res.status);
-    if (typeof data.liquid !== 'number') throw new Error(data?.error || 'No value returned');
+    const data = await res.json().catch(() => ({}));
+    // The function reports precisely what failed — a missing secret, an IBKR error code,
+    // an unparseable report. Passing only `error` through threw that away.
+    if (!res.ok) throw new Error(_ibkrWhy(data, res.status));
+    if (typeof data.liquid !== 'number') throw new Error(_ibkrWhy(data, res.status) || 'No value returned');
     S.liquidBase = data.liquid;
     document.getElementById('liquidBase').value = fmtInput(data.liquid);
     // Sticky cache — persists across scenario resets / reloads
@@ -7892,20 +7899,42 @@ async function ibkrSync({ manual = false } = {}) {
     go();
     saveActive(); // flush S into SCENARIOS *before* persisting — not lsSave() which would save stale SCENARIOS
     showTicker('☁', `IBKR · ${fmtM(data.liquid)} liquid`);
+    btn.style.color = '';
+    btn.title = 'Net Liquidation Value from IBKR · synced just now';
     if (manual) {
       btn.textContent = '✓ IBKR';
       btn.style.color = '#15803d';
       setTimeout(() => { btn.textContent = '↓ IBKR'; btn.style.color = ''; btn.disabled = false; }, 3000);
     }
   } catch(e) {
-    if (manual) {
-      btn.textContent = '↓ IBKR';
-      btn.disabled = false;
-      alert('IBKR sync failed: ' + (e.message || e));
-    } else {
-      console.warn('IBKR auto-sync skipped:', e.message || e);
-    }
+    const why = e.message || String(e);
+    btn.textContent = '↓ IBKR';
+    btn.disabled = false;
+    // An auto-sync failure stays quiet — but not invisible. A stale figure with nothing
+    // to show for it is the silent failure this app keeps being bitten by, so the button
+    // carries the reason and the age of what is on screen.
+    btn.style.color = '#b45309';
+    btn.title = 'IBKR sync failed: ' + why + _ibkrAge();
+    if (manual) alert('IBKR sync failed: ' + why + _ibkrAge());
+    else console.warn('IBKR auto-sync skipped:', why);
   }
+}
+
+// Everything the function knows about a failure, in one line.
+function _ibkrWhy(data, status) {
+  if (!data || typeof data !== 'object') return 'Status ' + status;
+  const d = data.detail || {};
+  return [data.error || ('Status ' + status), d.ibkr_error_code && ('IBKR code ' + d.ibkr_error_code), d.step && ('at ' + d.step)]
+    .filter(Boolean).join(' · ');
+}
+
+// How old the value currently on screen is, so a failure says what you are still looking at.
+function _ibkrAge() {
+  const ts = localStorage.getItem('futuro-ibkr-liquid-ts');
+  if (!ts) return '\n\nNo IBKR value has ever synced — the liquid figure is the scenario\'s own.';
+  const days = Math.floor((Date.now() - new Date(ts)) / 86400000);
+  return '\n\nStill showing the value from ' + ts.slice(0, 10)
+       + (days > 0 ? ' (' + days + ' day' + (days === 1 ? '' : 's') + ' old).' : ' (today).');
 }
 
 // ══════════════════════════════════════════════════════════════

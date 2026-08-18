@@ -501,8 +501,16 @@ scenario's saved `liquidBase` is only a fallback.
 - `verify_jwt: false`, same CORS-preflight reason as the actuals functions.
 - Auto-sync only runs when `localStorage['futuro-ibkr-auto'] === '1'` (the "auto"
   checkbox), then every 4h — the Flex API rate-limits frequent calls.
-- Failures are SILENT unless `{manual:true}`: auto-sync only does `console.warn`, so a
-  dead token shows up as a stale figure rather than an error. Click "↓ IBKR" to see it.
+- A manual click alerts on failure; an auto-sync does not interrupt, but no longer hides
+  either — the button turns amber and its tooltip carries the reason plus the age of the
+  figure still on screen (`_ibkrWhy` / `_ibkrAge`).
+- ⚠ **`ibkrSync` must NOT be gated on `_sb`.** It used to open with `if (!_sb) return;`,
+  though the call is a plain `fetch` with the anon key and never touches supabase-js. Any
+  failure to load `./index_files/supabase-js@2` therefore made the button return instantly
+  and silently: no request, no error, no label change, and nothing in the function logs to
+  show for it.
+- `QUERY_ID` defaults to `1510170` but is overridable by the `IBKR_QUERY_ID` secret — a
+  wrong query id fails as an IBKR error code, which reads like a bad token.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —
