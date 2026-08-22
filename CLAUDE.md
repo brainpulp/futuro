@@ -487,6 +487,27 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
   the gateway rejects the CORS preflight `OPTIONS` (no Authorization header) before the
   function's own CORS handler runs, so the browser call fails. Do not "harden" this.
 
+## Market outlook — `market-outlook`
+A forward-looking base return built from a PRICE, not a forecast: the 10-yr TIPS real
+yield from the US Treasury's keyless XML feed, plus `S.erp` (equity premium, default 4.5)
+plus `S.inflationRate`. Cached a month in `localStorage['futuro-outlook']`.
+- ⚠ **It proposes; it never writes.** `applyOutlook()` runs only on a click, and stamps
+  `S.yieldSource` with the reading, the premium and the inflation used. IBKR auto-applies
+  because a balance is a FACT; a forward return is an OPINION, and MAP §1 gives one number
+  one owner.
+- ⚠ **Writes `S.yieldRate`, never a `yieldCurve`.** A curve value is a realized path and
+  is drag-exempt, so a forecast routed through it would skip the mean→median correction —
+  1.13%/yr at σ=15%, ≈1.4× overstated wealth over 30 years, presenting as good news. It
+  does *shift* an existing curve by the delta, exactly as typing in the return box does.
+- ⚠ **Every term is ARITHMETIC**, matching what `getYield` expects. A geometric premium
+  would be penalised twice.
+- **No sentiment on purpose.** VIX/AAII carry nothing past a few weeks against a 40-year
+  plan; refreshing weekly would move the headline for reasons that say nothing about age
+  95. Monthly cadence for the same reason.
+- Deployed `verify_jwt: false`, same CORS-preflight reason as the actuals functions.
+- Untested against the live Treasury feed — the sandbox proxy 403s every market data host.
+  `outlook.js` covers the client, `parse.js` the feed parser against a synthetic document.
+
 ## IBKR sync — `get-ibkr-liquid`
 `ibkrSync()` pulls Net Liquidation Value and writes it to `S.liquidBase`, caching it in
 `localStorage['futuro-ibkr-liquid']`. That cache is applied on EVERY load in

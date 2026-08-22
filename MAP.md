@@ -37,6 +37,7 @@ downstream may re-derive a number an upstream layer already owns.
 | What anything *will* cost | the scenario (`S`) | Gastos never projects |
 | How a row is categorized | the owner, by hand, in Gastos | ⚠ no code may classify a row from its text |
 | The projection itself | `runSim()` in index.html | mobile.html drives the same engine in a hidden iframe; it never re-implements it |
+| The expected market return | the scenario (`S.yieldRate`) | `market-outlook` **proposes** and records provenance in `S.yieldSource`; it never writes on its own. IBKR auto-applies because a balance is a fact — a forward return is an opinion |
 
 **The engine-only trap.** `mobile.html` loads `index.html?engineonly=1`, which skips
 `loadScenarios()` and all sync. Anything the *simulation* reads but the engine-only path
@@ -148,6 +149,19 @@ three times before it was labelled.
 matched by proximity, never equality. `minLiq`/`minAge`/`minMo` are monthly; "net worth at
 end" reads the last *monthly* record. The yearly roll-up differs from the curve's
 right-hand end, so mixing them makes a tile disagree with the line beneath it.
+
+**Arithmetic vs geometric is a unit, and mixing them is silent.** `S.yieldRate` is an
+*arithmetic* expected return: `getYield` subtracts σ²/2 from it to get the median path.
+Anything fed into it must be arithmetic too — the market outlook's equity premium is
+labelled as such for this reason. Hand it a geometric figure and the drag is applied to a
+number that already has it, penalising twice.
+
+⚠ The mirror of that is worse. A `yieldCurve` value is a *realized path* and is exempt
+from drag by design, so routing a forecast through the curve skips the correction
+entirely: at σ=15% that is 1.13%/yr, compounding to about **1.4× overstated wealth over 30
+years**, and it presents as good news. The market outlook therefore writes `yieldRate` and
+never builds a curve. It does *shift* an existing curve by the delta — same as typing in
+the return box, and a re-centred path is still a path.
 
 **Volatility drag applies to the flat rate only.** A per-age `yieldCurve` value is a
 realized path whose own ups and downs already drag compounding below the arithmetic mean;

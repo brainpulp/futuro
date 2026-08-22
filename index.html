@@ -1255,6 +1255,24 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
       </div>
     </div>
 
+    <!-- ── MARKET OUTLOOK ──────────────────────────────────────────────────────
+         What the market charges TODAY for ten years of inflation-protected money,
+         plus the equity premium you are willing to assume on top. It proposes; the
+         scenario stays the owner of its own return. -->
+    <div id="outlook-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;margin:0 0 10px;border:1px solid #e6ebf1;border-radius:6px;background:#fbfcfd;font-size:11px;">
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;white-space:nowrap;">Market outlook</span>
+      <span id="outlook-txt" style="color:#64748b;">not loaded</span>
+      <label style="display:flex;align-items:center;gap:4px;color:#64748b;white-space:nowrap;" title="Equity premium over TIPS, as an ARITHMETIC mean — the median line subtracts volatility drag from it, exactly as it does for the base return">
+        + premium
+        <input type="number" id="erp-input" min="0" max="12" step="0.25"
+          style="width:52px;font-size:11px;padding:1px 4px;"
+          oninput="S.erp=parseFloat(this.value);markDirty();renderOutlook();">%
+      </label>
+      <button id="outlook-apply" onclick="applyOutlook()" style="display:none;font-size:10px;font-weight:700;padding:2px 8px;border:1px solid #e6ebf1;border-radius:4px;background:#f0f9f0;cursor:pointer;color:#1A8C5F;">Use this</button>
+      <button id="outlook-refresh" onclick="outlookSync({manual:true})" title="Refresh from the US Treasury feed" style="font-size:10px;font-weight:700;padding:2px 8px;border:1px solid #e6ebf1;border-radius:4px;background:#fff;cursor:pointer;color:#64748b;">&#8635;</button>
+      <span id="outlook-prov" style="margin-left:auto;color:#9aa3ad;font-size:10px;"></span>
+    </div>
+
     <!-- Expense sub-chart (merged into market section) -->
     <div style="position:relative;padding-top:18px;margin-bottom:10px;">
       <div style="position:absolute;top:2px;left:44px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:rgba(100,50,160,0.5);pointer-events:none;">Monthly Expenses &nbsp;<span id="exp-avg-label" style="font-size:10px;font-weight:700;letter-spacing:0;"></span></div>
@@ -2246,6 +2264,9 @@ function ensureFields() {
   if (S.sellCostRate    == null) S.sellCostRate    = 0;
   if (S.propertyTaxRate == null) S.propertyTaxRate = 0;
   if (S.mcVol           == null) S.mcVol           = 15;
+  // Equity premium over TIPS, ARITHMETIC — see the market outlook block. 4.5 is a
+  // deliberately unexciting long-run figure; it is the user's assumption to move.
+  if (S.erp             == null) S.erp             = 4.5;
   if (S.borrowRate      == null) S.borrowRate      = 10;
   if (S.useMedianReturn == null) S.useMedianReturn = true;
   if (S.crashYears      == null) S.crashYears      = 0;
@@ -5299,6 +5320,7 @@ function go() {
   // Sync wheel label with actual first-month value from simulation
   if (data.length) setWheelLabel(data[0].monthlyExp);
   syncMarketBandInputs();
+  try { renderOutlook(); } catch(e) { /* the outlook must never block the projection */ }
 
   // ── Footer sassy phrase — update first so chart errors can't block it ──
   try {
@@ -7869,6 +7891,114 @@ async function requestSagePhrase() {
   } catch(e) {}
 }
 
+// ══════════════════════════════════════════════════════════════
+//  MARKET OUTLOOK  —  a forward-looking return the market is actually quoting
+// ══════════════════════════════════════════════════════════════
+// expected nominal return = 10-yr TIPS real yield + your equity premium + your inflation
+//
+// ⚠ Every term here is an ARITHMETIC expectation, which is what `S.yieldRate` already is:
+// `getYield` subtracts volDrag() from it to get the median path. That is the whole reason
+// this writes `yieldRate` and never `yieldCurve` — a curve value is treated as a REALIZED
+// path and is deliberately exempt from drag (see getYield). Routing a forecast through the
+// curve would skip the mean→median correction: at σ=15% that is 1.13%/yr, compounding to
+// roughly 1.4× overstated wealth across 30 years, and it would look like good news.
+//
+// ⚠ It PROPOSES. IBKR auto-applies because a balance is a fact; a forward return is an
+// opinion, and MAP §1 says one number has one owner. The scenario owns `yieldRate`.
+const OUTLOOK_KEY  = 'futuro-outlook';
+const OUTLOOK_MS   = 30 * 24 * 60 * 60 * 1000;  // monthly. Weekly would be noise: the
+                                                // plan runs 40 years and this moves daily.
+let _outlook = null;
+try { _outlook = JSON.parse(localStorage.getItem(OUTLOOK_KEY) || 'null'); } catch(e) { _outlook = null; }
+
+const _erp = () => (S && S.erp != null ? S.erp : 4.5);
+
+// The number the outlook implies, or null when nothing has been fetched.
+function outlookRate() {
+  if (!_outlook || typeof _outlook.realYield10 !== 'number') return null;
+  return Math.round((_outlook.realYield10 + _erp() + (S.inflationRate ?? 3)) * 100) / 100;
+}
+
+function renderOutlook() {
+  const bar = document.getElementById('outlook-bar');
+  if (!bar) return;
+  const erpEl = document.getElementById('erp-input');
+  if (erpEl && document.activeElement !== erpEl) erpEl.value = _erp();
+
+  const txt = document.getElementById('outlook-txt');
+  const btn = document.getElementById('outlook-apply');
+  const prov = document.getElementById('outlook-prov');
+  const rate = outlookRate();
+
+  if (rate == null) {
+    txt.textContent = _outlook && _outlook.error ? _outlook.error : 'not loaded';
+    txt.style.color = _outlook && _outlook.error ? '#b45309' : '#64748b';
+    btn.style.display = 'none';
+  } else {
+    // Show the arithmetic, not just the answer — the components are the argument.
+    txt.innerHTML = '<b>' + rate.toFixed(2) + '%</b> = ' + _outlook.realYield10.toFixed(2)
+      + '% real (10-yr TIPS, ' + _outlook.asOf + ') + ' + _erp().toFixed(2)
+      + '% premium + ' + (S.inflationRate ?? 3) + '% inflation';
+    txt.style.color = '#334155';
+    const cur = S.yieldRate ?? 7;
+    const same = Math.abs(cur - rate) < 0.005;
+    btn.style.display = same ? 'none' : '';
+    btn.textContent = 'Use ' + rate.toFixed(2) + '%';
+    btn.title = 'Set the base return to ' + rate.toFixed(2) + '% (currently ' + cur + '%)';
+  }
+
+  // Provenance: where the plan's own number came from, if it came from here.
+  const src = S.yieldSource;
+  prov.textContent = src && Math.abs((S.yieldRate ?? 7) - src.value) < 0.005
+    ? 'base return from outlook of ' + src.asOf
+    : (_outlook && _outlook.fetchedAt ? 'checked ' + _outlook.fetchedAt.slice(0, 10) : '');
+}
+
+function applyOutlook() {
+  const rate = outlookRate();
+  if (rate == null) return;
+  _shiftYieldCurve(rate);          // same path the manual input uses, so a curve shifts with it
+  S.yieldRate = rate;
+  S.yieldSource = {
+    value: rate, realYield10: _outlook.realYield10, erp: _erp(),
+    inflation: S.inflationRate ?? 3, asOf: _outlook.asOf,
+    source: _outlook.source, appliedAt: new Date().toISOString(),
+  };
+  const el = document.getElementById('yield-rate-input');
+  if (el) el.value = rate;
+  renderCurve(); go(); markDirty(); renderOutlook();
+  showTicker('📈', 'Base return · ' + rate.toFixed(2) + '%');
+}
+
+async function outlookSync({ manual = false } = {}) {
+  const btn = document.getElementById('outlook-refresh');
+  if (!manual && _outlook && _outlook.fetchedAt
+      && Date.now() - new Date(_outlook.fetchedAt) < OUTLOOK_MS) { renderOutlook(); return; }
+  if (btn && manual) btn.textContent = '…';
+  try {
+    const res = await fetch(`${SB_URL}/functions/v1/market-outlook`,
+      { headers: { 'Authorization': `Bearer ${SB_ANON}` } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || typeof data.realYield10 !== 'number') {
+      throw new Error(_ibkrWhy(data, res.status));
+    }
+    _outlook = { ...data, fetchedAt: new Date().toISOString() };
+    localStorage.setItem(OUTLOOK_KEY, JSON.stringify(_outlook));
+    renderOutlook();
+    if (manual) showTicker('📈', `TIPS 10y · ${data.realYield10}% real`);
+  } catch(e) {
+    const why = e.message || String(e);
+    // Keep the last good reading and say the refresh failed — never blank a figure that
+    // is still perfectly usable just because today's fetch did not land.
+    if (_outlook) _outlook.staleReason = why; else _outlook = { error: why };
+    renderOutlook();
+    if (manual) alert('Market outlook failed: ' + why);
+    else console.warn('Market outlook skipped:', why);
+  } finally {
+    if (btn && manual) btn.textContent = '↻';
+  }
+}
+
 // ── IBKR sync ──
 const IBKR_SYNC_MS = 4 * 60 * 60 * 1000; // auto-refresh every 4 hours (Flex API rate-limits on frequent calls)
 
@@ -8703,6 +8833,8 @@ if (_engineOnly) {
       if (autoOn) { ibkrSync(); setInterval(() => ibkrSync(), IBKR_SYNC_MS); }
       gastosSync();
       projectActualsSync();
+      // Cached for a month, so this is usually a no-op that just repaints the row.
+      outlookSync();
       initSections();
     })
     .catch(e => console.error('loadScenarios failed', e));
