@@ -73,6 +73,27 @@ in the caption, never quietly averaged in.
 - The value is clamped to the slider's own min/max/step, so the control and the number it
   reports can never disagree.
 
+### mobile.html — withdrawal rate
+`#wrCard` shows what the plan draws each year on two denominators, from `cur.wr` (built in
+`simulate()`, ALWAYS — unlike the ledger it is not gated on a card being open).
+- `net = spending − income`. Sale proceeds are **not** income here: selling a house
+  converts illiquid to liquid, it is not a draw on savings.
+- ⚠ **The first plan year is partial** (the sim opens at the current month), so its raw
+  total is a few months of spending against a full year's portfolio — about 2.5% where the
+  truth is 6%. `wr` annualises (`net × 12 / months`) and the card says how many months it
+  rests on. Never show the raw figure for that year.
+- Denominators are the balances at the START of the year, taken from the preceding month,
+  with the first month inferred from its own flows — the same trick the ledger uses, so
+  the two can never disagree.
+- **"Of everything" is not comparable to the 4% rule.** That rule is about a liquid
+  portfolio; property in the denominator makes the rate look lower than what you can
+  actually spend. It is a "how much of this depends on selling something" gauge.
+- `pctLiq` is null once opening cash ≤ 0. Both the year row and the detail row then render
+  **nothing** rather than a dash, which reads as a missing number instead of an undefined
+  one.
+- The ledger annotation is year-grain only — a quarter's draw against a full-year
+  portfolio would be a quarter of the truth.
+
 ### mobile.html ↔ cloud sync
 Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
 `futuro_state` table the desktop uses, so the two apps round-trip.
