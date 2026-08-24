@@ -73,6 +73,28 @@ in the caption, never quietly averaged in.
 - The value is clamped to the slider's own min/max/step, so the control and the number it
   reports can never disagree.
 
+### mobile.html — the market spread on the chart
+The verdict counts 150 simulated markets while the curve draws one, so a rising curve sat
+above "a meaningful share of market paths do not [survive]" with nothing connecting them.
+`simulate()` now passes the MC's own percentile bands through (`band: {ages, p10, p50,
+p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
+- ⚠ The bands are **yearly** and **liquid-only**; the chart is a **monthly** series of
+  cash AND property. They are drawn at integer ages against the CASH area for that reason
+  — overlaying them on the stacked total would be a units error.
+- The y-scale is widened to include the visible p10, capped at `-hi * 0.55` so a deep
+  downside cannot squash the plan into a stripe.
+- **p90 is deliberately not drawn.** Over thirty years a good market runs far above the
+  projection, so its line clamped along the top edge — no information, and widening the
+  scale to fit it flattens everything else. This chart answers "does the money last".
+- `#mcNote` states the failing share and the age the worst tenth runs dry. When p10 never
+  crosses zero it says the failures are rarer than one in ten, rather than implying the
+  band is the worst case.
+- Bands only exist on the `withMC` pass (debounced ~400 ms), so every consumer must handle
+  their absence.
+- ⚠ **No backticks anywhere inside the `win.eval(\`…\`)` template** — including in
+  comments. One backtick in a comment ends the template early and the whole injected
+  program fails to parse, which presents as the phone hanging on "Starting engine…".
+
 ### mobile.html — withdrawal rate
 `#wrCard` shows what the plan draws each year on two denominators, from `cur.wr` (built in
 `simulate()`, ALWAYS — unlike the ledger it is not gated on a card being open).

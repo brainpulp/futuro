@@ -78,6 +78,8 @@
     border-top:1px solid var(--line);padding-top:8px}
   .rng b{color:var(--warn);font-weight:700}
   .dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+  .dash{width:13px;height:0;border-top:1.5px dashed var(--bad);display:inline-block;
+    margin-right:5px;vertical-align:3px}
   .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
   .row label{font-size:13px;font-weight:600}
   .row .val{font-size:13px;font-weight:700}
@@ -275,8 +277,11 @@
   <div class="lg">
     <span><i class="dot" style="background:var(--liq)"></i>Cash &amp; investments</span>
     <span><i class="dot" style="background:var(--iliq)"></i>Property</span>
+    <span id="mcKey" hidden><i class="dash"></i>Worst tenth of markets</span>
     <span id="hover" class="mono"></span>
   </div>
+  <!-- Connects the picture to the verdict: the curve is one path, the headline is 150. -->
+  <p class="rng" id="mcNote"></p>
   <!-- Chart range. A view preference, not scenario data: it is kept in localStorage and
        never written into the scenario, so changing it can't mark the plan dirty. -->
   <div class="seg" id="zoom" role="group" aria-label="Chart range" style="margin-top:9px">
@@ -470,7 +475,18 @@
       let ruin = null;
       for (const m of d.monthly) if (m.liq < 0) { ruin = m.age; break; }
       let mc = null;
-      ${withMC ? 'try { mc = runMonteCarlo(150).successRate; } catch (e) {}' : ''}
+      // The MC already computes percentile bands; the phone used to throw all but the
+      // success rate away, which left a single smooth curve standing in for 150 paths and
+      // no way to see the third of them that fail.
+      // NOTE: no backticks anywhere in this string -- it is itself a template literal, so
+      // one in a comment ends it early and the whole injected program fails to parse.
+      // These bands are YEARLY and LIQUID-only (built from the yearly rows' liq), while
+      // the chart plots a MONTHLY series of cash AND property. They are drawn against the
+      // cash area at integer ages for exactly that reason.
+      let band = null;
+      ${withMC ? 'try { const _mc = runMonteCarlo(150); mc = _mc.successRate;'
+               + ' band = { ages: _mc.ages, p10: _mc.p10, p50: _mc.p50, p90: _mc.p90 }; }'
+               + ' catch (e) {}' : ''}
       // Per-year ledger straight off the engine's own monthly records, so the list can
       // never drift from the simulation it is explaining. txns already carry rent,
       // installments (with their payment number), sales, one-offs and property tax;
@@ -570,7 +586,7 @@
           return lm ? lm.liq + lm.iliq : last.liq + last.iliq;
         })(),
         minLiq: d.simMinLiq, minAge: d.simMinAge, minMo: d.simMinMo,
-        ruin, mc, startAge: S.startAge, endAge: S.endAge, ledger, wr,
+        ruin, mc, band, startAge: S.startAge, endAge: S.endAge, ledger, wr,
       });
     })()`);
   }
@@ -1364,7 +1380,40 @@
     chart(r.series);
     showMark();   // a pinned point must follow the numbers when the plan changes
     renderWR(r);
+    renderMC(r);
     renderLedger();
+  }
+
+  // ── the spread, in words ──────────────────────────────────────────────────
+  // "67% of markets work" and a curve that only ever rises are both true and read as a
+  // contradiction. This says what the dashed lines mean and, when the worst tenth runs
+  // dry, at what age — which is the failure the headline is counting.
+  function renderMC(r) {
+    const el = $('mcNote'), key = $('mcKey');
+    const bd = r && r.band;
+    if (!bd || !bd.ages || bd.ages.length < 2) {
+      el.textContent = ''; key.hidden = true; return;
+    }
+    key.hidden = false;
+    const fail = r.mc == null ? null : 100 - r.mc;
+    // First age at which the worst tenth of paths has no cash left.
+    let bust = null;
+    for (let i = 0; i < bd.ages.length; i++) if (bd.p10[i] <= 0) { bust = bd.ages[i]; break; }
+    const end = bd.ages[bd.ages.length - 1];
+
+    let t = 'The solid curve is one path — the projection. The dashed line is the worst '
+          + 'tenth of 150 simulated markets, cash only.';
+    if (fail != null && fail > 0) {
+      t += ' <b>' + fail + '% of them run out before ' + end + '.</b>';
+    }
+    if (bust != null) {
+      t += ' In the worst tenth the cash is gone by ' + bust + '.';
+    } else if (fail != null && fail > 0) {
+      // The band can stay positive while a minority of paths still fail — the tenth
+      // percentile is not the worst path, and saying otherwise would be wrong.
+      t += ' Even the worst tenth stays solvent, so the failures are rarer than one in ten.';
+    }
+    el.innerHTML = t;
   }
 
   // ── withdrawal rate ───────────────────────────────────────────────────────
@@ -1632,7 +1681,19 @@
     const xs = series.map(d => d.age);
     const tops = series.map(d => Math.max(d.liq, 0) + Math.max(d.iliq, 0));
     const lows = series.map(d => Math.min(d.liq, 0));
-    const hi = Math.max(...tops, 1), rawLo = Math.min(...lows, 0);
+    const hi = Math.max(...tops, 1);
+    // The Monte Carlo band, clipped to the same window as the curve. Yearly and
+    // liquid-only, so it is read against the CASH area, not the stacked total.
+    const bd = (cur && cur.band && cur.band.ages) ? cur.band : null;
+    const bIdx = [];
+    if (bd) for (let i = 0; i < bd.ages.length; i++) {
+      if (bd.ages[i] >= xs[0] - 0.5 && bd.ages[i] <= xs[xs.length - 1] + 0.5) bIdx.push(i);
+    }
+    // A curve that only ever rises, above a verdict saying a third of paths fail, is the
+    // chart contradicting its own headline. Pull the downside into the scale — but not
+    // without limit, or a deep tenth-percentile squashes the plan itself into a stripe.
+    const p10Lo = bIdx.length ? Math.min(...bIdx.map(i => bd.p10[i])) : 0;
+    const rawLo = Math.max(Math.min(...lows, p10Lo, 0), -hi * 0.55);
     // Always keep a sliver below zero so the zero axis is a visible line inside the plot
     // rather than being flush with the bottom edge, where it cannot be seen or labelled.
     const lo = rawLo < 0 ? rawLo : -hi * 0.06;
@@ -1667,6 +1728,26 @@
     const zeroLine =
       `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--ink)" stroke-width="1" opacity=".45"/>` +
       label(0, +zeroY, true) + [hi, hi / 2].map(v => label(v, y(v), false)).join('');
+
+    // ── the downside of the market paths ──────────────────────────────────────
+    // One dashed line: the worst tenth of 150 simulated markets. Without it the page
+    // shows a single smooth curve while the verdict talks about paths that fail, with
+    // nothing on screen connecting the two.
+    //
+    // The best tenth is deliberately NOT drawn. Over thirty years a good market runs far
+    // above the projection, so its line sat clamped along the top edge — a stripe that
+    // carries no information and crowds the one that does. Widening the scale to fit it
+    // would flatten the plan itself into a band. The question this chart answers is
+    // whether the money lasts, and that is the bottom edge.
+    let bands = '';
+    if (bIdx.length > 1) {
+      // Clamp to the plot: a p10 far below the floor still has to leave the line drawable.
+      const yc = v => Math.max(-2, Math.min(H + 2, y(v)));
+      const poly = key => bIdx.map((i, k) =>
+        `${k ? 'L' : 'M'}${x(bd.ages[i]).toFixed(1)},${yc(bd[key][i]).toFixed(1)}`).join('');
+      bands = `<path d="${poly('p10')}" fill="none" stroke="var(--bad)" stroke-width="1.4"` +
+        ` stroke-dasharray="3 3" opacity=".85"/>`;
+    }
     // Crosshair + on-curve value. Built into the same innerHTML write as the areas, so a
     // slider move or a zoom change redraws it instead of wiping it. The label carries a
     // card-coloured halo (paint-order:stroke) to stay readable on top of the fills.
@@ -1749,6 +1830,7 @@
       gridY +
       `<path d="${area(d => Math.max(d.liq,0) + Math.max(d.iliq,0), d => Math.max(d.liq,0))}" fill="var(--iliq)" opacity=".55"/>` +
       `<path d="${area(d => d.liq, () => 0)}" fill="var(--liq)" opacity=".8"/>` +
+      bands +          // over the fills, under the axis — the spread has to be readable
       zeroLine +
       `<text x="2" y="${(H - 3).toFixed(1)}" font-size="12" fill="var(--dim)">age ${Math.floor(xs[0])}</text>` +
       `<text x="${W - 2}" y="${(H - 3).toFixed(1)}" font-size="12" fill="var(--dim)" text-anchor="end">${Math.floor(xs[xs.length-1])}</text>` +
