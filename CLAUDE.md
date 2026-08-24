@@ -1,6 +1,27 @@
 # Futuro — Claude Instructions
 
+## READ MAP.md FIRST
+`MAP.md` is the conceptual map: the layers and who owns which number, the exact order of
+operations inside one simulated month, the conservation laws, the register of places the
+same money can be counted twice, and the units/scope mismatches. Read it before touching
+anything that moves money, and check a change against its §7 checklist before claiming a
+number is correct. This file is the history of what went wrong; MAP.md is the structure
+that must stay true.
+
+⚠ **MAP.md is also the app's own map panel** — the "map" button in the desktop top bar
+fetches `MAP.md` and renders it with `_mdRender()`. There is deliberately no second copy:
+a map that can drift from the code it certifies is worse than none. Keep MAP.md to the
+Markdown subset the renderer handles (h1–h3, paragraphs, `---`, fenced code, ordered and
+unordered lists, tables, inline code/bold/italic) — anything else renders as plain text.
+`map.js` asserts the section, table and row counts, so adding a section means updating it.
+Not in mobile.html: the phone ships no CDN and stays lean, and the map is a desk-side
+reference.
+
 ## Session start protocol (ALWAYS do this first)
+0. **Read `MAP.md` end to end.** Not skimmed, not "I remember it" — the recurring failures
+   have all come from working off recollection instead of the structure. Before any change
+   that moves a number, name the layer that owns it (§1), locate it in the month (§2), and
+   run §7 afterwards. Costs one file read; the alternative has cost far more.
 1. Run `_selfTest()` via Chrome MCP on the open Futuro tab (localhost:8765 or GitHub Pages)
 2. One call: `mcp__Claude_in_Chrome__javascript_tool` with `text: "_selfTest().summary"`
 3. If 52/52 passed → continue. If any fail → fix before touching anything else.
@@ -41,14 +62,68 @@ drives it with `contentWindow.eval(...)`.
 
 ### mobile.html — base spend from Gastos
 "Use what you actually spend" sets monthly spending to the mean of the **last three
-completed months** from `monthly-actuals`, which sums only the categories in the
-`monthly expenses` group in gastos settings.
+complete months** from `monthly-actuals`, which sums only the categories in the
+`monthly expenses` group in gastos settings. "Complete" means the month's statements
+reach its end — see the `monthly-actuals` section; a month cut short is skipped and named
+in the caption, never quietly averaged in.
 - Applying it marks `sp` as touched, so the figure PERSISTS and the desktop sees the same
   number. It is not a display-only overlay.
 - Dragging the spend slider is an explicit manual override and switches tracking off;
   the choice lives in `localStorage.futuro_mobile_spend_src`.
 - The value is clamped to the slider's own min/max/step, so the control and the number it
   reports can never disagree.
+
+### mobile.html — the market spread on the chart
+The verdict counts 150 simulated markets while the curve draws one, so a rising curve sat
+above "a meaningful share of market paths do not [survive]" with nothing connecting them.
+`simulate()` now passes the MC's own percentile bands through (`band: {ages, p10, p50,
+p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
+- ⚠ The bands are **yearly** and **liquid-only**; the chart is a **monthly** series of
+  cash AND property. They are drawn at integer ages against the CASH area for that reason
+  — overlaying them on the stacked total would be a units error.
+- The y-scale is widened to include the visible p10, capped at `-hi * 0.55` so a deep
+  downside cannot squash the plan into a stripe.
+- **p90 is the top of the haze, CLAMPED, never a line.** Over thirty years a good market
+  runs far above the projection: as a *line* it sat pinned along the top edge carrying no
+  information, and scaling to fit it flattens the plan into a stripe. As the top of a
+  filled band, clipping reads correctly as "and higher".
+- **The projection itself fades** (`fadeLiq`/`fadeIliq` gradients, left→right). A crisp
+  fill out to age 95 claims a certainty nothing here has; the verdict beside it is
+  counting 150 markets.
+- `#mcNote` states the failing share and the age the worst tenth runs dry. When p10 never
+  crosses zero it says the failures are rarer than one in ten, rather than implying the
+  band is the worst case.
+- Bands only exist on the `withMC` pass (debounced ~400 ms), so every consumer must handle
+  their absence.
+- ⚠ **No backticks anywhere inside the `win.eval(\`…\`)` template** — including in
+  comments. One backtick in a comment ends the template early and the whole injected
+  program fails to parse, which presents as the phone hanging on "Starting engine…".
+
+### mobile.html — withdrawal rate
+`#wrCard` shows what the plan draws each year on two denominators, from `cur.wr` (built in
+`simulate()`, ALWAYS — unlike the ledger it is not gated on a card being open).
+- `net = spending − income`. Sale proceeds are **not** income here: selling a house
+  converts illiquid to liquid, it is not a draw on savings.
+- ⚠ **The first plan year is partial** (the sim opens at the current month), so its raw
+  total is a few months of spending against a full year's portfolio — about 2.5% where the
+  truth is 6%. `wr` annualises (`net × 12 / months`) and the card says how many months it
+  rests on. Never show the raw figure for that year.
+- Denominators are the balances at the START of the year, taken from the preceding month,
+  with the first month inferred from its own flows — the same trick the ledger uses, so
+  the two can never disagree.
+- **"Of everything" is not comparable to the 4% rule.** That rule is about a liquid
+  portfolio; property in the denominator makes the rate look lower than what you can
+  actually spend. It is a "how much of this depends on selling something" gauge.
+- `pctLiq` is null once opening cash ≤ 0. Both the year row and the detail row then render
+  **nothing** rather than a dash, which reads as a missing number instead of an undefined
+  one.
+- ⚠ **`wr` is a PER-MONTH record set, not per year.** `wrAgg(records)` is the single
+  aggregation: the card feeds it the first year's months, each ledger row feeds it its own
+  (`g.wrSel`). Two derivations of one percentage is how a headline and a ledger come to
+  disagree — `wr.js` asserts they match.
+- Every grain is **annualised** (`net × 12 / months`), so a month row and a year row are
+  directly comparable. Raw, a month's draw against a full portfolio is a twelfth of the
+  truth and 0.5% reads as wonderful news.
 
 ### mobile.html ↔ cloud sync
 Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
@@ -103,6 +178,13 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   redraws via `chart(cur.series)` without re-simulating or calling `markDirty()`.
   ⚠ `visible()` must feed BOTH the drawing and the pointermove readout — if only one uses
   it the tooltip reports a different age than the point under your finger.
+- ⚠ **The three head tiles are WHOLE-PLAN figures; the curve below them is windowed.** That
+  reads as a contradiction — a curve that never nears zero above "Lowest cash −$3.99M",
+  whose trough is simply at age 95 outside a 20-yr view. It was reported three times as a
+  bug. Each tile therefore prints the age it refers to (`#kNWAt`/`#kMinAt`/`#kMCAt`), and
+  `syncRange()` captions the chart with the visible span vs the plan span, calling out in
+  `--warn` when the trough falls outside the window. Floor the ages, never round: the last
+  monthly point is age N month 12, and rounding says the plan runs a year past the tiles.
 - Dragging the chart pins a crosshair: dashed cross, a dot on the total curve, and the
   amount + age drawn on the curve itself. It deliberately does NOT clear on
   pointerup/pointerleave — reading the value after lifting your finger is the point.
@@ -162,9 +244,16 @@ Before declaring a UI change done, scan for obvious gaps:
 3. **User completeness test** — read the rendered section and ask: "does a user have everything they need to fill this in?"
 4. **Render path check** — confirm which function actually renders the visible UI (`_renderDealSubItem` not `_dealCapBlock` for deal expand cards). Editing the wrong function = silent no-op.
 
-## Commit & push protocol (ALWAYS after any code change)
+## Commit, push & MERGE protocol (ALWAYS after any code change)
 1. Run `_selfTest()` → all must pass
-2. `cd ~/futuro && git add index.html && git commit -m "..." && git push` — push immediately, don't wait for user to ask
+2. `git add -A && git commit -m "..." && git push -u origin <branch>`
+3. ⚠ **MERGE TO `main` IMMEDIATELY.** Standing instruction from the owner: *"Every change
+   should immediately be merged to main always."* A branch is not a delivery — GitHub
+   Pages serves `main`, so anything left on a branch is invisible to the user no matter
+   how many times it was "pushed". Open the PR, mark it ready (a draft cannot be merged),
+   merge it, then reset the working branch onto the new `main`.
+4. Never report work as done while it is still only on a branch. Say "merged and live",
+   or say plainly that it is not.
 
 ## Key globals
 ```js
@@ -405,12 +494,78 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
   dropped living costs paid by transferencia — healthcare, boat maintenance, sports, pets.
   Historical baseline was understated by ~$8.2k; recent months were off by far more in
   relative terms (2026-06: $2,912 → $5,286; 2026-04: $3,659 → $6,455). Fixed in v5.
+- ⚠ **PostgREST caps a select at 1000 rows and says nothing about the rest.** This filter
+  matches ~3,006, and rows come back roughly oldest-first, so a single `.select()` dropped
+  exactly the RECENT months the three-month average is built from — the baseline read
+  $1,495/mo against a true $5,026. v6 pages explicitly (`.order('id').range(...)`, loop
+  until a short page). Verified against SQL: 2026-05 $8,306 · 2026-06 $5,286 ·
+  2026-07 $1,487 → mean $5,026 (the phone clamps to the slider's $250 step → $5,000).
+- ⚠ **A month is only usable once its statements reach the end of the month.** An upload
+  cut on the 23rd is not a cheap month, it is an unfinished one, and BOTH consumers
+  replace projection with the actual — so a partial month silently claims you lived on a
+  fraction of your real costs. v7 attaches `complete`/`lastDay`/`days` per month from
+  `monthly_coverage()`; `gastosSync()` skips incomplete months (falling back to modelled
+  spend) and mobile's `gastosAvg()` averages the last three COMPLETE months, naming what
+  it skipped. 2026-06 is the live example: 140 rows, last one on the 23rd.
+  - Coverage is measured over EVERY transaction in the month, not the category subset —
+    "no groceries in the last week" is not the same as "the statement was cut short".
+  - Slack is 3 days (`COVERAGE_SLACK_DAYS`), so a quiet month-end weekend still counts.
+  - Rows are FLAGGED, not dropped: dropping them would have changed the response shape
+    under the copy of the desktop already deployed on Pages. Both clients filter.
+  - `monthly_coverage()` is SECURITY DEFINER, EXECUTE revoked from `public`, `anon` AND
+    `authenticated`. ⚠ Supabase's default privileges grant EXECUTE to anon/authenticated
+    *directly*, so `REVOKE ... FROM PUBLIC` alone leaves `has_function_privilege('anon',…)`
+    true. Name all three roles, then check.
+- **Uncategorized outflows COUNT as monthly expenses** (user's call — nobody files every
+  transaction, so dropping them understated the baseline by whatever was forgotten)
+  **unless the vendor has a precedent**, in which case the owner's own past decision
+  applies. All of it lives in `monthly_actuals_agg()`; v9 of the function just reshapes.
+  - ⚠ **Never classify a row from its text.** An earlier version held back rows that
+    "obviously" were not consumption (a supplier run, a transfer to an investment vehicle,
+    a card bill). That is this code inventing a category the owner never assigned, which
+    is exactly what it must not do. Every category comes from a row filed by hand.
+  - **Vendor identity** = the 11-digit CUIT in `raw_desc` when present, else `merchant`.
+    Covers 83% of untagged rows. Nothing else is a stable key.
+  - **Precedent is RECENCY-weighted**: dominant category among that vendor's last FIVE
+    filed rows, ties to the newest. ⚠ Frequency alone gets it backwards for anyone whose
+    role changed — CUIT 20274569736 has 53 old `Mocoreta` rows, 14 `El Dorado`, 7 `Arcos`
+    and 110 recent `Carhué obra`; most-frequent still resolves him to a project he left
+    in 2024, and no single category reaches an 80% share.
+  - Effect on 2026-07 (212 rows, 115 untagged): $7,504 routed out as project labour,
+    $1,481 folded in as living costs, $11,090 left with no precedent at all — of which
+    $10,000 is one untagged "Transfer to Lucord strategic". Tag that row in Gastos and
+    precedent handles it and every future one.
+  - Reported per month as `unfiled` / `unfiledN` / `inferredOut` / `unknown`, shown in the
+    phone caption and the desktop badge tooltip. Never silent.
+  - Doing the whole aggregation in SQL also retires the PostgREST 1000-row hazard for this
+    path — there is no `.select()` to truncate any more.
 - `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
   strings in `settings.groups` match the stored case exactly. Renaming a category in one
   place and not the other will silently drop it from the baseline — check both.
 - ⚠ Both actuals functions are deployed `verify_jwt: false` **on purpose**. With it enabled
   the gateway rejects the CORS preflight `OPTIONS` (no Authorization header) before the
   function's own CORS handler runs, so the browser call fails. Do not "harden" this.
+
+## Market outlook — `market-outlook`
+A forward-looking base return built from a PRICE, not a forecast: the 10-yr TIPS real
+yield from the US Treasury's keyless XML feed, plus `S.erp` (equity premium, default 4.5)
+plus `S.inflationRate`. Cached a month in `localStorage['futuro-outlook']`.
+- ⚠ **It proposes; it never writes.** `applyOutlook()` runs only on a click, and stamps
+  `S.yieldSource` with the reading, the premium and the inflation used. IBKR auto-applies
+  because a balance is a FACT; a forward return is an OPINION, and MAP §1 gives one number
+  one owner.
+- ⚠ **Writes `S.yieldRate`, never a `yieldCurve`.** A curve value is a realized path and
+  is drag-exempt, so a forecast routed through it would skip the mean→median correction —
+  1.13%/yr at σ=15%, ≈1.4× overstated wealth over 30 years, presenting as good news. It
+  does *shift* an existing curve by the delta, exactly as typing in the return box does.
+- ⚠ **Every term is ARITHMETIC**, matching what `getYield` expects. A geometric premium
+  would be penalised twice.
+- **No sentiment on purpose.** VIX/AAII carry nothing past a few weeks against a 40-year
+  plan; refreshing weekly would move the headline for reasons that say nothing about age
+  95. Monthly cadence for the same reason.
+- Deployed `verify_jwt: false`, same CORS-preflight reason as the actuals functions.
+- Untested against the live Treasury feed — the sandbox proxy 403s every market data host.
+  `outlook.js` covers the client, `parse.js` the feed parser against a synthetic document.
 
 ## IBKR sync — `get-ibkr-liquid`
 `ibkrSync()` pulls Net Liquidation Value and writes it to `S.liquidBase`, caching it in
@@ -426,8 +581,16 @@ scenario's saved `liquidBase` is only a fallback.
 - `verify_jwt: false`, same CORS-preflight reason as the actuals functions.
 - Auto-sync only runs when `localStorage['futuro-ibkr-auto'] === '1'` (the "auto"
   checkbox), then every 4h — the Flex API rate-limits frequent calls.
-- Failures are SILENT unless `{manual:true}`: auto-sync only does `console.warn`, so a
-  dead token shows up as a stale figure rather than an error. Click "↓ IBKR" to see it.
+- A manual click alerts on failure; an auto-sync does not interrupt, but no longer hides
+  either — the button turns amber and its tooltip carries the reason plus the age of the
+  figure still on screen (`_ibkrWhy` / `_ibkrAge`).
+- ⚠ **`ibkrSync` must NOT be gated on `_sb`.** It used to open with `if (!_sb) return;`,
+  though the call is a plain `fetch` with the anon key and never touches supabase-js. Any
+  failure to load `./index_files/supabase-js@2` therefore made the button return instantly
+  and silently: no request, no error, no label change, and nothing in the function logs to
+  show for it.
+- `QUERY_ID` defaults to `1510170` but is overridable by the `IBKR_QUERY_ID` secret — a
+  wrong query id fails as an IBKR error code, which reads like a bad token.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —
