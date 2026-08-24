@@ -69,6 +69,8 @@
   svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
   .lg{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px;align-items:center;flex-wrap:wrap}
   .rng{font-size:11px;color:var(--dim);margin:8px 0 0;line-height:1.35}
+  .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
+    margin:-6px 2px 6px;letter-spacing:.02em}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .wrwhen{font-size:10px;color:var(--dim);text-align:right}
   .wrgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}
@@ -228,6 +230,7 @@
   <div class="scen mono" id="scen">loading…</div>
   <span class="sync" id="sync" title="Sync status">…</span>
 </header>
+<div class="build mono" id="build" title="When this copy of the app was built. If it is older than a change you expect, you are on a cached copy — reload with ?v=2 on the URL."></div>
 
 <!-- Only shown when the account actually holds more than one scenario. -->
 <div class="scenbar" id="scenbar" hidden>
@@ -425,6 +428,14 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+
+  // Stamp the served file's own date into the page. There is no build step here, so
+  // document.lastModified is the only honest answer to "which copy am I looking at" —
+  // and on a cached copy it reports the CACHED file's date, which is the point.
+  try {
+    const d = new Date(document.lastModified);
+    $('build').textContent = 'build ' + d.toISOString().slice(0, 16).replace('T', ' ');
+  } catch (e) { /* never let a cosmetic stamp stop the app */ }
   const fmt = v => (v < 0 ? '−' : '') + '$' + (Math.abs(v) >= 1e6
     ? (Math.abs(v) / 1e6).toFixed(Math.abs(v) >= 1e7 ? 1 : 2) + 'M'
     : Math.round(Math.abs(v) / 1000) + 'k');
