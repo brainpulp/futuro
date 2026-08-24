@@ -244,9 +244,16 @@ Before declaring a UI change done, scan for obvious gaps:
 3. **User completeness test** — read the rendered section and ask: "does a user have everything they need to fill this in?"
 4. **Render path check** — confirm which function actually renders the visible UI (`_renderDealSubItem` not `_dealCapBlock` for deal expand cards). Editing the wrong function = silent no-op.
 
-## Commit & push protocol (ALWAYS after any code change)
+## Commit, push & MERGE protocol (ALWAYS after any code change)
 1. Run `_selfTest()` → all must pass
-2. `cd ~/futuro && git add index.html && git commit -m "..." && git push` — push immediately, don't wait for user to ask
+2. `git add -A && git commit -m "..." && git push -u origin <branch>`
+3. ⚠ **MERGE TO `main` IMMEDIATELY.** Standing instruction from the owner: *"Every change
+   should immediately be merged to main always."* A branch is not a delivery — GitHub
+   Pages serves `main`, so anything left on a branch is invisible to the user no matter
+   how many times it was "pushed". Open the PR, mark it ready (a draft cannot be merged),
+   merge it, then reset the working branch onto the new `main`.
+4. Never report work as done while it is still only on a branch. Say "merged and live",
+   or say plainly that it is not.
 
 ## Key globals
 ```js
