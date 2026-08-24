@@ -80,6 +80,8 @@
   .dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
   .dash{width:13px;height:0;border-top:1.5px dashed var(--bad);display:inline-block;
     margin-right:5px;vertical-align:3px}
+  .haze{width:13px;height:9px;border-radius:2px;background:var(--ink);opacity:.14;
+    display:inline-block;margin-right:5px;vertical-align:-1px}
   .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
   .row label{font-size:13px;font-weight:600}
   .row .val{font-size:13px;font-weight:700}
@@ -277,7 +279,8 @@
   <div class="lg">
     <span><i class="dot" style="background:var(--liq)"></i>Cash &amp; investments</span>
     <span><i class="dot" style="background:var(--iliq)"></i>Property</span>
-    <span id="mcKey" hidden><i class="dash"></i>Worst tenth of markets</span>
+    <span id="mcKey" hidden><i class="haze"></i>Middle 80% of markets</span>
+    <span id="mcKey2" hidden><i class="dash"></i>Worst tenth</span>
     <span id="hover" class="mono"></span>
   </div>
   <!-- Connects the picture to the verdict: the curve is one path, the headline is 150. -->
@@ -544,32 +547,23 @@
       // raw total is a few months of spending measured against a full year's portfolio,
       // which reads as a reassuringly low rate for no real reason. Annualise it and say
       // how many months it rests on.
-      const wrY = {};
+      // PER MONTH, not per year. The card wants a year, the ledger wants whatever grain
+      // is on screen, and a rate is only honest if both are aggregated by one formula
+      // from one set of records — two derivations of the same percentage is exactly how
+      // a ledger and a headline come to disagree.
+      const wr = [];
       let _pLiq = null, _pIliq = null;
       for (const m of (d.monthly || [])) {
-        let y = wrY[m.year];
-        if (!y) {
-          y = wrY[m.year] = { year: m.year, age: m.age, months: 0, out: 0, inc: 0,
-            // Opening balance is the month before this year. For the very first month
-            // there is none, so infer it from the flows — same trick the ledger uses, so
-            // the two can never disagree.
-            openLiq:  _pLiq  !== null ? _pLiq
-                      : m.liq - ((m.inc || 0) - (m.totalExp || 0) + (m.mktGain || 0)),
-            openIliq: _pIliq !== null ? _pIliq : m.iliq };
-        }
-        y.months++; y.out += m.totalExp || 0; y.inc += m.inc || 0;
+        // Opening balance is the month before. For the very first month there is none,
+        // so infer it from that month's own flows — the same trick the ledger uses.
+        const oL = _pLiq  !== null ? _pLiq
+                   : m.liq - ((m.inc || 0) - (m.totalExp || 0) + (m.mktGain || 0));
+        const oI = _pIliq !== null ? _pIliq : m.iliq;
+        wr.push({ year: m.year, mo: m.mo, age: m.age,
+                  out: Math.round(m.totalExp || 0), inc: Math.round(m.inc || 0),
+                  openLiq: Math.round(oL), openIliq: Math.round(oI) });
         _pLiq = m.liq; _pIliq = m.iliq;
       }
-      const wr = Object.values(wrY).map(y => {
-        const net = y.out - y.inc;
-        const ann = y.months ? net * 12 / y.months : 0;
-        const tot = y.openLiq + y.openIliq;
-        return { year: y.year, age: y.age, months: y.months,
-          net: Math.round(net), ann: Math.round(ann),
-          openLiq: Math.round(y.openLiq), openTot: Math.round(tot),
-          pctLiq: y.openLiq > 0 ? ann / y.openLiq * 100 : null,
-          pctTot: tot > 0 ? ann / tot * 100 : null };
-      });
 
       // MONTHLY series. Drawing yearly rows put the lowest-cash dot off the line, because
       // the trough is intra-year: the marker and the curve could not agree by
@@ -1392,17 +1386,19 @@
     const el = $('mcNote'), key = $('mcKey');
     const bd = r && r.band;
     if (!bd || !bd.ages || bd.ages.length < 2) {
-      el.textContent = ''; key.hidden = true; return;
+      el.textContent = ''; key.hidden = true; $('mcKey2').hidden = true; return;
     }
     key.hidden = false;
+    $('mcKey2').hidden = false;
     const fail = r.mc == null ? null : 100 - r.mc;
     // First age at which the worst tenth of paths has no cash left.
     let bust = null;
     for (let i = 0; i < bd.ages.length; i++) if (bd.p10[i] <= 0) { bust = bd.ages[i]; break; }
     const end = bd.ages[bd.ages.length - 1];
 
-    let t = 'The solid curve is one path — the projection. The dashed line is the worst '
-          + 'tenth of 150 simulated markets, cash only.';
+    let t = 'The filled curve is one path — the projection, fading as it gets less '
+          + 'knowable. The haze is the middle 80% of 150 simulated markets and the dashed '
+          + 'line the worst tenth of them, cash only.';
     if (fail != null && fail > 0) {
       t += ' <b>' + fail + '% of them run out before ' + end + '.</b>';
     }
@@ -1425,11 +1421,33 @@
   //     comparable to 4%: you cannot spend a house by degrees.
   const pct = v => v == null ? '—' : (v < 0 ? '+' : '') + Math.abs(v).toFixed(1) + '%';
 
+  // ONE aggregation, used by the card and by every ledger grain. Takes any run of monthly
+  // records and returns the rate over that run.
+  //
+  // ⚠ Always ANNUALISED. A month's draw against a full portfolio is a twelfth of the
+  // truth, and 0.5% would read as wonderful news; the plan's first year is short for the
+  // same reason (the sim opens at the current month). `months` says what it rests on.
+  function wrAgg(recs) {
+    if (!recs || !recs.length) return null;
+    const first = recs[0];
+    const out = recs.reduce((s, r) => s + r.out, 0);
+    const inc = recs.reduce((s, r) => s + r.inc, 0);
+    const net = out - inc;
+    const ann = net * 12 / recs.length;
+    const tot = first.openLiq + first.openIliq;
+    return { months: recs.length, year: first.year, age: first.age,
+             net: Math.round(net), ann: Math.round(ann),
+             openLiq: first.openLiq, openTot: tot,
+             pctLiq: first.openLiq > 0 ? ann / first.openLiq * 100 : null,
+             pctTot: tot > 0 ? ann / tot * 100 : null };
+  }
+
   function renderWR(r) {
-    const rows = (r && r.wr) || [];
-    if (!rows.length) { $('wrCard').hidden = true; return; }
+    const recs = (r && r.wr) || [];
+    if (!recs.length) { $('wrCard').hidden = true; return; }
     $('wrCard').hidden = false;
-    const y = rows[0];
+    const y = wrAgg(recs.filter(m => m.year === recs[0].year));
+    if (!y) { $('wrCard').hidden = true; return; }
 
     $('wrLiq').textContent = pct(y.pctLiq);
     $('wrTot').textContent = pct(y.pctTot);
@@ -1467,10 +1485,10 @@
   } catch (e) {}
   const openPeriods = new Set();
 
-  // The ledger groups by its own key; the withdrawal series is keyed by year. Only the
-  // year grain lines up — a quarter's rate against a full-year portfolio would be a
-  // quarter of the truth, which is exactly the kind of number that reads as good news.
-  const _wrOf = key => ((cur && cur.wr) || []).find(w => String(w.year) === String(key));
+  // The rate for whichever months a ledger row covers. Annualised by wrAgg, so a month
+  // row and a year row are directly comparable instead of one being a twelfth of the
+  // other — which is what made this year-grain-only before.
+  const _wrOf = pred => wrAgg(((cur && cur.wr) || []).filter(pred));
 
   function renderLedger() {
     const rows = (cur && cur.ledger) || [];
@@ -1486,7 +1504,11 @@
         : grain === 'quarter' ? `${r.year} Q${r.q}`
         : `${MONTHS[(r.mo || 1) - 1]} ${r.year}`;
       const g = byKey.get(key) || { key, age: r.age, inc: 0, exp: 0, gain: 0, sale: 0,
-                                    open: r.open, liq: 0, iliq: 0, items: {}, entries: [], months: 0 };
+                                    open: r.open, liq: 0, iliq: 0, items: {}, entries: [], months: 0,
+                                    // Which months this row covers, for the withdrawal rate.
+                                    wrSel: grain === 'year'    ? (w => w.year === r.year)
+                                         : grain === 'quarter' ? (w => w.year === r.year && Math.ceil(w.mo / 3) === r.q)
+                                                               : (w => w.year === r.year && w.mo === r.mo) };
       g.months = (g.months || 0) + 1;   // each ledger row is one month
       g.inc += r.inc; g.exp += r.exp; g.gain += r.gain; g.sale += r.sale || 0;
       g.liq = r.liq; g.iliq = r.iliq; g.age = r.age;
@@ -1495,6 +1517,7 @@
       byKey.set(key, g);
     });
     const list = [...byKey.values()];
+    list.forEach(g => { g.wrRate = _wrOf(g.wrSel); });
     const totIn = list.reduce((s, g) => s + g.inc, 0), totOut = list.reduce((s, g) => s + g.exp, 0);
     $('ledSum').textContent = `${fmtL(totIn)} in · ${fmtL(totOut)} out`;
 
@@ -1520,8 +1543,7 @@
             <small>${fmtL(g.liq)} cash${
               // Once there is no cash left the rate has no denominator. Say nothing
               // rather than print a dash that reads as a missing number.
-              grain === 'year' && _wrOf(g.key) && _wrOf(g.key).pctLiq != null
-                ? ' · ' + pct(_wrOf(g.key).pctLiq) + ' drawn' : ''}</small>
+              g.wrRate && g.wrRate.pctLiq != null ? ' · ' + pct(g.wrRate.pctLiq) + ' drawn' : ''}</small>
           </span>
         </button>
         ${open ? `<div class="leddet">
@@ -1531,9 +1553,10 @@
           <div class="ledrow"><span>Market growth</span><span class="${g.gain < 0 ? 'neg' : 'pos'}">${g.gain < 0 ? '−' : '+'}${fmtL(Math.abs(g.gain))}</span></div>
           ${Math.abs(resid) > 1000 ? `<div class="ledrow"><span>Unexplained</span><span class="neg">${fmtL(resid)}</span></div>` : ''}
           <div class="ledrow"><span>Cash at start</span><span>${fmtL(g.open)}</span></div>
-          ${grain === 'year' && _wrOf(g.key) && _wrOf(g.key).pctLiq != null
-            ? `<div class="ledrow"><span>Withdrawal rate</span><span>${
-              pct(_wrOf(g.key).pctLiq)} of cash · ${pct(_wrOf(g.key).pctTot)} of everything</span></div>` : ''}
+          ${g.wrRate && g.wrRate.pctLiq != null
+            ? `<div class="ledrow"><span>Withdrawal rate<em class="pay">${
+                grain === 'year' ? 'per yr' : 'annualised'}</em></span><span>${
+              pct(g.wrRate.pctLiq)} of cash · ${pct(g.wrRate.pctTot)} of everything</span></div>` : ''}
           <div class="ledrow tot"><span>Property held</span><span>${fmtL(g.iliq)}</span></div>
           ${grain === 'month'
             ? (g.entries.length ? '<div class="ledsep"></div>' + g.entries.map(e =>
@@ -1729,23 +1752,25 @@
       `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--ink)" stroke-width="1" opacity=".45"/>` +
       label(0, +zeroY, true) + [hi, hi / 2].map(v => label(v, y(v), false)).join('');
 
-    // ── the downside of the market paths ──────────────────────────────────────
-    // One dashed line: the worst tenth of 150 simulated markets. Without it the page
-    // shows a single smooth curve while the verdict talks about paths that fail, with
-    // nothing on screen connecting the two.
+    // ── the cone of uncertainty ───────────────────────────────────────────────
+    // A single crisp curve claims to know what happens in 2061. It does not, and the
+    // verdict beside it is counting 150 markets. So the middle 80% of those markets is
+    // filled in as a haze that widens with time, the worst tenth is drawn as a hard
+    // dashed edge because that is the one that decides whether the plan holds, and the
+    // projection itself fades out as it runs — crisp where it is nearly known, thin where
+    // it is a guess.
     //
-    // The best tenth is deliberately NOT drawn. Over thirty years a good market runs far
-    // above the projection, so its line sat clamped along the top edge — a stripe that
-    // carries no information and crowds the one that does. Widening the scale to fit it
-    // would flatten the plan itself into a band. The question this chart answers is
-    // whether the money lasts, and that is the bottom edge.
+    // The top of the haze is CLAMPED to the plot rather than scaled to fit. A great
+    // market runs far above the projection; letting it set the scale flattens the plan
+    // into a stripe. Clipped, the band reads as "and higher", which is true.
     let bands = '';
     if (bIdx.length > 1) {
-      // Clamp to the plot: a p10 far below the floor still has to leave the line drawable.
       const yc = v => Math.max(-2, Math.min(H + 2, y(v)));
-      const poly = key => bIdx.map((i, k) =>
-        `${k ? 'L' : 'M'}${x(bd.ages[i]).toFixed(1)},${yc(bd[key][i]).toFixed(1)}`).join('');
-      bands = `<path d="${poly('p10')}" fill="none" stroke="var(--bad)" stroke-width="1.4"` +
+      const pts = key => bIdx.map(i => `${x(bd.ages[i]).toFixed(1)},${yc(bd[key][i]).toFixed(1)}`);
+      const up = pts('p90'), dnArr = pts('p10').slice().reverse();
+      bands =
+        `<path d="M${up.join('L')}L${dnArr.join('L')}Z" fill="var(--ink)" opacity=".10"/>` +
+        `<path d="M${pts('p10').join('L')}" fill="none" stroke="var(--bad)" stroke-width="1.4"` +
         ` stroke-dasharray="3 3" opacity=".85"/>`;
     }
     // Crosshair + on-curve value. Built into the same innerHTML write as the areas, so a
@@ -1826,10 +1851,22 @@
         `<text x="${tx.toFixed(1)}" y="${(H - 14).toFixed(1)}" font-size="12" text-anchor="${anchor}"` +
         ` fill="var(--dim)" paint-order="stroke" stroke="var(--card)" stroke-width="4.5" stroke-linejoin="round">age ${Math.floor(md.age)}</text>`;
     }
+    // Certainty runs out with distance. Next year is close to known; age 90 is a guess
+    // dressed as a number, and a flat fill says otherwise.
+    const fade = `<defs>
+      <linearGradient id="fadeLiq" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="var(--liq)" stop-opacity=".85"/>
+        <stop offset="1" stop-color="var(--liq)" stop-opacity=".42"/>
+      </linearGradient>
+      <linearGradient id="fadeIliq" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="var(--iliq)" stop-opacity=".6"/>
+        <stop offset="1" stop-color="var(--iliq)" stop-opacity=".28"/>
+      </linearGradient>
+    </defs>`;
     $('chart').innerHTML =
-      gridY +
-      `<path d="${area(d => Math.max(d.liq,0) + Math.max(d.iliq,0), d => Math.max(d.liq,0))}" fill="var(--iliq)" opacity=".55"/>` +
-      `<path d="${area(d => d.liq, () => 0)}" fill="var(--liq)" opacity=".8"/>` +
+      fade + gridY +
+      `<path d="${area(d => Math.max(d.liq,0) + Math.max(d.iliq,0), d => Math.max(d.liq,0))}" fill="url(#fadeIliq)"/>` +
+      `<path d="${area(d => d.liq, () => 0)}" fill="url(#fadeLiq)"/>` +
       bands +          // over the fills, under the axis — the spread has to be readable
       zeroLine +
       `<text x="2" y="${(H - 3).toFixed(1)}" font-size="12" fill="var(--dim)">age ${Math.floor(xs[0])}</text>` +

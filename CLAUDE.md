@@ -83,9 +83,13 @@ p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
   — overlaying them on the stacked total would be a units error.
 - The y-scale is widened to include the visible p10, capped at `-hi * 0.55` so a deep
   downside cannot squash the plan into a stripe.
-- **p90 is deliberately not drawn.** Over thirty years a good market runs far above the
-  projection, so its line clamped along the top edge — no information, and widening the
-  scale to fit it flattens everything else. This chart answers "does the money last".
+- **p90 is the top of the haze, CLAMPED, never a line.** Over thirty years a good market
+  runs far above the projection: as a *line* it sat pinned along the top edge carrying no
+  information, and scaling to fit it flattens the plan into a stripe. As the top of a
+  filled band, clipping reads correctly as "and higher".
+- **The projection itself fades** (`fadeLiq`/`fadeIliq` gradients, left→right). A crisp
+  fill out to age 95 claims a certainty nothing here has; the verdict beside it is
+  counting 150 markets.
 - `#mcNote` states the failing share and the age the worst tenth runs dry. When p10 never
   crosses zero it says the failures are rarer than one in ten, rather than implying the
   band is the worst case.
@@ -113,8 +117,13 @@ p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
 - `pctLiq` is null once opening cash ≤ 0. Both the year row and the detail row then render
   **nothing** rather than a dash, which reads as a missing number instead of an undefined
   one.
-- The ledger annotation is year-grain only — a quarter's draw against a full-year
-  portfolio would be a quarter of the truth.
+- ⚠ **`wr` is a PER-MONTH record set, not per year.** `wrAgg(records)` is the single
+  aggregation: the card feeds it the first year's months, each ledger row feeds it its own
+  (`g.wrSel`). Two derivations of one percentage is how a headline and a ledger come to
+  disagree — `wr.js` asserts they match.
+- Every grain is **annualised** (`net × 12 / months`), so a month row and a year row are
+  directly comparable. Raw, a month's draw against a full portfolio is a twelfth of the
+  truth and 0.5% reads as wonderful news.
 
 ### mobile.html ↔ cloud sync
 Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
