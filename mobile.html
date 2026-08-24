@@ -69,6 +69,11 @@
   svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
   .lg{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:8px;align-items:center;flex-wrap:wrap}
   .rng{font-size:11px;color:var(--dim);margin:8px 0 0;line-height:1.35}
+  /* Height reserved up front: this fills in when the Monte Carlo lands, and growing from
+     nothing would shift every control below it. Two lines is enough for the result line
+     now that the wording no longer varies with it. */
+  #mcNote{min-height:2.8em;margin-top:3px}
+  #mcWhat{margin-top:8px}
   .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
     margin:-6px 2px 6px;letter-spacing:.02em}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -90,7 +95,12 @@
   /* pan-y so a vertical scroll that happens to start on a slider scrolls the page instead
      of dragging the value. Without it, scrolling past these silently rewrites the plan —
      and since edits autosave, the wrong number becomes the saved one. */
-  input[type=range]{width:100%;margin:0 0 16px;accent-color:var(--liq);height:26px;touch-action:pan-y}
+  /* touch-action:none, not pan-y. With pan-y the browser is allowed to claim any gesture
+     with a vertical component — and a thumb drag always has one — so it decides mid-drag
+     that you meant to scroll and the slider stops following your finger. The label rows,
+     card padding and the gap under each slider stay scrollable, so the page can still be
+     moved; only a gesture that STARTS on the track is reserved for the slider. */
+  input[type=range]{width:100%;margin:0 0 16px;accent-color:var(--liq);height:26px;touch-action:none}
   .hint{font-size:11px;color:var(--dim);margin:-8px 0 14px;line-height:1.4}
   /* segmented control — one tap, four states, no dropdown to fight on a phone */
   .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
@@ -286,7 +296,13 @@
     <span id="mcKey2" hidden><i class="dash"></i>Worst tenth</span>
     <span id="hover" class="mono"></span>
   </div>
-  <!-- Connects the picture to the verdict: the curve is one path, the headline is 150. -->
+  <!-- Connects the picture to the verdict: the curve is one path, the headline is 150.
+       Split in two ON PURPOSE. The explainer never changes, so it can never change height;
+       only the short result line varies, and its space is reserved. One paragraph whose
+       wording changed with the result re-wrapped to a different number of lines and shoved
+       every control below it — mid-drag, that reads as the page scrolling by itself. -->
+  <p class="rng" id="mcWhat">One path is drawn. The haze is the middle 80% of 150 simulated
+    markets and the dashed line the worst tenth of them, cash only.</p>
   <p class="rng" id="mcNote"></p>
   <!-- Chart range. A view preference, not scenario data: it is kept in localStorage and
        never written into the scenario, so changing it can't mark the plan dirty. -->
@@ -1397,7 +1413,12 @@
     const el = $('mcNote'), key = $('mcKey');
     const bd = r && r.band;
     if (!bd || !bd.ages || bd.ages.length < 2) {
-      el.textContent = ''; key.hidden = true; $('mcKey2').hidden = true; return;
+      // ⚠ Do NOT clear. This branch runs on EVERY slider input — the Monte Carlo pass is
+      // debounced 400 ms behind it — so blanking a three-line note and two legend entries
+      // mid-drag shrinks the page above the sliders, and everything under your finger
+      // jumps. That reads exactly like the page scrolling by itself.
+      // The stale note is replaced a moment later; a moving layout is not recoverable.
+      return;
     }
     key.hidden = false;
     $('mcKey2').hidden = false;
@@ -1407,18 +1428,18 @@
     for (let i = 0; i < bd.ages.length; i++) if (bd.p10[i] <= 0) { bust = bd.ages[i]; break; }
     const end = bd.ages[bd.ages.length - 1];
 
-    let t = 'The filled curve is one path — the projection, fading as it gets less '
-          + 'knowable. The haze is the middle 80% of 150 simulated markets and the dashed '
-          + 'line the worst tenth of them, cash only.';
-    if (fail != null && fail > 0) {
-      t += ' <b>' + fail + '% of them run out before ' + end + '.</b>';
-    }
+    // Kept short and of near-constant length, so it reliably occupies the two lines
+    // reserved for it whatever the result turns out to be.
+    let t = '';
+    if (fail != null && fail > 0) t = '<b>' + fail + '% run out before ' + end + '.</b>';
     if (bust != null) {
-      t += ' In the worst tenth the cash is gone by ' + bust + '.';
+      t += (t ? ' ' : '') + 'Worst tenth dry at ' + bust + '.';
     } else if (fail != null && fail > 0) {
       // The band can stay positive while a minority of paths still fail — the tenth
       // percentile is not the worst path, and saying otherwise would be wrong.
-      t += ' Even the worst tenth stays solvent, so the failures are rarer than one in ten.';
+      t += ' Even the worst tenth lasts, so failures are rarer than one in ten.';
+    } else if (fail === 0) {
+      t = 'Every simulated market lasts the whole plan.';
     }
     el.innerHTML = t;
   }
