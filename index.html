@@ -1120,6 +1120,7 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
 <div id="app-screen">
   <!-- Top bar -->
   <div class="app-bar" style="justify-content:flex-end;">
+    <span id="build-stamp" title="When this copy of the app was built. Older than a change you expect? You are on a cached copy — reload with ?v=2 on the URL." style="font-size:10px;color:#bbb;margin-right:8px;font-family:'SF Mono',Menlo,monospace;"></span>
     <span id="sbadge" class="sbadge ok">saved</span>
     <!-- Cloud auth button + dropdown -->
     <div style="position:relative;display:inline-block;margin-right:6px;">
@@ -8795,6 +8796,12 @@ function buildPopoverForm(ev, type) {
 
 // ── Boot ──
 (function() {
+  // No build step, so the served file's own date is the only honest answer to "which copy
+  // is this". On a cached copy it reports the cached file's date — which is the point.
+  try {
+    const el = document.getElementById('build-stamp');
+    if (el) el.textContent = new Date(document.lastModified).toISOString().slice(0, 16).replace('T', ' ');
+  } catch (e) { /* cosmetic only */ }
   const t = localStorage.getItem('futuro-theme');
   if (t === 'graphite') {
     document.body.dataset.theme = 'graphite';
