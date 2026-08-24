@@ -73,6 +73,28 @@ in the caption, never quietly averaged in.
 - The value is clamped to the slider's own min/max/step, so the control and the number it
   reports can never disagree.
 
+### mobile.html — nothing may move while a control is being dragged
+Two separate bugs presented identically, as "the page scrolls on its own while I move a
+slider". Both are fixed; neither fix should be reverted without reading the other.
+- ⚠ **Ranges are `touch-action:none`, NOT `pan-y`.** `pan-y` was added when a scroll
+  starting on a slider rewrote the plan, and it does prevent that — by letting the browser
+  claim any gesture with a vertical component. A thumb drag always has one, so the browser
+  decides mid-drag that you meant to scroll and the slider stops following your finger.
+  `none` reserves a gesture that STARTS on the track for the slider; label rows, card
+  padding and the 16 px gap under each slider stay scrollable. `zoomtap.js` guards it.
+- ⚠ **Nothing above the controls may change height during a render.** `render(false)` runs
+  on every slider input and the MC pass is debounced 400 ms behind it, so anything that
+  empties on the first pass and fills on the second shoves every control below it — under
+  a finger that is mid-drag.
+  - `renderMC` must NOT clear the note when bands are absent; it returns and leaves the
+    previous text. A stale caption for 400 ms is recoverable, a moving layout is not.
+  - The caption is TWO elements: `#mcWhat` never changes (so it can never re-wrap) and
+    `#mcNote` carries only the short result line, with its two lines reserved in CSS. As
+    one paragraph the wording changed with the result and re-wrapped to a different line
+    count, which shifted everything below by ~15 px exactly as the drag ended.
+  - `steady.js` measures `body.scrollHeight` and the slider's own `getBoundingClientRect`
+    across the whole render cycle and asserts neither moves.
+
 ### mobile.html — the market spread on the chart
 The verdict counts 150 simulated markets while the curve draws one, so a rising curve sat
 above "a meaningful share of market paths do not [survive]" with nothing connecting them.
