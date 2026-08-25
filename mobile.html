@@ -73,6 +73,8 @@
      nothing would shift every control below it. Two lines is enough for the result line
      now that the wording no longer varies with it. */
   #mcNote{min-height:2.8em;margin-top:3px}
+  #mcFlex{min-height:2.8em;margin-top:3px;border-top:1px solid var(--line);padding-top:6px}
+  #mcFlex b{color:var(--good)}
   #mcWhat{margin-top:8px}
   .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
     margin:-6px 2px 6px;letter-spacing:.02em}
@@ -304,6 +306,8 @@
   <p class="rng" id="mcWhat">One path is drawn. The haze is the middle 80% of 150 simulated
     markets and the dashed line the worst tenth of them, cash only.</p>
   <p class="rng" id="mcNote"></p>
+  <!-- The same markets, played by someone who reacts to them. -->
+  <p class="rng" id="mcFlex"></p>
   <!-- Chart range. A view preference, not scenario data: it is kept in localStorage and
        never written into the scenario, so changing it can't mark the plan dirty. -->
   <div class="seg" id="zoom" role="group" aria-label="Chart range" style="margin-top:9px">
@@ -513,9 +517,19 @@
       // These bands are YEARLY and LIQUID-only (built from the yearly rows' liq), while
       // the chart plots a MONTHLY series of cash AND property. They are drawn against the
       // cash area at integer ages for exactly that reason.
-      let band = null;
-      ${withMC ? 'try { const _mc = runMonteCarlo(150); mc = _mc.successRate;'
-               + ' band = { ages: _mc.ages, p10: _mc.p10, p50: _mc.p50, p90: _mc.p90 }; }'
+      let band = null, flexMC = null;
+      ${withMC ? 'try { const _seed = 20260824;'
+               // One seed for both runs so they play the SAME 150 markets and the only
+               // difference is the spending rule. Fixed across renders too, so nudging a
+               // slider does not reshuffle the markets under the numbers.
+               + ' const _mc = runMonteCarlo(150, {seed:_seed}); mc = _mc.successRate;'
+               + ' band = { ages: _mc.ages, p10: _mc.p10, p50: _mc.p50, p90: _mc.p90 };'
+               // The same markets, with a plan that cuts back when it falls behind.
+               // Reported ALONGSIDE the fixed number, never instead of it: fixed spending
+               // is the pessimistic bound and it is worth seeing both.
+               + ' const _fx = runMonteCarlo(150, {flex:true, seed:_seed});'
+               + ' flexMC = { rate:_fx.successRate, cut:_fx.cutMedian, cutBad:_fx.cutP90,'
+               + ' years:_fx.cutYearsMedian }; }'
                + ' catch (e) {}' : ''}
       // Per-year ledger straight off the engine's own monthly records, so the list can
       // never drift from the simulation it is explaining. txns already carry rent,
@@ -607,7 +621,7 @@
           return lm ? lm.liq + lm.iliq : last.liq + last.iliq;
         })(),
         minLiq: d.simMinLiq, minAge: d.simMinAge, minMo: d.simMinMo,
-        ruin, mc, band, startAge: S.startAge, endAge: S.endAge, ledger, wr,
+        ruin, mc, band, flexMC, startAge: S.startAge, endAge: S.endAge, ledger, wr,
       });
     })()`);
   }
@@ -1442,6 +1456,20 @@
       t = 'Every simulated market lasts the whole plan.';
     }
     el.innerHTML = t;
+
+    // ── the same markets, with a plan that reacts to them ────────────────────
+    // The fixed-spending number above assumes you keep drawing the same amount after a
+    // 40% crash. Nobody does that, so on its own it measures a refusal to adapt rather
+    // than a risk of ruin. This says what reacting is worth, and what it costs.
+    const fx = r && r.flexMC, fel = $('mcFlex');
+    if (fel && fx && fx.rate != null) {
+      const gain = fx.rate - (r.mc == null ? fx.rate : r.mc);
+      fel.innerHTML = 'If you cut back when markets go badly: <b>' + fx.rate + '% last</b>'
+        + (gain > 0 ? ' (up from ' + r.mc + '%)' : '')
+        + '. Typical cost: ' + fx.cut + '% less discretionary spending'
+        + (fx.years ? ' across ' + fx.years + ' years' : '')
+        + (fx.cutBad > fx.cut ? '; ' + fx.cutBad + '% in a bad market' : '') + '.';
+    }
   }
 
   // ── withdrawal rate ───────────────────────────────────────────────────────

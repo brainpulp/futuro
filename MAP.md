@@ -37,6 +37,7 @@ downstream may re-derive a number an upstream layer already owns.
 | What anything *will* cost | the scenario (`S`) | Gastos never projects |
 | How a row is categorized | the owner, by hand, in Gastos | ⚠ no code may classify a row from its text |
 | The projection itself | `runSim()` in index.html | mobile.html drives the same engine in a hidden iframe; it never re-implements it |
+| Whether spending adapts to the market | `runSim` opts, never the scenario | the plan stores the *rule* (`flexFloorPct`/`guardBand`/`guardStep`); whether a given run applies it is the caller's choice, so the fixed-spending number stays available as the pessimistic bound |
 | The expected market return | the scenario (`S.yieldRate`) | `market-outlook` **proposes** and records provenance in `S.yieldSource`; it never writes on its own. IBKR auto-applies because a balance is a fact — a forward return is an opinion |
 
 **The engine-only trap.** `mobile.html` loads `index.html?engineonly=1`, which skips
@@ -66,7 +67,33 @@ on the balance *after* asset transactions and *before* income and expenses land.
 | 10 | Incomes | `inc` |
 | 11 | Deal cashflows — `inc += credit − _preYieldExits[d.id]` | `inc`, `exp` |
 | 12 | Property tax on carrying value | `exp` |
-| 13 | `liq += inc − exp`; track the minimum; push the monthly record | `liq` |
+| 13 | **Guardrail cut** (only when `opts.flex`): subtract `cuttable × (1 − flexMult)` | `exp` ↓ |
+| 14 | `liq += inc − exp`; track the minimum; push the monthly record | `liq` |
+
+**Step 13 is off unless asked for.** `runSim()` spends the plan regardless of the market,
+which measures a refusal to adapt rather than a risk of ruin — nobody keeps drawing the
+same amount after a 40% crash. `runSim(_, _, {flex:true})` turns on guardrails: once a
+year, compare the withdrawal rate just achieved against **the rate the plan itself draws
+at that age**, and cut or restore discretionary spending by a step.
+
+⚠ Two other references were tried and both ratchet the cuts to zero and never lift them.
+Against the *opening* rate: a drawdown plan's rate rises every year by design, so it cuts
+forever even in a healthy market. Against the plan's *wealth path*: cutting your spending
+does not move you closer to a baseline that never had the crash, so there is no feedback.
+Against the plan's own rate at that age, cutting immediately lowers your own rate — that
+feedback is what gives the rule an equilibrium.
+
+**Not cuttable, ever:** the floor (`flexFloorPct` of base living cost), installments and
+deal capital (contractual), and property tax (a bill). Cuttable: base living above the
+floor, trips, and expenses explicitly marked `flex: true`.
+
+**Comparing two Monte Carlos requires one seed.** `runMonteCarlo(n, {seed})` — fixed and
+adaptive runs must sample the *same* markets. Unseeded, the ±3pp sampling error at 150
+paths is enough to report that adapting did worse than refusing to, which is impossible.
+
+**Report the AVERAGE give-up, not the deepest cut.** Over thirty years nearly every path
+dips far enough below plan at some point to cut everything, so "deepest cut" saturates at
+100% and says nothing (`flexAvgMult` vs `flexMinMult`).
 
 Steps 5 and 11 are one transaction seen twice. The subtraction in 11 is what stops it
 being counted twice — sale proceeds are credited pre-yield so they earn that month's

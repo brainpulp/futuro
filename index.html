@@ -2268,6 +2268,11 @@ function ensureFields() {
   // Equity premium over TIPS, ARITHMETIC — see the market outlook block. 4.5 is a
   // deliberately unexciting long-run figure; it is the user's assumption to move.
   if (S.erp             == null) S.erp             = 4.5;
+  // Spending guardrails. Nobody keeps spending the same after a 40% crash, and a
+  // simulation that assumes they do is measuring a refusal to adapt, not a risk of ruin.
+  if (S.flexFloorPct    == null) S.flexFloorPct    = 70;  // % of base living cost you will not cut below
+  if (S.guardBand       == null) S.guardBand       = 20;  // % drift in the withdrawal rate before acting
+  if (S.guardStep       == null) S.guardStep       = 10;  // % of discretionary cut or restored per step
   if (S.borrowRate      == null) S.borrowRate      = 10;
   if (S.useMedianReturn == null) S.useMedianReturn = true;
   if (S.crashYears      == null) S.crashYears      = 0;
@@ -2888,7 +2893,31 @@ function _dealCashflow(deal, year, mo, da) {
 }
 // ── End deal helpers ───────────────────────────────────────────
 
-function runSim(monthlyOverride, yieldRateOverride) {
+// opts.flex turns on the spending guardrails: when the withdrawal rate drifts above the
+// band you cut discretionary spending, when it drifts below you restore it, and you never
+// cut below the floor. Off by default so every existing number keeps its meaning — the
+// fixed-spending run is still the pessimistic bound, and both are reported side by side.
+function runSim(monthlyOverride, yieldRateOverride, opts) {
+  const _flexOn   = !!(opts && opts.flex);
+  const _floorPct = Math.max(0, Math.min(100, S.flexFloorPct == null ? 70 : S.flexFloorPct)) / 100;
+  const _band     = Math.max(0, S.guardBand == null ? 20 : S.guardBand) / 100;
+  const _step     = Math.max(1, S.guardStep == null ? 10 : S.guardStep) / 100;
+  let _flexMult = 1;          // 1 = spending as planned, 0 = cut to the floor
+  let _flexMin = 1, _flexCutYears = 0, _flexSum = 0, _flexN = 0;
+  // age -> the withdrawal rate the PLAN ITSELF draws at that age. Supplied by the caller,
+  // because computing it here would recurse.
+  //
+  // ⚠ Two references were tried and both were wrong. Against the OPENING rate, the rule
+  // ratchets to zero even in a healthy market, because a drawdown plan's rate rises every
+  // year by design. Against the plan's WEALTH path, it also ratchets — cutting your
+  // spending does not move you closer to a baseline that never had the crash, so there is
+  // no feedback and the cuts never lift.
+  //
+  // Against the plan's own rate AT THAT AGE, both problems go: the reference rises as the
+  // plan intends, and cutting immediately lowers your own rate, which relieves the
+  // pressure. That feedback is what gives the rule an equilibrium.
+  const _baseWR = (opts && opts.baseWR) || null;
+  let _pyOpen = null, _pyBurn = null;   // previous year's opening cash and net draw
   const sa = S.startAge || 57, ea = S.endAge || 87;
 
   // Precompute installment info per expense.
@@ -3122,6 +3151,28 @@ function runSim(monthlyOverride, yieldRateOverride) {
     let lastF = 1;          // December inflation factor — used for the year-end display row
     let yearMinLiq = liq;
     let yearBurn = 0;
+    // ── guardrails, evaluated once a year on the year just finished ──────────
+    // Measured on the SAME quantity the withdrawal card shows: net draw over the cash
+    // you opened the year with. Acting monthly would lurch on noise; acting yearly is
+    // also what a person actually does — you review, then you adjust.
+    // The reference is the PLAN's own balance at this age, not the opening withdrawal
+    // rate. A drawdown plan's withdrawal rate rises every year by design -- you are
+    // spending a finite pot on purpose -- so measuring drift against the opening rate
+    // ratchets the cuts to zero even in a perfectly healthy market. Measured against
+    // "where the plan said I would be", the rule has an equilibrium: fall behind and you
+    // cut, catch back up and you restore.
+    if (_flexOn && _baseWR && _pyOpen != null && _pyOpen > 0 && _pyBurn != null) {
+      const want = _baseWR[age - 1];          // what the plan draws at the age just ended
+      if (want != null && want > 0) {
+        const got = _pyBurn / _pyOpen;
+        if (got > want * (1 + _band))      _flexMult = Math.max(0, _flexMult - _step);
+        else if (got < want * (1 - _band)) _flexMult = Math.min(1, _flexMult + _step);
+      }
+      if (_flexMult < _flexMin) _flexMin = _flexMult;
+      if (_flexMult < 1) _flexCutYears++;
+      _flexSum += _flexMult; _flexN++;
+    }
+    _pyOpen = liq; _pyBurn = 0;
 
     for (let mo = 1; mo <= 12; mo++) {
       // Inflation factor for this month (anchored to _curMo so partial-year and
@@ -3249,6 +3300,10 @@ function runSim(monthlyOverride, yieldRateOverride) {
       lastInflM = _gastos !== undefined ? _gastos : inflM;
 
       let exp = _gastos !== undefined ? _gastos : inflM + (S.winterTrip + S.summerTrip) / 12 * f;
+      // Of `exp`, how much the guardrails are allowed to touch. Opt-in per item: an
+      // expense is discretionary only if it says so, so the adaptation modelled here is
+      // never more than the plan actually claims. Conservative on purpose.
+      let _flexItemExp = 0;
       const _txns = [];
       // Property sales — positive amount (money coming in)
       _soldThisMo.forEach(s => _txns.push({ id: s.id, arr: 'properties', name: s.name + ' sold', amount: Math.round(s.cv), type: 'sale' }));
@@ -3261,12 +3316,14 @@ function runSim(monthlyOverride, yieldRateOverride) {
         if (e.type === 'oneoff' && e.atAge === age && (e.atMonth || 1) === mo) {
           exp += e.amount;
           _txns.push({ id: e.id, arr: 'expenses', name: e.name || '?', amount: -(e.amount), type: 'oneoff' });
+          if (e.flex === true) _flexItemExp += e.amount;
         } else if (e.type === 'monthly') {
           const from = e.from || sa, to = e.to || ea;
           if ((age > from || (age === from && mo >= (e.fromMonth||1))) && (age < to || (age === to && mo <= (e.toMonth||12)))) {
             const _a = e.amount * f;   // recurring items are in today's money → inflate
             exp += _a;
             _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_a), type: 'expense' });
+            if (e.flex === true) _flexItemExp += _a;
           }
         } else if (e.type === 'annual') {
           const from = e.from || sa, to = e.to || ea;
@@ -3274,6 +3331,7 @@ function runSim(monthlyOverride, yieldRateOverride) {
             const _a = e.amount * f / 12;
             exp += _a;
             _txns.push({ id: e.id, arr: 'expenses', name: e.name, amount: -Math.round(_a), type: 'annual' });
+            if (e.flex === true) _flexItemExp += _a;
           }
         } else if (e.type === 'installments') {
           const start = e.atAge || e.from || sa;
@@ -3330,8 +3388,29 @@ function runSim(monthlyOverride, yieldRateOverride) {
       // ── End deals ──
       { const _pt = _propTaxThisMonth(props, _dealAssets);
         if (_pt > 0) { exp += _pt; _txns.push({ id: 'proptax', arr: 'expenses', name: 'Property tax', amount: -Math.round(_pt), type: 'expense' }); } }
+
+      // ── cut only what can actually be cut ────────────────────────────────
+      // The floor is a share of BASE LIVING COST — the roof, the food, the insurance.
+      // Everything above it in the living line, plus the trips, is discretionary.
+      // Deliberately NOT cuttable: installments and deal capital (contractual), property
+      // tax (a bill, not a choice), and the floor itself. Scaling those would model a
+      // bad market as a discount on your tax bill.
+      if (_flexOn && _flexMult < 1 && _gastos === undefined) {
+        const floorM = inflM * _floorPct;
+        const cuttable = Math.max(inflM - floorM, 0)
+                       + (S.winterTrip + S.summerTrip) / 12 * f
+                       + _flexItemExp;
+        if (cuttable > 0) {
+          const saved = cuttable * (1 - _flexMult);
+          exp -= saved;
+          _txns.push({ id: 'flexcut', arr: 'expenses', name: 'Spending cut back',
+                       amount: Math.round(saved), type: 'flexcut' });
+        }
+      }
+
       liq += inc - exp;
       yearBurn += exp - inc;
+      if (_pyBurn != null) _pyBurn += exp - inc;
       if (liq < yearMinLiq) yearMinLiq = liq;
       if (liq < _simMinLiq) { _simMinLiq = liq; _simMinAge = age; _simMinMo = mo; }
       out.monthly.push({ age, mo, year: _startYear + (age - sa), inc: Math.round(inc), baseExp: Math.round(_gastos !== undefined ? _gastos : inflM), totalExp: Math.round(exp), txns: _txns, liq: Math.round(liq), iliq: Math.round(props.filter(p=>!p.sold).reduce((s,p)=>s+p.cv,0) + Object.values(_dealAssets).filter(da=>!da.sold).reduce((s,da)=>s+da.cv,0)), mktGain: _mktGain });
@@ -3350,6 +3429,15 @@ function runSim(monthlyOverride, yieldRateOverride) {
   out.simMinLiq = isFinite(_simMinLiq) ? Math.round(_simMinLiq) : Math.round(liq);
   out.simMinAge = _simMinAge;
   out.simMinMo  = _simMinMo;
+  // What adapting actually cost: the deepest cut and how many years it lasted. This is
+  // the number the guardrails exist to produce — a plan that survives by cutting 40% for
+  // fifteen years has not really survived, and a binary success rate cannot say so.
+  out.flexMinMult  = _flexOn ? _flexMin : 1;          // worst it ever got
+  // ⚠ Report the AVERAGE, not the deepest. Over thirty years almost every path dips far
+  // enough below plan at some point to cut everything, so "deepest cut" saturates at 100%
+  // and says nothing. What you actually give up is the mean across the whole run.
+  out.flexAvgMult  = _flexOn && _flexN ? _flexSum / _flexN : 1;
+  out.flexCutYears = _flexOn ? _flexCutYears : 0;
   return out;
 }
 
@@ -3814,7 +3902,20 @@ function _mcParams() {
   return { mean, std };
 }
 
-function runMonteCarlo(n) {
+// The withdrawal rate the plan draws at each age: that year's net burn over the cash it
+// opened with. Same quantity the withdrawal card reports, so the guardrail is measured on
+// the number the user can actually see.
+function _planWR() {
+  const out = runSim();
+  const wr = {};
+  for (let i = 1; i < out.length; i++) {
+    const open = out[i - 1].liq;
+    if (open > 0 && out[i].annualNetBurn != null) wr[out[i].age] = out[i].annualNetBurn / open;
+  }
+  return wr;
+}
+
+function runMonteCarlo(n, opts) {
   n = n || 500;
   const sa = S.startAge || 57, ea = S.endAge || 87;
   const { mean, std } = _mcParams();
@@ -3826,8 +3927,13 @@ function runMonteCarlo(n) {
   // so suppress the deterministic volatility-drag correction for the duration of the run.
   _mcActive = true;
 
-  // Seeded PRNG + Box-Muller for reproducible MC sequences
-  let _mcS = ((Date.now() ^ 0x9e3779b9) >>> 0);
+  // Seeded PRNG + Box-Muller for reproducible MC sequences.
+  //
+  // ⚠ opts.seed exists so two runs can be compared. Fixed-spending and adaptive-spending
+  // runs MUST sample the same markets: unseeded they draw different ones, and at 150
+  // paths the sampling error is a few points either way — enough to report that adapting
+  // did WORSE than refusing to, which is impossible. Same markets, one rule changed.
+  let _mcS = (((opts && opts.seed != null ? opts.seed : Date.now()) ^ 0x9e3779b9) >>> 0);
   function _mcRng() {
     _mcS += 0x6D2B79F5;
     let t = Math.imul(_mcS ^ _mcS >>> 15, 1 | _mcS);
@@ -3840,7 +3946,16 @@ function runMonteCarlo(n) {
   }
 
   const allLiqs = [];      // allLiqs[run][ageIdx] = liq value
+  const cutDepth = [], cutDeepest = [], cutYears = [];   // what adapting cost, per run
   let successes = 0;
+
+  // Built BEFORE the loop, while S.yieldCurve is still the plan's own assumption. Once
+  // sampling starts the curve is overwritten every run, so a baseline taken from inside
+  // would be "where a random market said I would be" -- comparing nothing to nothing.
+  let _opts = opts;
+  if (opts && opts.flex && !opts.baseWR) {
+    _opts = Object.assign({}, opts, { baseWR: _planWR() });
+  }
 
   try {
     for (let r = 0; r < n; r++) {
@@ -3850,9 +3965,12 @@ function runMonteCarlo(n) {
         curve[age] = Math.max(-50, Math.min(60, mean + _mcRandn() * std));
       }
       S.yieldCurve = curve;
-      const result = runSim();
+      const result = runSim(undefined, undefined, _opts);
       allLiqs.push(result.map(d => d.liq));
       if (result.simMinLiq >= 0) successes++;
+      cutDepth.push(1 - result.flexAvgMult);
+      cutDeepest.push(1 - result.flexMinMult);
+      cutYears.push(result.flexCutYears);
     }
   } finally {
     // Always restore — even if runSim threw
@@ -3870,11 +3988,22 @@ function runMonteCarlo(n) {
     p75.push(at(75)); p90.push(at(90));
   }
 
+  // The typical experience, and the bad-but-survivable one. Median rather than mean:
+  // a handful of catastrophic paths should not set the number you plan around.
+  const at = (arr, pct) => {
+    const c = arr.slice().sort((a, b) => a - b);
+    return c.length ? c[Math.max(0, Math.min(c.length - 1, Math.round(pct / 100 * (c.length - 1))))] : 0;
+  };
   return {
     successRate: Math.round(successes / n * 100),
     n, mean, std,
     ages: Array.from({ length: nAges }, (_, i) => sa + i),
     p10, p25, p50, p75, p90,
+    cutMedian:  Math.round(at(cutDepth, 50) * 100),  // average give-up, typical market
+    cutP90:     Math.round(at(cutDepth, 90) * 100),  // average give-up, bad market
+    cutDeepest: Math.round(at(cutDeepest, 50) * 100), // worst single stretch, typical market
+    cutYearsMedian: at(cutYears, 50),
+    cutYearsP90:    at(cutYears, 90),
     stale: false,
   };
 }
