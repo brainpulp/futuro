@@ -121,6 +121,20 @@ p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
   comments. One backtick in a comment ends the template early and the whole injected
   program fails to parse, which presents as the phone hanging on "Starting engine…".
 
+### Spending guardrails — adapting to the market
+`runSim(_, _, {flex:true})` cuts discretionary spending when the plan falls behind and
+restores it when it catches up. Off by default; the phone runs BOTH Monte Carlos and
+reports them side by side (`#mcFlex`), because fixed spending is the pessimistic bound.
+- Full detail in **MAP.md §2**, including the two references that ratchet to zero and why
+  the plan's own per-age withdrawal rate is the one that has an equilibrium.
+- Defaults: `flexFloorPct` 70 (floor = 70% of base living cost), `guardBand` 20,
+  `guardStep` 10. Scenario-level and editable in data; no UI controls yet.
+- ⚠ **Both MC runs must share a `seed`.** Different markets + a ±3pp sampling error at 150
+  paths reported adapting as WORSE than not adapting, which is impossible.
+- ⚠ Report `flexAvgMult`, not `flexMinMult` — the deepest cut saturates at 100%.
+- Measured gain (2M liquid, 6% return, 16% vol, 33 yr): +14pp at $5k/mo, +16pp at $6k,
+  +12pp at $7k, ~+1pp at $9k. It rescues borderline plans, not doomed ones.
+
 ### mobile.html — withdrawal rate
 `#wrCard` shows what the plan draws each year on two denominators, from `cur.wr` (built in
 `simulate()`, ALWAYS — unlike the ledger it is not gated on a card being open).
