@@ -1229,12 +1229,11 @@
               r.ym + (r.lastDay ? ' (only to day ' + r.lastDay + ' of ' + r.days + ')' : ' (incomplete)')
             ).join(', ')
           : '')
-      // Uncategorized rows are counted as monthly spending, so say how much of the figure
-      // rests on them, and how much your own vendor history kept out of it. A month that
-      // is mostly unfiled can be a genuine spending month or a month of project payments
-      // nobody got round to tagging, and only you can tell which.
+      // Untagged rows no longer count as living costs -- they go to the obras instead --
+      // so `routed` is what was kept out. `unfiled` is now only untagged rows that a
+      // vendor precedent placed INSIDE the monthly-expenses group.
       + (g.unfiled > 0 ? ' · incl. ' + fmtL(g.unfiled) + ' uncategorized' : '')
-      + (g.routed  > 0 ? ' · ' + fmtL(g.routed) + ' matched to past vendors and left out' : '');
+      + (g.routed  > 0 ? ' · ' + fmtL(g.routed) + ' kept out as project spend' : '');
   }
 
   function spentOn(cat) {

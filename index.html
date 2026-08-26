@@ -8323,7 +8323,7 @@ async function gastosSync() {
             + _partial.map(p => `${p.ym} — to day ${p.lastDay} of ${p.days}`).join(', ') : '')
         + (_unfiled.length ? '\nIncludes uncategorized spend: '
             + _unfiled.map(p => `${p.ym} $${_usd(p.unfiled)}`).join(', ') : '')
-        + (_routed.length ? '\nUncategorized matched to past vendors and left out: '
+        + (_routed.length ? '\nUncategorized kept out (allocated to the obras or matched to a past vendor): '
             + _routed.map(p => `${p.ym} $${_usd(p.inferredOut)}`).join(', ') : '');
     }
     go();
