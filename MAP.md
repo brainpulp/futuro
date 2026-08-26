@@ -172,6 +172,13 @@ clipped to 5/10/20 years. A trough at 95 under a 57–77 view is not a contradic
 the UI must say so — tiles print their age, the chart prints its span. Reported as a bug
 three times before it was labelled.
 
+**Annualising vs one-time.** The withdrawal rate annualises so a month and a year are
+comparable — but scaling a LUMP is a category error. The plan's first year is partial (the
+sim opens at the current month), so a car bought once in a five-month stub, scaled by 12/5,
+reads as a car bought every five months forever: 24% where the truth is 13%. `wrAgg`
+annualises the recurring part only and adds one-offs at face value. Over a full 12 months
+the two are identical; only the stub year differs.
+
 **Monthly vs yearly.** The chart plots `d.monthly`, so ages are fractional and points are
 matched by proximity, never equality. `minLiq`/`minAge`/`minMo` are monthly; "net worth at
 end" reads the last *monthly* record. The yearly roll-up differs from the curve's

@@ -160,6 +160,12 @@ reports them side by side (`#mcFlex`), because fixed spending is the pessimistic
 - Every grain is **annualised** (`net × 12 / months`), so a month row and a year row are
   directly comparable. Raw, a month's draw against a full portfolio is a twelfth of the
   truth and 0.5% reads as wonderful news.
+- ⚠ **One-offs are NOT annualised.** Scaling a lump is a category error: $120k of one-time
+  costs inside a five-month stub year, scaled by 12/5, reported 24% where the truth is 18%
+  — a car bought once read as a car bought every five months. `wrAgg` annualises
+  `net − once` and adds `once` at face value; a full 12-month year is unchanged. The card
+  also splits the two, so a high year reads as "6% ongoing plus a car" rather than as a
+  spending problem.
 
 ### mobile.html ↔ cloud sync
 Edits autosave (700 ms debounce) to localStorage **and** upsert into the same

@@ -600,8 +600,15 @@
         const oL = _pLiq  !== null ? _pLiq
                    : m.liq - ((m.inc || 0) - (m.totalExp || 0) + (m.mktGain || 0));
         const oI = _pIliq !== null ? _pIliq : m.iliq;
+        // One-time costs are split out because they must NOT be annualised. The plan's
+        // first year is a partial one -- the sim opens at the current month -- so scaling
+        // it up treats a car bought once as a car bought every five months. Recurring
+        // spending scales; a lump does not.
+        let once = 0;
+        for (const t of (m.txns || [])) if (t.type === 'oneoff' && t.amount < 0) once += -t.amount;
         wr.push({ year: m.year, mo: m.mo, age: m.age,
                   out: Math.round(m.totalExp || 0), inc: Math.round(m.inc || 0),
+                  once: Math.round(once),
                   openLiq: Math.round(oL), openIliq: Math.round(oI) });
         _pLiq = m.liq; _pIliq = m.iliq;
       }
@@ -1490,16 +1497,24 @@
   function wrAgg(recs) {
     if (!recs || !recs.length) return null;
     const first = recs[0];
-    const out = recs.reduce((s, r) => s + r.out, 0);
-    const inc = recs.reduce((s, r) => s + r.inc, 0);
-    const net = out - inc;
-    const ann = net * 12 / recs.length;
+    const out  = recs.reduce((s, r) => s + r.out, 0);
+    const inc  = recs.reduce((s, r) => s + r.inc, 0);
+    const once = recs.reduce((s, r) => s + (r.once || 0), 0);
+    const net  = out - inc;
+    // ⚠ Annualise the RECURRING part only, then add the one-time costs at face value.
+    // Over a full 12 months this is identical to scaling the whole thing; over the
+    // partial first year it is the difference between "you draw 24%" and "you draw 13%,
+    // of which 8 points is a car and an obra you pay for once".
+    const recurAnn = (net - once) * 12 / recs.length;
+    const ann = recurAnn + once;
     const tot = first.openLiq + first.openIliq;
     return { months: recs.length, year: first.year, age: first.age,
              net: Math.round(net), ann: Math.round(ann),
+             recurAnn: Math.round(recurAnn), once: Math.round(once),
              openLiq: first.openLiq, openTot: tot,
              pctLiq: first.openLiq > 0 ? ann / first.openLiq * 100 : null,
-             pctTot: tot > 0 ? ann / tot * 100 : null };
+             pctTot: tot > 0 ? ann / tot * 100 : null,
+             pctOnce: first.openLiq > 0 ? once / first.openLiq * 100 : null };
   }
 
   function renderWR(r) {
@@ -1520,11 +1535,18 @@
     $('wrWhen').textContent = y.year + ' · age ' + y.age
       + (y.months < 12 ? ' · ' + y.months + ' month' + (y.months === 1 ? '' : 's') + ', annualised' : '');
 
+    // When one-time costs make up a real share of the year, say so — otherwise a 13%
+    // draw looks like a spending problem when it is a car and an obra.
+    const oncePart = y.once > 0 && y.pctOnce != null && y.pctOnce >= 0.5
+      ? ' Of that, ' + pct(y.pctOnce) + ' is one-time costs (' + fmtL(y.once) + ') — the'
+        + ' ongoing rate is ' + pct(y.pctLiq - y.pctOnce) + '.'
+      : '';
     $('wrNote').textContent = adding
       ? 'Income covers your spending this year, so nothing is being withdrawn.'
-      : fmtL(y.ann) + '/yr against ' + fmtL(y.openLiq) + ' liquid at the start of the year. '
-        + 'The 4% rule of thumb is about the left-hand figure, and only in the first year — '
-        + 'after that it measures your spending against a portfolio that has moved.';
+      : fmtL(y.ann) + '/yr against ' + fmtL(y.openLiq) + ' liquid at the start of the year.'
+        + oncePart
+        + ' The 4% rule of thumb is about the left-hand figure, and only in the first year —'
+        + ' after that it measures your spending against a portfolio that has moved.';
   }
 
   // ── ledger: where the money actually goes ─────────────────────────────────
