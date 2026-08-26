@@ -558,10 +558,13 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
     `authenticated`. ⚠ Supabase's default privileges grant EXECUTE to anon/authenticated
     *directly*, so `REVOKE ... FROM PUBLIC` alone leaves `has_function_privilege('anon',…)`
     true. Name all three roles, then check.
-- **Uncategorized outflows COUNT as monthly expenses** (user's call — nobody files every
-  transaction, so dropping them understated the baseline by whatever was forgotten)
-  **unless the vendor has a precedent**, in which case the owner's own past decision
-  applies. All of it lives in `monthly_actuals_agg()`; v9 of the function just reshapes.
+- **Uncategorized outflows do NOT count as monthly expenses.** They used to (nobody files
+  every transaction), but the owner's own reading is that untagged spend is typically
+  construction, so it is allocated to the obras instead — see the section below. Counting
+  it in both places would be the same money spent twice. A vendor **precedent** still
+  applies first: an untagged row whose vendor history points at a monthly-expenses
+  category counts as that category. It lives in `monthly_actuals_agg()`; the edge
+  function only reshapes.
   - ⚠ **Never classify a row from its text.** An earlier version held back rows that
     "obviously" were not consumption (a supplier run, a transfer to an investment vehicle,
     a card bill). That is this code inventing a category the owner never assigned, which
@@ -581,6 +584,21 @@ Feeds the baseline "what do I actually spend" line for past months. Sums outflow
     phone caption and the desktop badge tooltip. Never silent.
   - Doing the whole aggregation in SQL also retires the PostgREST 1000-row hazard for this
     path — there is no `.select()` to truncate any more.
+
+### Untagged spend → the obras (`project_actuals_agg`)
+Rows with neither a category nor a vendor precedent are split **half and half between
+`carhué obra` and `arcos`**, on the owner's instruction that untagged spend is typically
+construction.
+- ⚠ **Windowed to `alloc_from` (2026-01), and that narrowing is deliberate.** Over all
+  history the untagged-no-precedent pool is $221k, but **$156k of it is 2021 and a single
+  row in that year is $90,000** — a purchase, not an obra payment. Allocating the lot
+  pushes both budgets past $150k and reports **zero** remaining construction spend, which
+  destroys the very number this connection exists to produce. Widen the window in the SQL
+  if that is ever wanted.
+- Effect: Carhué $102,017 → $112,640 spent ($37,360 left), Arcos $116,335 → $126,958
+  ($23,042 left). The phone's three-month baseline drops from ~$10,100 to **~$5,927**.
+- ⚠ The allocation feeds `_effInstall`, so it directly reduces future obra spend in the
+  projection. Anything added here changes the plan, not just a report.
 - `.in('cat', cats)` is **case-sensitive**. It currently matches (0 rows lost), because the
   strings in `settings.groups` match the stored case exactly. Renaming a category in one
   place and not the other will silently drop it from the baseline — check both.
