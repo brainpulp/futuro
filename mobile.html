@@ -55,7 +55,9 @@
     padding:14px;margin-bottom:10px;box-shadow:var(--shadow)}
   .verdict{font-size:22px;font-weight:750;letter-spacing:-.02em;margin:0 0 2px}
   .verdict.ok{color:var(--good)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--warn)}
-  .sub{font-size:13px;color:var(--dim);margin:0}
+  /* The verdict sentence is the TOPMOST thing on the page, so a second line in it moves
+     every control below it. It gains one at high spending. Reserved, like the notes. */
+  .sub{font-size:13px;color:var(--dim);margin:0;line-height:1.4;min-height:2.8em}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;
     border-top:1px solid var(--line);padding-top:12px}
   /* fixed height keeps the three values on one baseline even if a label wraps */
@@ -73,8 +75,14 @@
      nothing would shift every control below it. Two lines is enough for the result line
      now that the wording no longer varies with it. */
   #mcNote{min-height:2.8em;margin-top:3px}
-  #mcFlex{min-height:2.8em;margin-top:3px;border-top:1px solid var(--line);padding-top:6px}
+  /* Four lines reserved, not two. Measured, not guessed: at 320 px the adaptive wording
+     runs to four. The toggle sits directly BELOW this line, and the
+     wording is longer when adaptation is the reading being shown. Two lines let it
+     grow to three on the very tap that switched it, moving the switch out from under
+     the finger that just hit it. */
+  #mcFlex{min-height:calc(4 * 1.35em + 7px);margin-top:3px;border-top:1px solid var(--line);padding-top:6px}
   #mcFlex b{color:var(--good)}
+  #mcFlex b.n{color:var(--ink)}
   #mcWhat{margin-top:8px}
   .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
     margin:-6px 2px 6px;letter-spacing:.02em}
@@ -85,6 +93,14 @@
   .wrl{font-size:10px;color:var(--dim);line-height:1.3;margin-top:2px}
   .wrnote{font-size:11px;color:var(--dim);margin:10px 0 0;line-height:1.4;
     border-top:1px solid var(--line);padding-top:8px}
+  /* Same split, and for the same reason, as #mcWhat / #mcNote above: the sentence that
+     explains the 4% rule never changes, so it can never re-wrap, and only the line
+     carrying the numbers varies — with two lines reserved for it, measured as the worst
+     case across a full spend sweep at 320 px. As one paragraph it
+     gained a line whenever one-time costs crossed the threshold, which is mid-drag on
+     the spend slider, and shoved every control below it under the moving finger. */
+  #wrNote{min-height:calc(2 * 1.4em + 9px)}   /* 2 lines + padding-top + border */
+  .wrwhat{font-size:11px;color:var(--dim);margin:4px 0 0;line-height:1.4}
   .rng b{color:var(--warn);font-weight:700}
   .dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
   .dash{width:13px;height:0;border-top:1.5px dashed var(--bad);display:inline-block;
@@ -287,6 +303,8 @@
     </div>
   </div>
   <p class="wrnote" id="wrNote"></p>
+  <p class="wrwhat">The 4% rule of thumb is about the left-hand figure, and only in the first
+    year — after that it measures your spending against a portfolio that has moved.</p>
 </div>
 
 <div class="card">
@@ -308,6 +326,17 @@
   <p class="rng" id="mcNote"></p>
   <!-- The same markets, played by someone who reacts to them. -->
   <p class="rng" id="mcFlex"></p>
+  <!-- One tap between the two readings. The sub-label is STATIC on purpose: it states the
+       limit of what the switch does, and static text can never change the card's height
+       mid-drag. It says "the solid line stays the plan as written" because that is
+       literally true and would otherwise read as the switch being broken — the guardrail
+       measures a run against the plan's own withdrawal rate, and the drawn line IS the
+       plan, so it can never fall behind itself. Only the 150 sampled markets can. -->
+  <div class="sw" style="margin-top:6px">
+    <span>Assume I adapt to the market<small>Cut back when markets go badly. Changes the odds
+      and the haze; the solid line stays the plan as written.</small></span>
+    <input type="checkbox" id="flex" aria-label="Assume spending adapts to the market">
+  </div>
   <!-- Chart range. A view preference, not scenario data: it is kept in localStorage and
        never written into the scenario, so changing it can't mark the plan dirty. -->
   <div class="seg" id="zoom" role="group" aria-label="Chart range" style="margin-top:9px">
@@ -415,8 +444,15 @@
         <input type="number" data-s="propertyTaxRate" step="0.05" min="0" max="5"></label>
       <label class="wide"><span class="fl">Borrowing rate %/yr, if you run short</span>
         <input type="number" data-s="borrowRate" step="0.5" min="0" max="40"></label>
+      <label><span class="fl">Spending floor %</span>
+        <input type="number" data-s="flexFloorPct" step="5" min="0" max="100"></label>
+      <label><span class="fl">Act when off by %</span>
+        <input type="number" data-s="guardBand" step="5" min="5" max="60"></label>
+      <label class="wide"><span class="fl">Cut or restore per step %</span>
+        <input type="number" data-s="guardStep" step="5" min="1" max="50"></label>
     </div>
     <p class="hint" style="margin:10px 0 0">Selling costs and property tax here override the quick toggle above. Leave them at 0 if those costs are already inside your monthly spending.</p>
+    <p class="hint" style="margin:6px 0 0">The last three set how “assume I adapt” behaves. <b>Floor</b> is the share of your base living cost you will not go below — only what is above it, plus trips and project costs, can be cut. <b>Act when off by</b> is how far this year's withdrawal rate has to drift from the plan's before anything changes; <b>per step</b> is how much moves each year, in either direction.</p>
   </div>
 </details>
 
@@ -517,17 +553,21 @@
       // These bands are YEARLY and LIQUID-only (built from the yearly rows' liq), while
       // the chart plots a MONTHLY series of cash AND property. They are drawn against the
       // cash area at integer ages for exactly that reason.
-      let band = null, flexMC = null;
+      let band = null, flexMC = null, fixedMC = null;
       ${withMC ? 'try { const _seed = 20260824;'
                // One seed for both runs so they play the SAME 150 markets and the only
                // difference is the spending rule. Fixed across renders too, so nudging a
                // slider does not reshuffle the markets under the numbers.
-               + ' const _mc = runMonteCarlo(150, {seed:_seed}); mc = _mc.successRate;'
-               + ' band = { ages: _mc.ages, p10: _mc.p10, p50: _mc.p50, p90: _mc.p90 };'
-               // The same markets, with a plan that cuts back when it falls behind.
-               // Reported ALONGSIDE the fixed number, never instead of it: fixed spending
-               // is the pessimistic bound and it is worth seeing both.
-               + ' const _fx = runMonteCarlo(150, {flex:true, seed:_seed});'
+               //
+               // BOTH are always computed. S.flexOn decides which one the headline and
+               // the chart band SHOW; the other stays available so the comparison line
+               // can always say what adapting is worth.
+               + ' const _mc = runMonteCarlo(150, {flex:false, seed:_seed});'
+               + ' const _fx = runMonteCarlo(150, {flex:true,  seed:_seed});'
+               + ' const _shown = S.flexOn ? _fx : _mc;'
+               + ' mc = _shown.successRate;'
+               + ' band = { ages:_shown.ages, p10:_shown.p10, p50:_shown.p50, p90:_shown.p90 };'
+               + ' fixedMC = _mc.successRate;'
                + ' flexMC = { rate:_fx.successRate, cut:_fx.cutMedian, cutBad:_fx.cutP90,'
                + ' years:_fx.cutYearsMedian }; }'
                + ' catch (e) {}' : ''}
@@ -628,7 +668,8 @@
           return lm ? lm.liq + lm.iliq : last.liq + last.iliq;
         })(),
         minLiq: d.simMinLiq, minAge: d.simMinAge, minMo: d.simMinMo,
-        ruin, mc, band, flexMC, startAge: S.startAge, endAge: S.endAge, ledger, wr,
+        ruin, mc, band, flexMC, fixedMC, flexOn: !!S.flexOn,
+        startAge: S.startAge, endAge: S.endAge, ledger, wr,
       });
     })()`);
   }
@@ -762,6 +803,9 @@
   // ── persistence ───────────────────────────────────────────────
   let saveTimer = null, booted = false;
   const touched = new Set();
+  // Mirrors ensureFields() in the engine. Only used to DISPLAY an unset dial; the engine
+  // still owns the fallback, so a value never written here can never drift from it.
+  const GUARD_DEF = { flexFloorPct: 70, guardBand: 20, guardStep: 10 };
 
   function markDirty() {
     if (!booted || readOnly) return;
@@ -794,6 +838,7 @@
       s.crashYears = crash.y; s.crashPct = crash.p;
       s.crashStartAge = crash.y > 0 ? crash.from : null;
     }
+    if (touched.has('flex')) s.flexOn = $('flex').checked;
     if (touched.has('cost')) {
       if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
       else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
@@ -1467,14 +1512,24 @@
     // The fixed-spending number above assumes you keep drawing the same amount after a
     // 40% crash. Nobody does that, so on its own it measures a refusal to adapt rather
     // than a risk of ruin. This says what reacting is worth, and what it costs.
+    //
+    // Both runs always exist, over the same seed; the toggle only decides which one the
+    // headline, the haze and the note above are reporting. So this line always states the
+    // OTHER reading — never a number already shown — and names its cost either way.
     const fx = r && r.flexMC, fel = $('mcFlex');
     if (fel && fx && fx.rate != null) {
-      const gain = fx.rate - (r.mc == null ? fx.rate : r.mc);
-      fel.innerHTML = 'If you cut back when markets go badly: <b>' + fx.rate + '% last</b>'
-        + (gain > 0 ? ' (up from ' + r.mc + '%)' : '')
-        + '. Typical cost: ' + fx.cut + '% less discretionary spending'
+      const cost = fx.cut + '% less discretionary spending'
         + (fx.years ? ' across ' + fx.years + ' years' : '')
-        + (fx.cutBad > fx.cut ? '; ' + fx.cutBad + '% in a bad market' : '') + '.';
+        + (fx.cutBad > fx.cut ? ', ' + fx.cutBad + '% in a bad market' : '');
+      if (r.flexOn) {
+        fel.innerHTML = 'This already assumes you cut back — typically <b class="n">' + cost + '</b>.'
+          + (r.fixedMC == null ? '' : ' Holding spending steady instead: ' + r.fixedMC + '% last.');
+      } else {
+        const gain = r.fixedMC == null ? 0 : fx.rate - r.fixedMC;
+        fel.innerHTML = 'If you cut back when markets go badly: <b>' + fx.rate + '% last</b>'
+          + (gain > 0 ? ' (up from ' + r.fixedMC + '%)' : '')
+          + '. Typical cost: ' + cost + '.';
+      }
     }
   }
 
@@ -1537,15 +1592,13 @@
     // When one-time costs make up a real share of the year, say so — otherwise a 13%
     // draw looks like a spending problem when it is a car and an obra.
     const oncePart = y.once > 0 && y.pctOnce != null && y.pctOnce >= 0.5
-      ? ' Of that, ' + pct(y.pctOnce) + ' is one-time costs (' + fmtL(y.once) + ') — the'
-        + ' ongoing rate is ' + pct(y.pctLiq - y.pctOnce) + '.'
+      ? ' Of that ' + pct(y.pctOnce) + ' is one-time (' + fmtL(y.once) + '); ongoing '
+        + pct(y.pctLiq - y.pctOnce) + '.'
       : '';
     $('wrNote').textContent = adding
       ? 'Income covers your spending this year, so nothing is being withdrawn.'
       : fmtL(y.ann) + '/yr against ' + fmtL(y.openLiq) + ' liquid at the start of the year.'
-        + oncePart
-        + ' The 4% rule of thumb is about the left-hand figure, and only in the first year —'
-        + ' after that it measures your spending against a portfolio that has moved.';
+        + oncePart;
   }
 
   // ── ledger: where the money actually goes ─────────────────────────────────
@@ -1996,12 +2049,16 @@
     $('ea').value = saved.endAge ?? 87;
     $('med').checked = saved.useMedianReturn !== false;
     $('cost').checked = !!(saved.sellCostRate || saved.propertyTaxRate);
+    $('flex').checked = !!saved.flexOn;
     crash = { y: saved.crashYears || 0, p: saved.crashPct ?? 0,
               from: saved.crashStartAge ?? (saved.startAge || 57) };
     $('crashAge').value = crash.from;
     edits = blank();
     $('advCard').querySelectorAll('[data-s]').forEach(inp => {
-      const v = saved[inp.dataset.s] ?? 0;
+      // ?? 0 is right for a rate you may legitimately have set to zero, but wrong for the
+      // guardrail dials: unset means "the engine's default", and showing 0 would claim
+      // there is no spending floor at all.
+      const v = saved[inp.dataset.s] ?? (GUARD_DEF[inp.dataset.s] ?? 0);
       inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
     });
     renderScenPick();
@@ -2063,7 +2120,7 @@
     render(false);
     if (id === 'ea') renderLists();   // horizon changes which sales can still happen
   }));
-  ['med','cost'].forEach(id => $(id).addEventListener('change', () => { touched.add(id); render(true); }));
+  ['med','cost','flex'].forEach(id => $(id).addEventListener('change', () => { touched.add(id); render(true); }));
   $('crash').addEventListener('click', e => {
     const b = e.target.closest('button[data-y]');
     if (!b) return;

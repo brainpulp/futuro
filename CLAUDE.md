@@ -128,7 +128,18 @@ reports them side by side (`#mcFlex`), because fixed spending is the pessimistic
 - Full detail in **MAP.md §2**, including the two references that ratchet to zero and why
   the plan's own per-age withdrawal rate is the one that has an equilibrium.
 - Defaults: `flexFloorPct` 70 (floor = 70% of base living cost), `guardBand` 20,
-  `guardStep` 10. Scenario-level and editable in data; no UI controls yet.
+  `guardStep` 10. `S.flexOn` (default false) is the switch; `opts.flex` still overrides it
+  per run, which is what lets both readings be computed over one seed.
+- UI: phone `#flex` in the chart card, dials in "Everything else"; desktop `#flexOn` plus
+  `#flexFloorPct`/`#guardBand`/`#guardStep` in settings.
+- ⚠ **`_planWR` strips `crashYears` while building the reference**, restoring it in a
+  `finally`. A stress test is a "what if", not an expectation — left in the reference the
+  plan *expects* the crash, is never behind schedule, and turning adaptation on during a
+  −35% stress test changed nothing at all.
+- ⚠ **The toggle cannot move an unstressed deterministic curve.** With no crash set the
+  drawn line IS the plan, so it never falls behind itself; only sampled markets and crash
+  years diverge from the assumption. It therefore changes every MC-derived figure and
+  leaves the solid curve alone. The phone's switch label says so, or it reads as broken.
 - ⚠ **Both MC runs must share a `seed`.** Different markets + a ±3pp sampling error at 150
   paths reported adapting as WORSE than not adapting, which is impossible.
 - ⚠ Report `flexAvgMult`, not `flexMinMult` — the deepest cut saturates at 100%.
@@ -243,6 +254,11 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
 - A condensed result bar (`#stick`) mirrors the verdict + net worth + MC while scrolling.
   It is `position:fixed` (not sticky) so it never occupies layout space, revealed by an
   IntersectionObserver on `#head`, and `aria-hidden` since it duplicates that card.
+- ⚠ **`#wrNote` and `#mcFlex` reserve their height** (`min-height` for 3 and 4 lines). Both
+  sit ABOVE the controls and both re-wrap with the numbers, so an unreserved line growing
+  mid-drag shoves every slider under the moving finger — the same class of bug as the
+  `renderMC` blanking. The 4% explainer was split out of `#wrNote` into a static `.wrwhat`
+  paragraph for the same reason `#mcWhat` is separate from `#mcNote`.
 - ⚠ Text-input handlers must NOT call `renderLists()`: replacing the node that is mid-blur
   throws "node to be removed is no longer a child". Update the field in place, then
   `render(true)`. Only button clicks may re-render the list.

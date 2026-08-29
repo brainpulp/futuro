@@ -1473,6 +1473,34 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
             <span style="color:#aaa;">A flat average return overstates the typical result, because volatility drags compounding below the mean. Roughly half of all outcomes land under the un-corrected line.</span></span>
           </label>
         </div>
+        <div style="margin-top:8px;">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11px;color:#697386;cursor:pointer;">
+            <input type="checkbox" id="flexOn" style="margin:2px 0 0;cursor:pointer;flex-shrink:0;"
+              onchange="S.flexOn=this.checked;_flexCaption();go()">
+            <span>Assume spending <b>adapts</b> to the market &nbsp;<span id="flex-v" class="mono" style="color:#aaa;"></span><br>
+            <span style="color:#aaa;">Cuts discretionary spending when the withdrawal rate drifts above the plan's own, and restores it when it drifts below. It changes every Montecarlo figure; it cannot change the deterministic line, which <em>is</em> the plan and so never falls behind itself.</span></span>
+          </label>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <label class="lbl">Spending floor <span style="font-weight:400;color:#aaa;">(% of base)</span></label>
+              <input type="number" id="flexFloorPct" min="0" max="100" step="5" class="ifield" style="width:100%!important;"
+                title="The share of base living cost you will not go below. Only what is above it, plus trips and project costs, can be cut."
+                onchange="S.flexFloorPct=+this.value||0;_flexCaption();go()">
+            </div>
+            <div>
+              <label class="lbl">Act when off by <span style="font-weight:400;color:#aaa;">(%)</span></label>
+              <input type="number" id="guardBand" min="5" max="60" step="5" class="ifield" style="width:100%!important;"
+                title="How far this year's withdrawal rate must drift from the plan's before spending moves at all."
+                onchange="S.guardBand=+this.value||0;_flexCaption();go()">
+            </div>
+            <div>
+              <label class="lbl">Step <span style="font-weight:400;color:#aaa;">(%/yr)</span></label>
+              <input type="number" id="guardStep" min="1" max="50" step="5" class="ifield" style="width:100%!important;"
+                title="How much discretionary spending is cut, or restored, in a year that trips the band."
+                onchange="S.guardStep=+this.value||0;_flexCaption();go()">
+            </div>
+          </div>
+        </div>
         <div style="margin-top:10px;">
           <label class="lbl">Your profile <span style="font-weight:400;color:#aaa;">(used by AI advisor for context)</span></label>
           <textarea id="user-profile" class="desc" rows="3" placeholder="Describe yourself: age, family situation, goals, risk tolerance, lifestyle, income sources, health, anything relevant for retirement planning…" oninput="saveProfile()"></textarea>
@@ -2273,6 +2301,9 @@ function ensureFields() {
   if (S.flexFloorPct    == null) S.flexFloorPct    = 70;  // % of base living cost you will not cut below
   if (S.guardBand       == null) S.guardBand       = 20;  // % drift in the withdrawal rate before acting
   if (S.guardStep       == null) S.guardStep       = 10;  // % of discretionary cut or restored per step
+  // OFF by default: turning it on makes every number in the app more optimistic at once,
+  // and that has to be the owner's decision, never a default that arrived in an update.
+  if (S.flexOn          == null) S.flexOn          = false;
   if (S.borrowRate      == null) S.borrowRate      = 10;
   if (S.useMedianReturn == null) S.useMedianReturn = true;
   if (S.crashYears      == null) S.crashYears      = 0;
@@ -2898,7 +2929,11 @@ function _dealCashflow(deal, year, mo, da) {
 // cut below the floor. Off by default so every existing number keeps its meaning — the
 // fixed-spending run is still the pessimistic bound, and both are reported side by side.
 function runSim(monthlyOverride, yieldRateOverride, opts) {
-  const _flexOn   = !!(opts && opts.flex);
+  // The toggle lives on the SCENARIO, so every caller inherits it and the desktop and the
+  // phone can never show different projections for the same plan. An explicit opts.flex
+  // still wins, which is what lets the two Monte Carlos be compared fixed vs adaptive
+  // whatever the scenario says.
+  const _flexOn   = (opts && 'flex' in opts) ? !!opts.flex : !!S.flexOn;
   const _floorPct = Math.max(0, Math.min(100, S.flexFloorPct == null ? 70 : S.flexFloorPct)) / 100;
   const _band     = Math.max(0, S.guardBand == null ? 20 : S.guardBand) / 100;
   const _step     = Math.max(1, S.guardStep == null ? 10 : S.guardStep) / 100;
@@ -2916,7 +2951,12 @@ function runSim(monthlyOverride, yieldRateOverride, opts) {
   // Against the plan's own rate AT THAT AGE, both problems go: the reference rises as the
   // plan intends, and cutting immediately lowers your own rate, which relieves the
   // pressure. That feedback is what gives the rule an equilibrium.
-  const _baseWR = (opts && opts.baseWR) || null;
+  let _baseWR = (opts && opts.baseWR) || null;
+  // A bare runSim() with the toggle on has no baseline to measure against, so build one.
+  // No recursion: _planWR passes flex:false, and a run with the guardrails off never
+  // reaches this line. runMonteCarlo still builds it once and passes it down, so the 150
+  // sampled runs do not each pay for it.
+  if (_flexOn && !_baseWR) _baseWR = _planWR();
   let _pyOpen = null, _pyBurn = null;   // previous year's opening cash and net draw
   const sa = S.startAge || 57, ea = S.endAge || 87;
 
@@ -3906,7 +3946,21 @@ function _mcParams() {
 // opened with. Same quantity the withdrawal card reports, so the guardrail is measured on
 // the number the user can actually see.
 function _planWR() {
-  const out = runSim();
+  // ⚠ Explicitly flex:false. With the toggle on the scenario, a bare runSim() here would
+  // inherit it and the guardrail would be measuring the plan against a plan that is
+  // already cutting — a reference that moves with the thing it references.
+  //
+  // ⚠ And explicitly WITHOUT the crash stress test. crashYears is a "what if this
+  // happens", not part of what you expect — the control says so in as many words. Leaving
+  // it in the reference makes the plan *expect* the crash, so a run through that same
+  // crash is never behind schedule and the guardrails never fire: switching adaptation on
+  // while stress-testing a −35% start changed nothing at all, which is precisely the
+  // situation the feature exists for. Stripped here, the crash years become what they
+  // are — a shortfall against expectations — and spending reacts to them.
+  const _cy = S.crashYears;
+  let out;
+  try { S.crashYears = 0; out = runSim(undefined, undefined, { flex: false }); }
+  finally { S.crashYears = _cy; }
   const wr = {};
   for (let i = 1; i < out.length; i++) {
     const open = out[i - 1].liq;
@@ -3952,10 +4006,10 @@ function runMonteCarlo(n, opts) {
   // Built BEFORE the loop, while S.yieldCurve is still the plan's own assumption. Once
   // sampling starts the curve is overwritten every run, so a baseline taken from inside
   // would be "where a random market said I would be" -- comparing nothing to nothing.
-  let _opts = opts;
-  if (opts && opts.flex && !opts.baseWR) {
-    _opts = Object.assign({}, opts, { baseWR: _planWR() });
-  }
+  // Same inheritance as runSim: no explicit flex means follow the scenario.
+  const _wantFlex = (opts && 'flex' in opts) ? !!opts.flex : !!S.flexOn;
+  let _opts = Object.assign({}, opts, { flex: _wantFlex });
+  if (_wantFlex && !_opts.baseWR) _opts.baseWR = _planWR();
 
   try {
     for (let r = 0; r < n; r++) {
@@ -7368,6 +7422,17 @@ function startInflEdit() {
   inp.addEventListener('blur', () => setTimeout(commit, 100));
 }
 
+// ⚠ syncInputs() runs on load, not from go(), so a caption that only lived there would
+// go stale the moment you flicked the switch that it describes. The four adaptation
+// controls call this directly.
+function _flexCaption() {
+  const flexV = document.getElementById('flex-v');
+  if (!flexV) return;
+  flexV.textContent = S.flexOn
+    ? `floor ${S.flexFloorPct ?? 70}% · acts past ${S.guardBand ?? 20}% drift · ${S.guardStep ?? 10}%/yr steps`
+    : 'off — spending held steady in every market';
+}
+
 function syncInputs() {
   document.getElementById('startAge').value   = S.startAge;
   document.getElementById('endAge').value     = S.endAge;
@@ -7386,8 +7451,11 @@ function syncInputs() {
   if (inflBadge && inflBadge.tagName === 'SPAN') inflBadge.textContent = S.inflationRate + '%';
   const appEl = document.getElementById('app'); if (appEl) appEl.value = S.assetAppreciation;
   const appVEl = document.getElementById('app-v'); if (appVEl) appVEl.textContent = S.assetAppreciation + '%';
-  [['sellCostRate','sellCostRate'],['propertyTaxRate','propertyTaxRate'],['mcVol','mcVol'],['borrowRate','borrowRate']]
+  [['sellCostRate','sellCostRate'],['propertyTaxRate','propertyTaxRate'],['mcVol','mcVol'],['borrowRate','borrowRate'],
+   ['flexFloorPct','flexFloorPct'],['guardBand','guardBand'],['guardStep','guardStep']]
     .forEach(([id, k]) => { const el = document.getElementById(id); if (el) el.value = S[k] ?? 0; });
+  const flexEl = document.getElementById('flexOn'); if (flexEl) flexEl.checked = !!S.flexOn;
+  _flexCaption();
   const medEl = document.getElementById('useMedianReturn'); if (medEl) medEl.checked = S.useMedianReturn !== false;
   const medV = document.getElementById('median-v');
   if (medV) {

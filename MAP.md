@@ -37,7 +37,7 @@ downstream may re-derive a number an upstream layer already owns.
 | What anything *will* cost | the scenario (`S`) | Gastos never projects |
 | How a row is categorized | the owner, by hand, in Gastos | ⚠ no code may classify a row from its text |
 | The projection itself | `runSim()` in index.html | mobile.html drives the same engine in a hidden iframe; it never re-implements it |
-| Whether spending adapts to the market | `runSim` opts, never the scenario | the plan stores the *rule* (`flexFloorPct`/`guardBand`/`guardStep`); whether a given run applies it is the caller's choice, so the fixed-spending number stays available as the pessimistic bound |
+| Whether spending adapts to the market | `S.flexOn`, overridable per run by `opts.flex` | the scenario holds the answer and the rule (`flexFloorPct`/`guardBand`/`guardStep`); an explicit `opts.flex` still wins, which is what keeps both readings computable side by side over one seed |
 | The expected market return | the scenario (`S.yieldRate`) | `market-outlook` **proposes** and records provenance in `S.yieldSource`; it never writes on its own. IBKR auto-applies because a balance is a fact — a forward return is an opinion |
 
 **The engine-only trap.** `mobile.html` loads `index.html?engineonly=1`, which skips
@@ -67,14 +67,14 @@ on the balance *after* asset transactions and *before* income and expenses land.
 | 10 | Incomes | `inc` |
 | 11 | Deal cashflows — `inc += credit − _preYieldExits[d.id]` | `inc`, `exp` |
 | 12 | Property tax on carrying value | `exp` |
-| 13 | **Guardrail cut** (only when `opts.flex`): subtract `cuttable × (1 − flexMult)` | `exp` ↓ |
+| 13 | **Guardrail cut** (only when adapting): subtract `cuttable × (1 − flexMult)` | `exp` ↓ |
 | 14 | `liq += inc − exp`; track the minimum; push the monthly record | `liq` |
 
 **Step 13 is off unless asked for.** `runSim()` spends the plan regardless of the market,
 which measures a refusal to adapt rather than a risk of ruin — nobody keeps drawing the
-same amount after a 40% crash. `runSim(_, _, {flex:true})` turns on guardrails: once a
-year, compare the withdrawal rate just achieved against **the rate the plan itself draws
-at that age**, and cut or restore discretionary spending by a step.
+same amount after a 40% crash. `S.flexOn`, or `runSim(_, _, {flex:true})`, turns on
+guardrails: once a year, compare the withdrawal rate just achieved against **the rate the
+plan itself draws at that age**, and cut or restore discretionary spending by a step.
 
 ⚠ Two other references were tried and both ratchet the cuts to zero and never lift them.
 Against the *opening* rate: a drawdown plan's rate rises every year by design, so it cuts
@@ -82,6 +82,19 @@ forever even in a healthy market. Against the plan's *wealth path*: cutting your
 does not move you closer to a baseline that never had the crash, so there is no feedback.
 Against the plan's own rate at that age, cutting immediately lowers your own rate — that
 feedback is what gives the rule an equilibrium.
+
+⚠ **The reference is built WITHOUT the crash stress test** (`_planWR` zeroes `crashYears`
+and restores it). `crashYears` is a specified "what if", not what the plan expects; left
+in the reference the plan *expects* the crash, is therefore never behind schedule, and
+switching adaptation on while stress-testing a −35% start changes nothing at all — the
+one case the feature exists for.
+
+⚠ **The toggle cannot move an unstressed deterministic line, and that is not a bug.** With
+no crash set, the drawn projection *is* the plan, so it never falls behind itself. What
+adaptation reacts to is a market that differs from the assumption: the 150 sampled ones,
+and the crash years. So the toggle changes the success rate, the haze and the worst-tenth
+line, and leaves the solid curve alone unless a stress test is set. The phone's switch
+says so in its own label, because otherwise it reads as broken.
 
 **Not cuttable, ever:** the floor (`flexFloorPct` of base living cost), installments and
 deal capital (contractual), and property tax (a bill). Cuttable: base living above the
