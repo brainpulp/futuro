@@ -37,6 +37,7 @@ downstream may re-derive a number an upstream layer already owns.
 | What anything *will* cost | the scenario (`S`) | Gastos never projects |
 | How a row is categorized | the owner, by hand, in Gastos | ⚠ no code may classify a row from its text |
 | The projection itself | `runSim()` in index.html | mobile.html drives the same engine in a hidden iframe; it never re-implements it |
+| The withdrawal rate | `wrAgg(records)`, once | the card and every ledger row feed it their own months. Two derivations of one percentage is how a headline and a ledger come to disagree — `wr.js` asserts they match |
 | Whether spending adapts to the market | `S.flexOn`, overridable per run by `opts.flex` | the scenario holds the answer and the rule (`flexFloorPct`/`guardBand`/`guardStep`); an explicit `opts.flex` still wins, which is what keeps both readings computable side by side over one seed |
 | The expected market return | the scenario (`S.yieldRate`) | `market-outlook` **proposes** and records provenance in `S.yieldSource`; it never writes on its own. IBKR auto-applies because a balance is a fact — a forward return is an opinion |
 
@@ -180,10 +181,44 @@ Every entry here is a live guard. Removing one reintroduces a bug that has alrea
 The nominal ones are contractual amounts fixed at a date. Expenses and incomes must be
 treated identically; asymmetry there is a bug, not a modelling choice.
 
+`f = (1 + inflationRate)^(_partFrac + (age − startAge − 1) + mo/12)`, recomputed every
+month. It is anchored to `_partFrac` so the partial first year and the main loop share one
+continuous timeline and nothing resets at the year boundary. At 3% a $5,000/mo plan spends
+$6,786/mo at age 67 and $9,120/mo at 77; a recurring income of $1,000 becomes $1,357 and
+$1,824 over the same span. At 0% every figure stays flat. So the answer to "does spending
+keep up with the loss of value" is yes, by construction, for everything except the
+contractual items above.
+
+⚠ **A baked `expenseCurve` REPLACES `getMonthly(age) × f`; it does not multiply it.** The
+curve already carries inflation, which is why moving the inflation slider calls
+`rebakeExpenseCurve()` against `S.expenseAnchor`. A scenario with a curve therefore does
+not respond to the inflation rate the way a flat `monthlyExpenses` does — it is re-baked
+instead. Multiplying a curve by `f` would apply inflation twice.
+
+⚠ **Every figure on screen is NOMINAL.** "$13.3M at 87" is money of that year, not today's.
+`buildChartData` computes a `real` series but no chart consumes it, so there is no
+inflation-adjusted view anywhere in either app. The market return is nominal too, so the
+two are consistent — 7% return against 3% inflation is ~4% real — but nothing on screen
+says so.
+
 **Whole-plan vs windowed.** The three head tiles measure the entire plan. The chart can be
 clipped to 5/10/20 years. A trough at 95 under a 57–77 view is not a contradiction, and
 the UI must say so — tiles print their age, the chart prints its span. Reported as a bug
 three times before it was labelled.
+
+**The withdrawal rate is ONE year, not a lifetime average.** The card reads the first plan
+year only (`recs.filter(m => m.year === recs[0].year)`) — the current one. Numerator is
+`spending − income` for that year; sale proceeds are *not* income, since selling a house
+converts illiquid to liquid rather than drawing on savings. Denominators are the balances
+at the **start** of the year, taken from the preceding month. Other years are not averaged
+in and are not hidden either: every ledger row carries its own rate at year, quarter or
+single-entry grain, through the same `wrAgg`.
+
+⚠ **"Of everything" is not comparable to the 4% rule.** That rule is about a liquid
+portfolio; putting property in the denominator makes the rate look lower than what you can
+actually spend. It answers "how much of this depends on selling something", nothing more.
+And the 4% figure applies to the first year only — after that it measures spending against
+a portfolio that has moved.
 
 **Annualising vs one-time.** The withdrawal rate annualises so a month and a year are
 comparable — but scaling a LUMP is a category error. The plan's first year is partial (the
