@@ -31,6 +31,7 @@ downstream may re-derive a number an upstream layer already owns.
 
 | Number | Sole owner | Everyone else |
 |---|---|---|
+| How old you are | `S.birthYear` / `S.birthMonth`, and today's date | `S.startAge` and `S.startYear` are DERIVED in `ensureFields()` and must never be typed — the plan always starts now |
 | Current liquid | IBKR (`get-ibkr-liquid`) → `S.liquidBase` | reads; the scenario's saved value is only a fallback |
 | What a project has cost so far | `project_actuals_agg()` | never re-counted from expense items |
 | What living costs *were* in a past month | `monthly_actuals_agg()` | replaces the model for that month, does not add to it |
@@ -200,6 +201,21 @@ instead. Multiplying a curve by `f` would apply inflation twice.
 inflation-adjusted view anywhere in either app. The market return is nominal too, so the
 two are consistent — 7% return against 3% inflation is ~4% real — but nothing on screen
 says so.
+
+**Your age is a fact, not a setting.** `ensureFields()` computes
+`startAge = thisYear − birthYear − (birthday not yet reached ? 1 : 0)` and
+`startYear = thisYear`, every load. A stored age goes stale on your birthday and every
+age-anchored item then sits a year out; a stored `startYear` is worse, because the
+partial-year loop runs the CURRENT month through December but stamps those months with
+`S.startYear` — a scenario carrying 2026 and opened in 2027 models this year under last
+year's label and shifts the whole projection back a year. Both apps derive: index.html in
+`ensureFields()`, mobile.html in `datedNow()` on every scenario it adopts, because the
+phone reads `saved.startAge` directly for asset ages, one-off dates and the crash clamp.
+An existing plan needs no migration — `birthYear` backfills from its own
+`startYear − startAge`, which is exact for a January birthday.
+
+⚠ Test fixtures must pin the **birth date**, not the age. Setting `startAge` in a fixture
+is silently overwritten and reads as doing something it does not.
 
 **Whole-plan vs windowed.** The three head tiles measure the entire plan. The chart can be
 clipped to 5/10/20 years. A trough at 95 under a 57–77 view is not a contradiction, and

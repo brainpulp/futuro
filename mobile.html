@@ -150,6 +150,7 @@
   .add input:focus{outline:2px solid var(--liq);outline-offset:-1px}
   .add .wide{grid-column:1 / -1}
   .add label{display:block;min-width:0}
+  .bage{text-transform:none;letter-spacing:0;color:var(--dim);font-weight:400}
   .fl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;
     color:var(--dim);font-weight:600;margin-bottom:3px}
   .stp{display:flex;align-items:center;gap:0;flex-shrink:0}
@@ -434,8 +435,10 @@
         <button type="button" id="ibkr" class="p" style="flex:none;padding:9px 12px">↓ IBKR</button>
         <span class="hint" id="ibkrMsg" style="margin:0;flex:1;min-width:0"></span>
       </label>
-      <label><span class="fl">Your age now</span>
-        <input type="number" data-s="startAge" min="30" max="90"></label>
+      <label><span class="fl">Born, month</span>
+        <select data-s="birthMonth" id="bMonth"></select></label>
+      <label><span class="fl">Born, year <span id="bAge" class="bage"></span></span>
+        <input type="number" data-s="birthYear" id="bYear" min="1900" max="2020" step="1"></label>
       <label><span class="fl">Property growth %/yr</span>
         <input type="number" data-s="assetAppreciation" step="0.25" min="-10" max="20"></label>
       <label><span class="fl">Selling costs %</span>
@@ -750,12 +753,33 @@
     } catch (e) { console.warn('localStorage read failed', e); return null; }
   }
 
+  // ── your age is derived, never typed ────────────────────────────────────────
+  // The engine's ensureFields() does this inside the frame, so the simulation is already
+  // right. But the phone reads saved.startAge directly in a dozen places — asset ages,
+  // one-off dates, the crash-start clamp — and a scenario saved before your last birthday
+  // carries a stale one. Normalising on adoption keeps every one of those reads correct
+  // without threading a helper through all of them.
+  function ageFrom(sc, now) {
+    const d = now || new Date();
+    const by = sc.birthYear || ((sc.startYear || d.getFullYear()) - (sc.startAge || 57));
+    const bm = sc.birthMonth || 1;
+    return d.getFullYear() - by - ((d.getMonth() + 1) < bm ? 1 : 0);
+  }
+  function datedNow(sc) {
+    if (!sc) return sc;
+    if (!sc.birthYear)  sc.birthYear  = (sc.startYear || new Date().getFullYear()) - (sc.startAge || 57);
+    if (!sc.birthMonth) sc.birthMonth = 1;
+    sc.startYear = new Date().getFullYear();
+    sc.startAge  = ageFrom(sc);
+    return sc;
+  }
+
   function adopt(p, why) {
     payload = p;
     const list = payload.scenarios || [];
     const act = list.find(s => s.id === payload.activeId) || list[list.length - 1];
     activeId = act ? act.id : null;
-    saved = act ? (act.data || act) : JSON.parse(win.eval('JSON.stringify(EMPTY)'));
+    saved = datedNow(act ? (act.data || act) : JSON.parse(win.eval('JSON.stringify(EMPTY)')));
     source = why + (act && act.name ? ' — ' + act.name : '');
   }
 
@@ -763,14 +787,14 @@
     // A shared link or an inlined build is someone else's snapshot. Show it, but never
     // let it autosave over the scenarios this device already owns.
     if (window.__EMBEDDED_SCENARIO) {
-      saved = window.__EMBEDDED_SCENARIO;
+      saved = datedNow(window.__EMBEDDED_SCENARIO);
       source = window.__EMBEDDED_NAME || 'embedded scenario';
       readOnly = true; return;
     }
     const h = location.hash.match(/[#&]s=([^&]+)/);
     if (h) {
       try {
-        saved = await unpack(decodeURIComponent(h[1]));
+        saved = datedNow(await unpack(decodeURIComponent(h[1])));
         source = 'shared link'; readOnly = true; return;
       } catch (e) { console.warn('hash decode failed', e); }
     }
@@ -794,7 +818,7 @@
       // "Base" into futuro_state, and because scenarios merge by NAME that demo can then
       // outrank the real "Base" on the desktop. This happens easily: an iOS home-screen
       // app gets a fresh storage partition, so the phone legitimately starts with nothing.
-      saved = JSON.parse(win.eval('JSON.stringify(EMPTY)'));
+      saved = datedNow(JSON.parse(win.eval('JSON.stringify(EMPTY)')));
       source = 'built-in example — not saved';
       readOnly = true;
     }
@@ -806,6 +830,12 @@
   // Mirrors ensureFields() in the engine. Only used to DISPLAY an unset dial; the engine
   // still owns the fallback, so a value never written here can never drift from it.
   const GUARD_DEF = { flexFloorPct: 70, guardBand: 20, guardStep: 10 };
+
+  // The derived age, shown beside the year you were born so the arithmetic is visible.
+  function renderAge() {
+    const el = $('bAge');
+    if (el) el.textContent = saved ? '— you are ' + ageFrom(saved) : '';
+  }
 
   function markDirty() {
     if (!booted || readOnly) return;
@@ -843,7 +873,9 @@
       if ($('cost').checked) { s.sellCostRate = 8; s.propertyTaxRate = 0.5; }
       else { s.sellCostRate = 0; s.propertyTaxRate = 0; }
     }
-    return applyEdits(s);
+    // Derived last, so what is SAVED and what is SIMULATED carry the same pair — even
+    // though the engine re-derives them on load anyway.
+    return datedNow(applyEdits(s));
   }
 
   async function persist() {
@@ -2054,13 +2086,19 @@
               from: saved.crashStartAge ?? (saved.startAge || 57) };
     $('crashAge').value = crash.from;
     edits = blank();
+    const bm = $('bMonth');
+    if (!bm.options.length) ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+      .forEach((n, i) => bm.add(new Option(n, String(i + 1))));
     $('advCard').querySelectorAll('[data-s]').forEach(inp => {
       // ?? 0 is right for a rate you may legitimately have set to zero, but wrong for the
       // guardrail dials: unset means "the engine's default", and showing 0 would claim
       // there is no spending floor at all.
       const v = saved[inp.dataset.s] ?? (GUARD_DEF[inp.dataset.s] ?? 0);
-      inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
+      inp.value = inp.tagName === 'SELECT' ? String(v)
+                : inp.type === 'number'    ? v
+                : Math.round(v).toLocaleString();
     });
+    renderAge();
     renderScenPick();
     renderLists();
     render(true);
@@ -2072,7 +2110,7 @@
     const sc = list.find(s => String(s.id) === $('scenpick').value);
     if (!sc) return;
     activeId = sc.id;
-    saved = sc.data || sc;
+    saved = datedNow(sc.data || sc);
     touched.clear();
     edits = blank();
     source = 'this device — ' + (sc.name || 'Scenario');
@@ -2100,10 +2138,23 @@
     inp.onchange = () => {
       const k = inp.dataset.s;
       let v = +String(inp.value).replace(/[^0-9.-]/g, '') || 0;
-      if (k === 'startAge') v = Math.max(30, Math.min(v, (+$('ea').value) - 1));
+      // ⚠ Clamp the BIRTH DATE, not the age. An out-of-range year would derive an age
+      // past the plan's end and every age-anchored item would fall outside the run.
+      if (k === 'birthYear')  v = Math.max(1900, Math.min(v, new Date().getFullYear() - 18));
+      if (k === 'birthMonth') v = Math.max(1, Math.min(v, 12));
       edits.scen[k] = v;
       inp.value = inp.type === 'number' ? v : Math.round(v).toLocaleString();
-      if (k === 'startAge') renderLists();   // asset ages are relative to it
+      // Asset ages, one-off dates and the crash-start clamp are all relative to your age,
+      // so a birth-date edit has to re-derive it before anything is re-read.
+      if (k === 'birthYear' || k === 'birthMonth') {
+        // ⚠ Write it to `saved` too, not only to `edits`. The birth date is a fact, and
+        // datedNow re-derives your age from `saved` — reading it there before the edit
+        // landed would derive the age you were before you corrected it.
+        saved[k] = v;
+        datedNow(saved);
+        renderAge();
+        renderLists();
+      }
       render(true);
     };
   });
@@ -2131,7 +2182,7 @@
   // Reset discards this session's edits and saves that reverted state, so the phone
   // and the web app do not end up disagreeing about what "reset" meant.
   $('crashAge').addEventListener('change', () => {
-    const sa = +($('advCard').querySelector('[data-s="startAge"]') || {}).value || 57;
+    const sa = (cur && cur.startAge) || saved.startAge || 57;
     crash.from = Math.max(sa, Math.min(+$('crashAge').value || sa, +$('ea').value));
     $('crashAge').value = crash.from;
     touched.add('crash');

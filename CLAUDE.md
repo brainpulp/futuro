@@ -313,6 +313,25 @@ Before declaring a UI change done, scan for obvious gaps:
 4. Never report work as done while it is still only on a branch. Say "merged and live",
    or say plainly that it is not.
 
+## Your age is derived, never typed
+`S.birthYear` / `S.birthMonth` own it. `ensureFields()` sets `S.startAge` and
+`S.startYear` from them plus today's date, every load — this app is always about the
+future, so neither may be entered by hand.
+- `ageNow()` (index.html) / `ageFrom()` + `datedNow()` (mobile.html) are the derivations.
+  mobile needs its own because it reads `saved.startAge` directly for asset ages, one-off
+  dates and the crash-start clamp, before the engine ever sees the scenario.
+- UI: desktop `#birthYear` + `#birthMonth` via `setBirth()`, with the derived age beside
+  them; phone `#bYear` + `#bMonth` in "Everything else", with `#bAge`.
+- ⚠ **A stored `startYear` is the more damaging of the two.** The partial-year loop runs
+  the CURRENT month through December but stamps them `S.startYear`, so a scenario saved in
+  2026 and opened in 2027 models this year's months under last year's label — the whole
+  projection shifts back a year. Deriving it fixes a latent bug, not just a stale label.
+- ⚠ **Test fixtures pin the birth date.** `startAge: 57` in a fixture is overwritten by
+  the derivation and reads as doing something it does not. `BASE` uses
+  `birthYear: thisYear - 57`, which also retires the old hardcoded `startYear: 2026`.
+- Migration is automatic: `birthYear` backfills from the scenario's own
+  `startYear − startAge` (exact for a January birthday), so nothing had to be re-entered.
+
 ## Key globals
 ```js
 S                    // active scenario data object

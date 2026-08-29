@@ -1409,8 +1409,14 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
       <div id="settings-panel" style="display:none;padding:10px 0 6px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end;">
           <div>
-            <label class="lbl">Start age</label>
-            <input type="number" id="startAge" min="40" max="80" onchange="S.startAge=+this.value;pruneYieldCurve();go()">
+            <label class="lbl">Born <span style="font-weight:400;color:#aaa;">(age is derived)</span></label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <select id="birthMonth" class="ifield" style="flex:none;width:84px;" onchange="setBirth({month:+this.value})"></select>
+              <input type="number" id="birthYear" min="1900" max="2020" step="1" class="ifield" style="width:64px!important;flex:none;text-align:left!important;padding:0 6px!important;"
+                title="Your age is computed from this and today's date, so the plan always starts now."
+                onchange="setBirth({year:+this.value})">
+              <span id="ageNow-v" class="mono" style="color:#888;font-size:11px;white-space:nowrap;"></span>
+            </div>
           </div>
           <div>
             <label class="lbl">End age</label>
@@ -2319,7 +2325,21 @@ function ensureFields() {
   }
   if (!S.monthlyBreakdown || !Array.isArray(S.monthlyBreakdown) || S.monthlyBreakdown.length === 0) S.monthlyBreakdown = EMPTY.monthlyBreakdown.map(b => ({...b}));
   else { const existingIds = new Set(S.monthlyBreakdown.map(b => b.id)); EMPTY.monthlyBreakdown.forEach(b => { if (!existingIds.has(b.id)) S.monthlyBreakdown.push({...b}); }); }
-  if (!S.startYear) S.startYear = new Date().getFullYear();
+  // ── Your age is a FACT about today, not a setting ─────────────────────────────
+  // The plan always starts NOW, so the pair that anchors the whole age↔year mapping is
+  // derived from a birth date rather than typed in. Two things this fixes:
+  //   · a saved startAge silently goes stale on your birthday — the plan keeps claiming
+  //     you are 57 while you are 58, and every age-anchored item is a year out;
+  //   · a saved startYear is worse. The partial-year loop runs the CURRENT month through
+  //     December but stamps them with S.startYear, so a scenario carrying 2026 opened in
+  //     2027 models this year's months under last year's label and shifts the entire
+  //     projection back a year.
+  // Backfill first, from the scenario's OWN pair, before startYear is touched below —
+  // taking the current year here would give an existing plan the wrong birth year.
+  if (!S.birthYear) S.birthYear = (S.startYear || new Date().getFullYear()) - (S.startAge || 57);
+  if (!S.birthMonth) S.birthMonth = 1;
+  S.startYear = new Date().getFullYear();
+  S.startAge  = ageNow();
   ['expensePhases','marketPhases','incomes','expenses'].forEach(k => { if (!S[k]) S[k] = []; });
   S.properties = (S.properties || []).map(p => {
     const sa0 = S.startAge || 57, ea0 = S.endAge || 87;
@@ -3515,8 +3535,13 @@ window._selfTest = function() {
     return data;
   }
 
+  // ⚠ Pin the BIRTH DATE, not the age. startAge and startYear are derived from it now, so
+  // a fixture that sets them is overwritten and reads as doing something it does not.
+  // Computed from today, so "the person is 57 and the plan starts this year" stays true
+  // next January — which the old hardcoded `startYear: 2026` did not.
+  const _by57 = new Date().getFullYear() - 57;
   const BASE = {
-    startAge: 57, endAge: 62, startYear: 2026,
+    birthYear: _by57, birthMonth: 1, endAge: 62,
     liquidBase: 100000, yieldRate: 0, inflationRate: 0,
     // Raw arithmetic compounding: these fixtures assert on exact engine mechanics, so the
     // mean→median volatility correction is opted out here and tested on its own in T17.
@@ -3572,7 +3597,7 @@ window._selfTest = function() {
     const d = simWith({ ...BASE, properties: [
       { id:97, name:'CalYearProp', value:0, monthlyRent:300, rentFromAge:2028, saleAge:62, hold:false, enabled:true, acquireAge:57 }
     ]});
-    // 2028 → age 59 (startYear=2026, startAge=57 → age = 2028-2026+57=59)
+    // 2028 → age 59 (start year is this year, startAge 57 → age = 2028 - thisYear + 57)
     const age58inc = d.monthly.find(m => m.age===58 && m.mo===6)?.inc || 0;
     const age59inc = d.monthly.find(m => m.age===59 && m.mo===6)?.inc || 0;
     assert('T4a calendar-year rent absent at 58', age58inc === 0, `got ${age58inc}`);
@@ -3702,7 +3727,7 @@ window._selfTest = function() {
     const startedMo = nowM - 3;
     const startAgeOffset = startedMo <= 0 ? -1 : 0;      // rolled into the previous year
     const atMonth = startedMo <= 0 ? startedMo + 12 : startedMo;
-    const d13 = simWith({ ...BASE, startAge: 57, endAge: 62, startYear: nowY, monthlyExpenses: 0,
+    const d13 = simWith({ ...BASE, endAge: 62, monthlyExpenses: 0,
       expenses: [{ id: 9701, name: 'Plan12', type: 'installments', installN: 12, installFreq: 'monthly',
         budget: 12000, installTotal: 12000, amount: 12000,
         atAge: 57 + startAgeOffset, atMonth, from: 57 + startAgeOffset, enabled: true }]
@@ -3812,7 +3837,7 @@ window._selfTest = function() {
   try {
     const saved19 = deepCopy(S);
     // Curve covers 57-62 at 10%; ages 63-67 fall back to yieldRate 0 → mean should be ~5.
-    Object.assign(S, deepCopy({ ...BASE, startAge: 57, endAge: 67, yieldRate: 0,
+    Object.assign(S, deepCopy({ ...BASE, endAge: 67, yieldRate: 0,
       yieldCurve: { 57:10, 58:10, 59:10, 60:10, 61:10, 62:10 } }));
     ensureFields();
     const p = _mcParams();
@@ -6250,6 +6275,29 @@ const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','No
 function ageMonthToLabel(age, month) {
   return _MONTHS[(month||1)-1] + " '" + String(ageToYear(age)).slice(2);
 }
+// The ONLY writer of the birth date. Age and start year are recomputed from it through
+// ensureFields, so nothing else may set S.startAge — see MAP.md §1.
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function setBirth(patch) {
+  if (patch.year  != null && patch.year  >= 1900 && patch.year  <= 2020) S.birthYear  = patch.year;
+  if (patch.month != null && patch.month >= 1    && patch.month <= 12)   S.birthMonth = patch.month;
+  ensureFields();          // re-derives startAge / startYear from the new date
+  pruneYieldCurve();
+  syncInputs();
+  renderAll();
+  go();
+  markDirty();
+}
+
+// How old you are today, from the birth date. The only place age enters the app.
+// A birthday that has not arrived yet this year has not happened: subtract the year.
+function ageNow(now) {
+  const d = now || new Date();
+  const by = S.birthYear, bm = S.birthMonth || 1;
+  if (!by) return S.startAge || 57;
+  return d.getFullYear() - by - ((d.getMonth() + 1) < bm ? 1 : 0);
+}
+
 function ageToYear(age) { return (S.startYear || new Date().getFullYear()) + (age - S.startAge); }
 function yearToAge(year) { return year - (S.startYear || new Date().getFullYear()) + S.startAge; }
 function dispA(age) { return _yearMode ? ageToYear(age) : age; }
@@ -7434,7 +7482,14 @@ function _flexCaption() {
 }
 
 function syncInputs() {
-  document.getElementById('startAge').value   = S.startAge;
+  const bmEl = document.getElementById('birthMonth');
+  if (bmEl) {
+    if (!bmEl.options.length) MONTH_NAMES.forEach((n, i) => bmEl.add(new Option(n, String(i + 1))));
+    bmEl.value = String(S.birthMonth || 1);
+  }
+  const byEl = document.getElementById('birthYear'); if (byEl) byEl.value = S.birthYear;
+  const anEl = document.getElementById('ageNow-v');
+  if (anEl) anEl.textContent = 'age ' + S.startAge;
   document.getElementById('endAge').value     = S.endAge;
   document.getElementById('liquidBase').value = fmtInput(S.liquidBase);
   const wtEl = document.getElementById('winterTrip'); if (wtEl) wtEl.value = fmtInput(S.winterTrip);
