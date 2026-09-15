@@ -686,6 +686,24 @@ scenario's saved `liquidBase` is only a fallback.
   show for it.
 - `QUERY_ID` defaults to `1510170` but is overridable by the `IBKR_QUERY_ID` secret — a
   wrong query id fails as an IBKR error code, which reads like a bad token.
+- ⚠ **The cash figure carries its own age, always.** `_applyScenarios` writes the cached
+  IBKR value into `S.liquidBase` on EVERY load with no age check, and a sync is only
+  *attempted* when auto is on — so "no attempt" produces no error, no amber button, and a
+  six-month-old balance that renders identically to a fresh one. That is the failure the
+  button's tooltip cannot catch, because it only appears on hover after a sync has run.
+  - `_ibkrFresh()` (index.html) / `ibkrFresh()` (mobile.html) return `{level, days, ts}`.
+    Thresholds: `ok` ≤7d, `warn` >7d, `bad` >30d, `never` when nothing has ever synced.
+    A week barely moves a 30-year projection; a month can, and the plan is anchored to it.
+  - UI: `#ibkr-badge` beside the gastos badge in the desktop top bar, `#ibkrChip` on the
+    build row at the top of the phone. Both always visible — the phone's older line inside
+    "Everything else" stayed, but that card is collapsed by default, so it was the only
+    honest signal about the number the whole projection rests on and nobody opens it.
+  - ⚠ The phone's chip shares a fixed-height row with the build stamp (`.buildrow`,
+    `min-height`, `white-space:nowrap`). It sits above every control, so a state that
+    wrapped would shove the sliders mid-drag. `mfresh.js` asserts the slider's document
+    position is identical across never / today / 7d / 10d / 200d.
+  - Read the timestamp from `localStorage`, never from `S` — the cached value IS what lands
+    in `S.liquidBase`, so only the timestamp knows how old the projection's anchor is.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —
