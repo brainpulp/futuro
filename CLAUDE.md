@@ -695,7 +695,10 @@ scenario's saved `liquidBase` is only a fallback.
     Thresholds: `ok` ≤7d, `warn` >7d, `bad` >30d, `never` when nothing has ever synced.
     A week barely moves a 30-year projection; a month can, and the plan is anchored to it.
   - UI: `#ibkr-badge` beside the gastos badge in the desktop top bar, `#ibkrChip` on the
-    build row at the top of the phone. Both always visible — the phone's older line inside
+    build row at the top of the phone. Both read `ibkr $1.43M · 45d` — **value first**, so
+    the balance can be read without opening IBKR, with the age qualifying it.
+    ⚠ Two decimals (`_ibkrMoney`, matching mobile's `fmt`), NOT `fmtM` — `$1.4M` rounds
+    away $30k of the number the whole projection is anchored to. Both always visible — the phone's older line inside
     "Everything else" stayed, but that card is collapsed by default, so it was the only
     honest signal about the number the whole projection rests on and nobody opens it.
   - ⚠ The phone's chip shares a fixed-height row with the build stamp (`.buildrow`,
