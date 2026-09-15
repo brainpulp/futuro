@@ -84,8 +84,14 @@
   #mcFlex b{color:var(--good)}
   #mcFlex b.n{color:var(--ink)}
   #mcWhat{margin-top:8px}
+  .buildrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    margin:-6px 2px 6px;min-height:12px}
   .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
-    margin:-6px 2px 6px;letter-spacing:.02em}
+    letter-spacing:.02em}
+  .ibkrchip{font-size:9.5px;letter-spacing:.02em;white-space:nowrap;color:var(--dim);
+    opacity:.65}
+  .ibkrchip.warn{color:var(--warn);opacity:1;font-weight:700}
+  .ibkrchip.bad{color:var(--bad);opacity:1;font-weight:700}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .wrwhen{font-size:10px;color:var(--dim);text-align:right}
   .wrgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}
@@ -259,7 +265,16 @@
   <div class="scen mono" id="scen">loading…</div>
   <span class="sync" id="sync" title="Sync status">…</span>
 </header>
-<div class="build mono" id="build" title="When this copy of the app was built. If it is older than a change you expect, you are on a cached copy — reload with ?v=2 on the URL."></div>
+<!-- Build stamp on the right, IBKR freshness on the left. Both are one short line and
+     never wrap, so this row's height is fixed — it sits above every control, and a row
+     that grows here shoves the sliders under a moving finger. -->
+<div class="buildrow">
+  <!-- The cash figure is written into the projection from cache on EVERY load, whether or
+       not a sync was attempted. Without a date beside it a six-month-old balance looks
+       exactly like a fresh one, and the whole curve is anchored to it. -->
+  <span class="ibkrchip mono" id="ibkrChip"></span>
+  <div class="build mono" id="build" title="When this copy of the app was built. If it is older than a change you expect, you are on a cached copy — reload with ?v=2 on the URL."></div>
+</div>
 
 <!-- Only shown when the account actually holds more than one scenario. -->
 <div class="scenbar" id="scenbar" hidden>
@@ -1246,6 +1261,7 @@
         localStorage.setItem(IBKR_TS, new Date().toISOString());
       } catch (e) {}
       msg.textContent = fmt(d.liquid) + ' · just now';
+      renderIbkrAge();
       renderLists();
       render(true);
     } catch (e) {
@@ -1765,19 +1781,44 @@
   });
 
   $('ibkr').addEventListener('click', ibkrPull);
-  // Show when the cached figure was last pulled. A number with no date beside it gives
-  // no hint that it might be months old.
-  (function showIbkrAge() {
+  // Show when the cached figure was last pulled, in TWO places: beside the number inside
+  // "Everything else", and as a chip at the top of the page. The card version alone was
+  // not enough — it is collapsed by default, so the only honest signal about the number
+  // the whole projection rests on was one nobody opens.
+  //
+  // Same thresholds as the desktop badge, and for the same reason: a week barely moves a
+  // 30-year projection, a month can.
+  function ibkrFresh(now) {
     try {
       const v = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
       const ts = localStorage.getItem(IBKR_TS);
-      if (v > 0 && ts) {
-        const days = Math.floor((Date.now() - Date.parse(ts)) / 86400000);
-        $('ibkrMsg').textContent = fmt(v) + ' · ' +
-          (days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+      if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null, v: null };
+      const days = Math.floor(((now == null ? Date.now() : now) - Date.parse(ts)) / 86400000);
+      return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v };
+    } catch (e) { return { level: 'never', days: null, ts: null, v: null }; }
+  }
+
+  function renderIbkrAge() {
+    const f = ibkrFresh(), chip = $('ibkrChip'), msg = $('ibkrMsg');
+    if (chip) {
+      chip.className = 'ibkrchip mono' + (f.level === 'ok' || f.level === 'never' ? '' : ' ' + f.level);
+      if (f.level === 'never') {
+        chip.classList.add('bad');
+        chip.textContent = 'ibkr ✗ never synced';
+        chip.title = 'No IBKR value has ever synced on this device. The cash figure is the '
+                   + 'scenario\'s own saved number, not your live balance.';
+      } else {
+        chip.textContent = 'ibkr ' + (f.days <= 0 ? 'today' : f.days + 'd');
+        chip.title = 'Cash & investments pulled from IBKR on ' + f.ts.slice(0, 10) + '.'
+          + (f.level === 'bad' ? ' Old enough to move the whole projection — the plan is anchored to this number.' : '');
       }
-    } catch (e) {}
-  })();
+    }
+    if (msg && f.v != null) {
+      msg.textContent = fmt(f.v) + ' · ' +
+        (f.days <= 0 ? 'today' : f.days === 1 ? 'yesterday' : f.days + ' days ago');
+    }
+  }
+  renderIbkrAge();
   $('ledgerCard').addEventListener('toggle', () => render(true));
   $('ledGrain').addEventListener('click', e => {
     const b = e.target.closest('button[data-g]');

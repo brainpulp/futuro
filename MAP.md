@@ -277,7 +277,7 @@ Failures that look like correct output. Each one shipped.
 | A total that is quietly two-thirds short | PostgREST caps a select at 1000 rows and says nothing. Page explicitly, or aggregate in SQL |
 | A cheap-looking recent month | statements uploaded only to the 23rd. `complete` / `lastDay` / `days` from `monthly_coverage()` |
 | Sync appears to work, data is stale | `sbLoad()` hangs → 8s deadline, then local data |
-| A stale IBKR figure | auto-sync only `console.warn`s. Click "↓ IBKR" to see the error |
+| A stale IBKR figure | the cached value is written into `S.liquidBase` on EVERY load with no age check, and a sync is only *attempted* when auto is on. No attempt means no error, no amber button — a six-month-old balance renders identically to a fresh one. `#ibkr-badge` / `#ibkrChip` now print its age unconditionally: grey ≤7d, amber >7d, red >30d or never |
 | An empty scenario list on the device | `beforeunload` savers running under `engineonly=1`, where `SCENARIOS` is `[]` |
 | Living costs missing whole categories | `xfer` means "paid by bank transfer", not "internal movement" |
 | A permission that looks revoked | `REVOKE … FROM anon` is a no-op while PUBLIC holds the grant, **and** Supabase grants EXECUTE to anon/authenticated directly. Name all three, then check `has_function_privilege` |

@@ -1146,6 +1146,11 @@ body[data-theme="graphite"] .add-deal-btn:hover { background: #21262d; color: #e
       </div>
     </div>
     <span id="gastos-badge" title="Gastos actuals not loaded" onclick="gastosSync()" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;" title="Click to reload gastos actuals">gastos…</span>
+    <!-- How old the cash figure is. The button's tooltip only says this on hover AND only
+         after a sync was attempted and failed; the dangerous case is the one where no sync
+         is attempted at all (auto off), where a six-month-old number looks identical to a
+         fresh one. This is always on screen. -->
+    <span id="ibkr-badge" onclick="ibkrSync({manual:true})" style="font-size:10px;color:#aaa;cursor:pointer;margin-right:6px;font-family:'SF Mono',Menlo,monospace;"></span>
     <button id="map-btn" onclick="openMap()" title="How every number is computed — layers, the order of one month, what must stay true"
       style="background:none;border:none;cursor:pointer;font-size:10px;color:#aaa;margin-right:6px;padding:2px 4px;font-family:'SF Mono',Menlo,monospace;">map</button>
     <label id="yr-toggle-wrap" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aaa;cursor:pointer;user-select:none;margin-right:4px;" title="Toggle age / year display">
@@ -7509,6 +7514,7 @@ function syncInputs() {
   [['sellCostRate','sellCostRate'],['propertyTaxRate','propertyTaxRate'],['mcVol','mcVol'],['borrowRate','borrowRate'],
    ['flexFloorPct','flexFloorPct'],['guardBand','guardBand'],['guardStep','guardStep']]
     .forEach(([id, k]) => { const el = document.getElementById(id); if (el) el.value = S[k] ?? 0; });
+  renderIbkrBadge();
   const flexEl = document.getElementById('flexOn'); if (flexEl) flexEl.checked = !!S.flexOn;
   _flexCaption();
   const medEl = document.getElementById('useMedianReturn'); if (medEl) medEl.checked = S.useMedianReturn !== false;
@@ -8282,6 +8288,7 @@ async function ibkrSync({ manual = false } = {}) {
     go();
     saveActive(); // flush S into SCENARIOS *before* persisting — not lsSave() which would save stale SCENARIOS
     showTicker('☁', `IBKR · ${fmtM(data.liquid)} liquid`);
+    renderIbkrBadge();
     btn.style.color = '';
     btn.title = 'Net Liquidation Value from IBKR · synced just now';
     if (manual) {
@@ -8298,6 +8305,7 @@ async function ibkrSync({ manual = false } = {}) {
     // carries the reason and the age of what is on screen.
     btn.style.color = '#b45309';
     btn.title = 'IBKR sync failed: ' + why + _ibkrAge();
+    renderIbkrBadge();
     if (manual) alert('IBKR sync failed: ' + why + _ibkrAge());
     else console.warn('IBKR auto-sync skipped:', why);
   }
@@ -8309,6 +8317,43 @@ function _ibkrWhy(data, status) {
   const d = data.detail || {};
   return [data.error || ('Status ' + status), d.ibkr_error_code && ('IBKR code ' + d.ibkr_error_code), d.step && ('at ' + d.step)]
     .filter(Boolean).join(' · ');
+}
+
+// Freshness of the cash figure, as data. ⚠ Read from localStorage, NOT from S: the cached
+// IBKR value is what _applyScenarios writes into S.liquidBase on every load, so the
+// timestamp beside it is the only thing that says how old that number really is.
+//
+// Thresholds are about decisions, not tidiness. A week-old balance barely moves a 30-year
+// projection; a month-old one can move it by a lot, and the whole plan is anchored to it.
+function _ibkrFresh(now) {
+  const ts = localStorage.getItem('futuro-ibkr-liquid-ts');
+  const v  = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+  if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null };
+  const days = Math.floor(((now == null ? Date.now() : now) - Date.parse(ts)) / 86400000);
+  return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts };
+}
+
+function renderIbkrBadge() {
+  const el = document.getElementById('ibkr-badge');
+  if (!el) return;
+  const f = _ibkrFresh();
+  if (f.level === 'never') {
+    el.textContent = 'ibkr ✗';
+    el.style.color = '#dc2626';
+    el.title = 'No IBKR value has ever synced on this device.\n'
+             + 'The cash figure is the scenario\'s own saved number, not your live balance.\n'
+             + 'Click to sync.';
+    return;
+  }
+  const age = f.days <= 0 ? 'today' : f.days + 'd';
+  el.textContent = 'ibkr ' + age;
+  el.style.color = f.level === 'bad' ? '#dc2626' : f.level === 'warn' ? '#b45309' : '#aaa';
+  const when = 'Cash & investments pulled from IBKR on ' + f.ts.slice(0, 10)
+             + (f.days <= 0 ? ' (today)' : ' (' + f.days + ' day' + (f.days === 1 ? '' : 's') + ' ago)') + '.';
+  el.title = when + '\n\n' + (
+      f.level === 'bad'  ? 'That is old enough to move the whole projection — the plan is anchored to this number. Re-sync before trusting the curve.'
+    : f.level === 'warn' ? 'Worth a refresh. Click to sync.'
+    :                      'Click to sync.');
 }
 
 // How old the value currently on screen is, so a failure says what you are still looking at.
