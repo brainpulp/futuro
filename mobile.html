@@ -1808,8 +1808,9 @@
         chip.title = 'No IBKR value has ever synced on this device. The cash figure is the '
                    + 'scenario\'s own saved number, not your live balance.';
       } else {
-        chip.textContent = 'ibkr ' + (f.days <= 0 ? 'today' : f.days + 'd');
-        chip.title = 'Cash & investments pulled from IBKR on ' + f.ts.slice(0, 10) + '.'
+        // Value first: it is the thing worth reading, and the age is what qualifies it.
+        chip.textContent = 'ibkr ' + fmt(f.v) + ' · ' + (f.days <= 0 ? 'today' : f.days + 'd');
+        chip.title = 'Net Liquidation Value ' + fmt(f.v) + ', pulled from IBKR on ' + f.ts.slice(0, 10) + '.'
           + (f.level === 'bad' ? ' Old enough to move the whole projection — the plan is anchored to this number.' : '');
       }
     }

@@ -8328,9 +8328,19 @@ function _ibkrWhy(data, status) {
 function _ibkrFresh(now) {
   const ts = localStorage.getItem('futuro-ibkr-liquid-ts');
   const v  = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
-  if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null };
+  if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null, v: null };
   const days = Math.floor(((now == null ? Date.now() : now) - Date.parse(ts)) / 86400000);
-  return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts };
+  return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v };
+}
+
+// ⚠ Two decimals, not fmtM's one. This chip exists so the balance can be read WITHOUT
+// opening IBKR, and "$1.4M" rounds away $30k of it. Same shape as mobile's fmt(), so the
+// two apps print the same string for the same number.
+function _ibkrMoney(v) {
+  const a = Math.abs(v);
+  return (v < 0 ? '−' : '') + '$' + (a >= 1e6
+    ? (a / 1e6).toFixed(a >= 1e7 ? 1 : 2) + 'M'
+    : Math.round(a / 1000) + 'k');
 }
 
 function renderIbkrBadge() {
@@ -8345,10 +8355,12 @@ function renderIbkrBadge() {
              + 'Click to sync.';
     return;
   }
+  // Value first: it is the thing worth reading, and the age is what qualifies it.
   const age = f.days <= 0 ? 'today' : f.days + 'd';
-  el.textContent = 'ibkr ' + age;
+  el.textContent = 'ibkr ' + _ibkrMoney(f.v) + ' · ' + age;
   el.style.color = f.level === 'bad' ? '#dc2626' : f.level === 'warn' ? '#b45309' : '#aaa';
-  const when = 'Cash & investments pulled from IBKR on ' + f.ts.slice(0, 10)
+  const when = 'Net Liquidation Value ' + _ibkrMoney(f.v)
+             + ', pulled from IBKR on ' + f.ts.slice(0, 10)
              + (f.days <= 0 ? ' (today)' : ' (' + f.days + ' day' + (f.days === 1 ? '' : 's') + ' ago)') + '.';
   el.title = when + '\n\n' + (
       f.level === 'bad'  ? 'That is old enough to move the whole projection — the plan is anchored to this number. Re-sync before trusting the curve.'
