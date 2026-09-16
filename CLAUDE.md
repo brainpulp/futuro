@@ -279,6 +279,27 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   marker on the line. "Net worth at end" reads the last MONTHLY record for the same
   reason — the yearly roll-up differs from the curve's right-hand end.
 
+### mobile.html — pull to refresh
+Dragging down at the top reloads the page. An iOS home-screen app has no browser chrome
+and therefore no native pull-to-refresh, which is exactly why it has to be built.
+- A **reload** is the honest implementation: it re-reads the cloud scenario, re-runs the
+  gastos and project-actuals fetches, and revalidates the page itself — the last of which
+  is what fixes "I am looking at a cached copy from yesterday".
+- ⚠ **Flush a pending save first.** `markDirty()` debounces 700 ms, so reloading on top of
+  an in-flight edit drops it: `clearTimeout(saveTimer); await persist();`.
+- ⚠ **Arms only at `scrollY === 0`, and never on something that owns its own gesture**
+  (`input[type=range]`, `#chart`, buttons, selects, summaries). Sliders are
+  `touch-action:none` precisely so a drag belongs to them, and the chart tracks
+  pointermove for its crosshair — stealing either resurrects the "the page moves while I
+  drag" bug. `ptr.js` asserts a chart drag and a scrolled-down drag both do nothing.
+- `touchmove` is registered **non-passive**: `preventDefault()` is what stops the
+  browser's own rubber-band fighting the indicator. `touchstart`/`touchend` stay passive.
+- ⚠ The indicator is `position:fixed` — it must never occupy layout space, or it would
+  push every control down as it appears, mid-gesture. It reveals from `-44px` to `0` and
+  **stops**; letting it travel with the finger walked an opaque bar down over the verdict
+  card. Fully visible == "let go", since it reaches 0 exactly at the trigger distance.
+- Resistance is `dy * 0.5`, trigger at 70 px of pull.
+
 ### Home-screen install (iOS)
 `mobile.html` is installable via Safari → Share → Add to Home Screen. It launches
 standalone (no browser chrome) because of `apple-mobile-web-app-capable`.

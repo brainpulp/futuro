@@ -257,6 +257,17 @@
   .sync.ok{color:var(--good);border-color:var(--good)}
   .sync.bad{color:var(--bad);border-color:var(--bad)}
   .sync.busy{opacity:.6}
+  /* Pull-to-refresh. position:fixed on purpose — it must never occupy layout space, or
+     it would push every control down as it appears, mid-gesture. */
+  .ptr{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;
+    justify-content:center;gap:6px;font-size:11px;font-weight:600;color:var(--dim);
+    background:var(--bg);height:44px;transform:translateY(-44px);pointer-events:none;
+    z-index:40;opacity:0}
+  .ptr.on{opacity:1}
+  .ptr .arr{display:inline-block;transition:transform .18s}
+  .ptr.ready .arr{transform:rotate(180deg)}
+  .ptr.spin .arr{animation:ptrspin .7s linear infinite}
+  @keyframes ptrspin{to{transform:rotate(360deg)}}
   .scenbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
   .scenbar select{flex:1;min-width:0;font:inherit;font-size:16px;padding:8px 10px;
     border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
@@ -272,6 +283,8 @@
 <!-- Build stamp on the right, IBKR freshness on the left. Both are one short line and
      never wrap, so this row's height is fixed — it sits above every control, and a row
      that grows here shoves the sliders under a moving finger. -->
+<div class="ptr" id="ptr" aria-hidden="true"><span class="arr">↓</span><span id="ptrTxt">Pull to refresh</span></div>
+
 <div class="buildrow">
   <!-- The cash figure is written into the projection from cache on EVERY load, whether or
        not a sync was attempted. Without a date beside it a six-month-old balance looks
@@ -1796,6 +1809,76 @@
     renderLists();
     render(true);
   });
+
+  // ── pull to refresh ────────────────────────────────────────────────────────
+  // An iOS home-screen app has no browser chrome and therefore no native pull-to-refresh,
+  // which is exactly why it has to be built. A reload is the honest implementation: it
+  // re-reads the cloud scenario, re-runs the gastos and project-actuals fetches, and
+  // revalidates the page itself — the last of which is what fixes "I'm looking at a
+  // cached copy from yesterday".
+  (function pullToRefresh() {
+    const el = $('ptr'), txt = $('ptrTxt');
+    if (!el) return;
+    const TRIGGER = 70;
+    let startY = null, dy = 0, armed = false, busy = false;
+
+    // ⚠ Arm ONLY at the very top, and never on something that owns its own gesture.
+    // Sliders are touch-action:none precisely so a drag belongs to them, and the chart
+    // tracks pointermove to pin its crosshair — stealing either would resurrect the
+    // "the page moves while I drag" bug this app keeps being bitten by.
+    const owns = t => t && t.closest && t.closest(
+      'input[type=range], #chart, select, button, summary, [role="button"], textarea, input');
+
+    const paint = () => {
+      // ⚠ Reveal from -44 to 0 and STOP. Letting it travel with the finger walked an
+      // opaque 44px bar down over the verdict card, which reads as a rendering glitch.
+      // It is fully shown exactly at the trigger point, so "fully visible" means "let go".
+      const shown = Math.min(dy / TRIGGER, 1) * 44;
+      el.style.transform = 'translateY(' + (shown - 44) + 'px)';
+      el.classList.toggle('on', shown > 4);
+      el.classList.toggle('ready', dy >= TRIGGER);
+      txt.textContent = dy >= TRIGGER ? 'Release to refresh' : 'Pull to refresh';
+    };
+    const reset = () => {
+      el.style.transition = 'transform .2s';
+      el.style.transform = 'translateY(-44px)';
+      el.classList.remove('on', 'ready');
+      setTimeout(() => { el.style.transition = ''; }, 220);
+      startY = null; dy = 0; armed = false;
+    };
+
+    addEventListener('touchstart', e => {
+      if (busy || e.touches.length !== 1 || window.scrollY > 0 || owns(e.target)) { armed = false; return; }
+      startY = e.touches[0].clientY; dy = 0; armed = true;
+    }, { passive: true });
+
+    // ⚠ Non-passive: preventDefault is what stops the browser's own rubber-band from
+    // fighting the indicator. Only once we are actually pulling DOWN from the top — an
+    // upward move hands the gesture straight back to the scroller.
+    addEventListener('touchmove', e => {
+      if (!armed || startY == null) return;
+      const d = e.touches[0].clientY - startY;
+      if (d <= 0 || window.scrollY > 0) { if (dy > 0) reset(); armed = false; return; }
+      dy = d * 0.5;                    // resistance, so it feels like pulling against something
+      e.preventDefault();
+      paint();
+    }, { passive: false });
+
+    addEventListener('touchend', async () => {
+      if (!armed || dy < TRIGGER) { if (dy > 0) reset(); armed = false; return; }
+      armed = false; busy = true;
+      el.classList.add('spin', 'on');
+      el.style.transform = 'translateY(0)';
+      txt.textContent = 'Refreshing…';
+      // ⚠ Flush a pending save first. markDirty() debounces 700 ms, so reloading on top of
+      // an in-flight edit would drop it.
+      try { clearTimeout(saveTimer); await persist(); } catch (e) { /* reload anyway */ }
+      location.reload();
+    }, { passive: true });
+
+    // A cancelled gesture (a call, the app backgrounding) must not leave it stuck open.
+    addEventListener('touchcancel', () => { if (!busy) reset(); }, { passive: true });
+  })();
 
   $('ibkr').addEventListener('click', ibkrPull);
   $('ibkrChip').addEventListener('click', ibkrPull);
