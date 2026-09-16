@@ -279,6 +279,23 @@ Edits autosave (700 ms debounce) to localStorage **and** upsert into the same
   marker on the line. "Net worth at end" reads the last MONTHLY record for the same
   reason — the yearly roll-up differs from the curve's right-hand end.
 
+### mobile.html — the verdict states an outcome, never an input
+The headline read **"Money lasts to 88"** — which is the end age the owner had just typed
+into the plan. True, and worth nothing: 88 is where the simulation stops looking, not
+something the plan earned.
+- `ok` → **"You'd leave $13.3M"** (`fmt(r.finalNW)`). What is left at the end is the thing
+  the plan actually produces.
+- `bad` → **"Doesn't hold"**. ⚠ The ruin AGE is a real output, so it moved into the
+  sub-line ("Cash goes negative at 74 — …") rather than being dropped.
+- `warn` → **"Tight but holds"**, unchanged, and deliberately carrying NO leftover figure:
+  a quarter or more of its markets fail, so one big number from the single drawn path
+  would read as a promise.
+- ⚠ The verdict is the topmost element on the page. `verdict.js` asserts all three states
+  occupy the same height at 320 px — a state that wrapped would move every control below.
+- ⚠ A fixture for the tight band must actually land in it (survives deterministically,
+  `mc < 75`). An early one ruined instead and the branch silently skipped while printing
+  "ok". `liquidBase 2.6M / $5,000 mo / 5% / σ24` lands there.
+
 ### mobile.html — pull to refresh
 Dragging down at the top reloads the page. An iOS home-screen app has no browser chrome
 and therefore no native pull-to-refresh, which is exactly why it has to be built.
