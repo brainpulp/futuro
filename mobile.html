@@ -1520,17 +1520,26 @@
 
   function paint(r, withMC) {
     const v = $('verdict'), sub = $('sub');
+    // ⚠ The verdict states an OUTCOME, never an input. "Money lasts to 88" echoed the end
+    // age the owner had just typed in: true, and worth nothing. What is actually earned by
+    // the plan is what is LEFT at the end, so that is the headline.
+    //
+    // The ruin AGE is a genuine output, so it keeps its place — moved into the sub-line
+    // rather than dropped, since "doesn't hold" alone would lose when it breaks.
     if (r.ruin) {
       v.className = 'verdict bad';
-      v.textContent = 'Runs out at ' + r.ruin;
-      sub.textContent = 'Cash goes negative — the plan needs less spending, a later end, or an earlier sale.';
+      v.textContent = 'Doesn\u2019t hold';
+      sub.textContent = 'Cash goes negative at ' + r.ruin
+        + ' — the plan needs less spending, a later end, or an earlier sale.';
     } else if (r.mc != null && r.mc < 75) {
+      // ⚠ Deliberately NOT the leftover figure. A quarter or more of markets fail here, so
+      // leading with one big number from the single drawn path would read as a promise.
       v.className = 'verdict warn';
       v.textContent = 'Tight but holds';
       sub.textContent = 'Survives the main projection, but a meaningful share of market paths do not.';
     } else {
       v.className = 'verdict ok';
-      v.textContent = 'Money lasts to ' + r.endAge;
+      v.textContent = 'You\u2019d leave ' + fmt(r.finalNW);
       sub.textContent = 'Cash never runs out across the whole plan.';
     }
     $('kNW').textContent = fmt(r.finalNW);
