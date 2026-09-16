@@ -739,8 +739,14 @@ scenario's saved `liquidBase` is only a fallback.
     cache is empty while the figure it renders came from the desktop's pull via cloud sync.
     The local cache only wins when it is strictly newer than the scenario's stamp.
   - Four levels, not three. `never` means no value anywhere; a value with no stamp is
-    `unknown` ("age ?", amber) — pre-dating `liquidAsOf`, or typed in by hand. Calling an
-    undated real number "never synced" is the same mistake in a different costume.
+    `unknown` (**"no date"**, amber) — pre-dating `liquidAsOf`, or typed in by hand. Calling
+    an undated real number "never synced" is the same mistake in a different costume.
+    ⚠ It said "age ?" first, which was jargon nobody could read. Say what it means.
+  - The phone's chip is **12.5 px with the amount bold**, not the 9.5 px of the build
+    stamp beside it: it is a balance, not a debug stamp, and at 9.5 px it was unreadable.
+    The build stamp yields instead (`text-overflow:ellipsis`, `flex:0 1 auto`) so the
+    balance never shrinks or wraps. Both stay `nowrap` — a second line here shoves every
+    slider mid-drag. Verified no overflow at 320 px and 390 px.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —

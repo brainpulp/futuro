@@ -85,15 +85,21 @@
   #mcFlex b.n{color:var(--ink)}
   #mcWhat{margin-top:8px}
   .buildrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
-    margin:-6px 2px 6px;min-height:12px}
-  .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
-    letter-spacing:.02em}
-  .ibkrchip{font-size:9.5px;letter-spacing:.02em;white-space:nowrap;color:var(--dim);
-    opacity:.65;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    margin:-4px 2px 6px;min-height:17px}
+  /* The build stamp is developer-facing and yields first: it may be clipped so the
+     balance never has to shrink or wrap. ⚠ nowrap on both — this row sits above every
+     control and a second line would shove the sliders mid-drag. */
+  .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;letter-spacing:.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+  /* Readable at a glance — this is a balance, not a debug stamp. */
+  .ibkrchip{font-size:12.5px;letter-spacing:.01em;white-space:nowrap;color:var(--dim);
+    cursor:pointer;-webkit-tap-highlight-color:transparent;flex:0 0 auto;
     /* The tap target has to be reachable with a thumb, but the ROW's height is fixed --
        every control sits below it. Padding grows the box without moving the baseline. */
     padding:4px 6px;margin:-4px -6px;touch-action:manipulation}
-  .ibkrchip:active{opacity:1}
+  .ibkrchip b{color:var(--ink);font-weight:700}
+  .ibkrchip.warn b,.ibkrchip.bad b{color:inherit}
+  .ibkrchip:active{opacity:.6}
   .ibkrchip.warn{color:var(--warn);opacity:1;font-weight:700}
   .ibkrchip.bad{color:var(--bad);opacity:1;font-weight:700}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -1924,12 +1930,12 @@
                    + 'saved number, not your live balance.';
       } else if (f.level === 'unknown') {
         chip.classList.add('warn');
-        chip.textContent = 'ibkr ' + fmt(f.v) + ' · age ?';
+        chip.innerHTML = 'ibkr <b>' + esc(fmt(f.v)) + '</b> · no date';
         chip.title = 'Cash & investments is ' + fmt(f.v) + ', but nothing records when it was '
-                   + 'pulled — it pre-dates the timestamp, or was typed in by hand. Tap ↓ IBKR to refresh.';
+                   + 'pulled — it pre-dates the timestamp, or was typed in by hand. Tap to refresh.';
       } else {
         // Value first: it is the thing worth reading, and the age is what qualifies it.
-        chip.textContent = 'ibkr ' + fmt(f.v) + ' · ' + (f.days <= 0 ? 'today' : f.days + 'd');
+        chip.innerHTML = 'ibkr <b>' + esc(fmt(f.v)) + '</b> · ' + (f.days <= 0 ? 'today' : f.days + 'd');
         chip.title = 'Net Liquidation Value ' + fmt(f.v) + ', pulled from IBKR on ' + f.ts.slice(0, 10)
           + (f.src === 'synced' ? ' by another device' : '') + '.'
           + (f.level === 'bad' ? ' Old enough to move the whole projection — the plan is anchored to this number.' : '');

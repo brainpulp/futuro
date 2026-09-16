@@ -8363,7 +8363,7 @@ function renderIbkrBadge() {
   if (!el) return;
   const f = _ibkrFresh();
   if (f.level === 'unknown') {
-    el.textContent = 'ibkr ' + _ibkrMoney(f.v) + ' · age ?';
+    el.innerHTML = 'ibkr <b style="color:inherit">' + _ibkrMoney(f.v) + '</b> · no date';
     el.style.color = '#b45309';
     el.title = 'Cash & investments is ' + _ibkrMoney(f.v) + ', but nothing records when it '
              + 'was pulled — it pre-dates the timestamp, or was typed in by hand.\n\nClick to sync.';
@@ -8379,7 +8379,8 @@ function renderIbkrBadge() {
   }
   // Value first: it is the thing worth reading, and the age is what qualifies it.
   const age = f.days <= 0 ? 'today' : f.days + 'd';
-  el.textContent = 'ibkr ' + _ibkrMoney(f.v) + ' · ' + age;
+  // Bold the amount, same as the phone: it is a balance, not a debug stamp.
+  el.innerHTML = 'ibkr <b style="color:inherit">' + _ibkrMoney(f.v) + '</b> · ' + age;
   el.style.color = f.level === 'bad' ? '#dc2626' : f.level === 'warn' ? '#b45309' : '#aaa';
   const when = 'Net Liquidation Value ' + _ibkrMoney(f.v)
              + ', pulled from IBKR on ' + f.ts.slice(0, 10)
