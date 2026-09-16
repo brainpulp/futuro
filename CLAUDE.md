@@ -705,8 +705,15 @@ scenario's saved `liquidBase` is only a fallback.
     `min-height`, `white-space:nowrap`). It sits above every control, so a state that
     wrapped would shove the sliders mid-drag. `mfresh.js` asserts the slider's document
     position is identical across never / today / 7d / 10d / 200d.
-  - Read the timestamp from `localStorage`, never from `S` — the cached value IS what lands
-    in `S.liquidBase`, so only the timestamp knows how old the projection's anchor is.
+  - ⚠ **`S.liquidAsOf` is the primary source, NOT localStorage.** `ibkrSync()` stamps the
+    scenario alongside `liquidBase`, so the date travels with the number to every device.
+    Reading only localStorage reported **"never synced" in red over a balance pulled an
+    hour earlier**: an iOS home-screen app gets its own storage partition, so the phone's
+    cache is empty while the figure it renders came from the desktop's pull via cloud sync.
+    The local cache only wins when it is strictly newer than the scenario's stamp.
+  - Four levels, not three. `never` means no value anywhere; a value with no stamp is
+    `unknown` ("age ?", amber) — pre-dating `liquidAsOf`, or typed in by hand. Calling an
+    undated real number "never synced" is the same mistake in a different costume.
 
 ## Supabase security posture (gastos)
 - `project_actuals_agg()` is SECURITY DEFINER. EXECUTE is revoked from `PUBLIC`/`anon` —

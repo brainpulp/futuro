@@ -1254,6 +1254,9 @@
       // Treated as a real edit so it persists and reaches the desktop, exactly as
       // ibkrSync() does there.
       edits.scen.liquidBase = d.liquid;
+      // Same stamp the desktop writes: the date travels with the number, to every device.
+      edits.scen.liquidAsOf = new Date().toISOString();
+      if (saved) saved.liquidAsOf = edits.scen.liquidAsOf;
       const inp = $('advCard').querySelector('[data-s="liquidBase"]');
       if (inp) inp.value = Math.round(d.liquid).toLocaleString();
       try {
@@ -1788,29 +1791,46 @@
   //
   // Same thresholds as the desktop badge, and for the same reason: a week barely moves a
   // 30-year projection, a month can.
+  // ⚠ The figure on screen is the SCENARIO's liquidBase, which the desktop writes on every
+  // IBKR pull and syncs here. An iOS home-screen app gets its own storage partition, so
+  // this device's localStorage is empty even when the number it is rendering was pulled an
+  // hour ago — reading only localStorage reported "never synced" in red over a fresh
+  // balance. The scenario's own liquidAsOf is therefore the primary source, and the local
+  // cache only wins while a pull made on this device is still uncommitted.
   function ibkrFresh(now) {
     try {
-      const v = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
-      const ts = localStorage.getItem(IBKR_TS);
-      if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null, v: null };
+      const sTs = (edits && edits.scen && edits.scen.liquidAsOf) || (saved && saved.liquidAsOf) || null;
+      const sV  = (edits && edits.scen && edits.scen.liquidBase)  ?? (saved && saved.liquidBase);
+      let ts = sTs, v = sV, src = 'synced';
+      const lTs = localStorage.getItem(IBKR_TS);
+      const lV  = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+      if (lTs && lV > 0 && (!ts || Date.parse(lTs) > Date.parse(ts))) { ts = lTs; v = lV; src = 'device'; }
+      if (!(v > 0)) return { level: 'never', days: null, ts: null, v: null, src: 'none' };
+      if (!ts) return { level: 'unknown', days: null, ts: null, v, src: 'unknown' };
       const days = Math.floor(((now == null ? Date.now() : now) - Date.parse(ts)) / 86400000);
-      return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v };
-    } catch (e) { return { level: 'never', days: null, ts: null, v: null }; }
+      return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v, src };
+    } catch (e) { return { level: 'never', days: null, ts: null, v: null, src: 'none' }; }
   }
 
   function renderIbkrAge() {
     const f = ibkrFresh(), chip = $('ibkrChip'), msg = $('ibkrMsg');
     if (chip) {
-      chip.className = 'ibkrchip mono' + (f.level === 'ok' || f.level === 'never' ? '' : ' ' + f.level);
+      chip.className = 'ibkrchip mono' + (f.level === 'warn' || f.level === 'bad' ? ' ' + f.level : '');
       if (f.level === 'never') {
         chip.classList.add('bad');
         chip.textContent = 'ibkr ✗ never synced';
-        chip.title = 'No IBKR value has ever synced on this device. The cash figure is the '
-                   + 'scenario\'s own saved number, not your live balance.';
+        chip.title = 'No IBKR value has ever synced. The cash figure is the scenario\'s own '
+                   + 'saved number, not your live balance.';
+      } else if (f.level === 'unknown') {
+        chip.classList.add('warn');
+        chip.textContent = 'ibkr ' + fmt(f.v) + ' · age ?';
+        chip.title = 'Cash & investments is ' + fmt(f.v) + ', but nothing records when it was '
+                   + 'pulled — it pre-dates the timestamp, or was typed in by hand. Tap ↓ IBKR to refresh.';
       } else {
         // Value first: it is the thing worth reading, and the age is what qualifies it.
         chip.textContent = 'ibkr ' + fmt(f.v) + ' · ' + (f.days <= 0 ? 'today' : f.days + 'd');
-        chip.title = 'Net Liquidation Value ' + fmt(f.v) + ', pulled from IBKR on ' + f.ts.slice(0, 10) + '.'
+        chip.title = 'Net Liquidation Value ' + fmt(f.v) + ', pulled from IBKR on ' + f.ts.slice(0, 10)
+          + (f.src === 'synced' ? ' by another device' : '') + '.'
           + (f.level === 'bad' ? ' Old enough to move the whole projection — the plan is anchored to this number.' : '');
       }
     }
@@ -2143,6 +2163,7 @@
     renderAge();
     renderScenPick();
     renderLists();
+    renderIbkrAge();     // `saved` only exists by now — the boot call above ran without it
     render(true);
     booted = was;
   }

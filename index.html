@@ -8281,6 +8281,10 @@ async function ibkrSync({ manual = false } = {}) {
     if (!res.ok) throw new Error(_ibkrWhy(data, res.status));
     if (typeof data.liquid !== 'number') throw new Error(_ibkrWhy(data, res.status) || 'No value returned');
     S.liquidBase = data.liquid;
+    // ⚠ Stamped into the SCENARIO, not just localStorage. saveActive() syncs liquidBase to
+    // every other device, so without this the phone renders a figure it has no way to date
+    // and reports "never synced" over a balance pulled an hour ago.
+    S.liquidAsOf = new Date().toISOString();
     document.getElementById('liquidBase').value = fmtInput(data.liquid);
     // Sticky cache — persists across scenario resets / reloads
     localStorage.setItem('futuro-ibkr-liquid', data.liquid);
@@ -8326,11 +8330,22 @@ function _ibkrWhy(data, status) {
 // Thresholds are about decisions, not tidiness. A week-old balance barely moves a 30-year
 // projection; a month-old one can move it by a lot, and the whole plan is anchored to it.
 function _ibkrFresh(now) {
-  const ts = localStorage.getItem('futuro-ibkr-liquid-ts');
-  const v  = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
-  if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null, v: null };
+  let ts = localStorage.getItem('futuro-ibkr-liquid-ts');
+  let v  = parseFloat(localStorage.getItem('futuro-ibkr-liquid'));
+  let src = 'device';
+  // No local pull on THIS device does not mean the figure is undated: the scenario carries
+  // liquidAsOf from whichever device last pulled, and that is the number on screen.
+  const sc = (typeof S !== 'undefined' && S) || null;
+  if ((!ts || !(v > 0)) && sc && sc.liquidAsOf && sc.liquidBase > 0) {
+    ts = sc.liquidAsOf; v = sc.liquidBase; src = 'synced';
+  }
+  if (!(v > 0) && sc && sc.liquidBase > 0) {
+    // A value with no date anywhere — pre-dates liquidAsOf, or was typed in by hand.
+    return { level: 'unknown', days: null, ts: null, v: sc.liquidBase, src: 'unknown' };
+  }
+  if (!ts || !(v > 0)) return { level: 'never', days: null, ts: null, v: null, src: 'none' };
   const days = Math.floor(((now == null ? Date.now() : now) - Date.parse(ts)) / 86400000);
-  return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v };
+  return { level: days > 30 ? 'bad' : days > 7 ? 'warn' : 'ok', days, ts, v, src };
 }
 
 // ⚠ Two decimals, not fmtM's one. This chip exists so the balance can be read WITHOUT
@@ -8347,6 +8362,13 @@ function renderIbkrBadge() {
   const el = document.getElementById('ibkr-badge');
   if (!el) return;
   const f = _ibkrFresh();
+  if (f.level === 'unknown') {
+    el.textContent = 'ibkr ' + _ibkrMoney(f.v) + ' · age ?';
+    el.style.color = '#b45309';
+    el.title = 'Cash & investments is ' + _ibkrMoney(f.v) + ', but nothing records when it '
+             + 'was pulled — it pre-dates the timestamp, or was typed in by hand.\n\nClick to sync.';
+    return;
+  }
   if (f.level === 'never') {
     el.textContent = 'ibkr ✗';
     el.style.color = '#dc2626';
@@ -8361,6 +8383,7 @@ function renderIbkrBadge() {
   el.style.color = f.level === 'bad' ? '#dc2626' : f.level === 'warn' ? '#b45309' : '#aaa';
   const when = 'Net Liquidation Value ' + _ibkrMoney(f.v)
              + ', pulled from IBKR on ' + f.ts.slice(0, 10)
+             + (f.src === 'synced' ? ' by another device' : '')
              + (f.days <= 0 ? ' (today)' : ' (' + f.days + ' day' + (f.days === 1 ? '' : 's') + ' ago)') + '.';
   el.title = when + '\n\n' + (
       f.level === 'bad'  ? 'That is old enough to move the whole projection — the plan is anchored to this number. Re-sync before trusting the curve.'
