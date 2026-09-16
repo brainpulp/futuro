@@ -701,6 +701,12 @@ scenario's saved `liquidBase` is only a fallback.
     away $30k of the number the whole projection is anchored to. Both always visible — the phone's older line inside
     "Everything else" stayed, but that card is collapsed by default, so it was the only
     honest signal about the number the whole projection rests on and nobody opens it.
+  - ⚠ **Both are tappable, and the phone's one had to be.** It is red and names a problem,
+    so an inert span reads as the app being broken rather than the figure being old — and
+    the ↓ IBKR button it otherwise depends on lives inside a `<details>` collapsed by
+    default. The chip carries its own "…" progress and its own error text for the same
+    reason: `#ibkrMsg` is behind that card. Tap target grown with padding + negative
+    margin, so the row's height does not change.
   - ⚠ The phone's chip shares a fixed-height row with the build stamp (`.buildrow`,
     `min-height`, `white-space:nowrap`). It sits above every control, so a state that
     wrapped would shove the sliders mid-drag. `mfresh.js` asserts the slider's document

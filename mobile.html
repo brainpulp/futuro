@@ -89,7 +89,11 @@
   .build{font-size:9.5px;color:var(--dim);opacity:.65;text-align:right;
     letter-spacing:.02em}
   .ibkrchip{font-size:9.5px;letter-spacing:.02em;white-space:nowrap;color:var(--dim);
-    opacity:.65}
+    opacity:.65;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    /* The tap target has to be reachable with a thumb, but the ROW's height is fixed --
+       every control sits below it. Padding grows the box without moving the baseline. */
+    padding:4px 6px;margin:-4px -6px;touch-action:manipulation}
+  .ibkrchip:active{opacity:1}
   .ibkrchip.warn{color:var(--warn);opacity:1;font-weight:700}
   .ibkrchip.bad{color:var(--bad);opacity:1;font-weight:700}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -272,7 +276,8 @@
   <!-- The cash figure is written into the projection from cache on EVERY load, whether or
        not a sync was attempted. Without a date beside it a six-month-old balance looks
        exactly like a fresh one, and the whole curve is anchored to it. -->
-  <span class="ibkrchip mono" id="ibkrChip"></span>
+  <span class="ibkrchip mono" id="ibkrChip" role="button" tabindex="0"
+        aria-label="Refresh the IBKR balance"></span>
   <div class="build mono" id="build" title="When this copy of the app was built. If it is older than a change you expect, you are on a cached copy — reload with ?v=2 on the URL."></div>
 </div>
 
@@ -1245,6 +1250,8 @@
     const btn = $('ibkr'), msg = $('ibkrMsg');
     if (!SB) { msg.innerHTML = '<span class="err">No cloud configured</span>'; return; }
     btn.disabled = true; btn.textContent = '…';
+    const chip = $('ibkrChip');
+    if (chip) { chip.textContent = 'ibkr …'; chip.className = 'ibkrchip mono'; }
     try {
       const r = await fetch(SB.url + '/functions/v1/get-ibkr-liquid',
         { headers: { Authorization: 'Bearer ' + SB.key, apikey: SB.key } });
@@ -1269,6 +1276,13 @@
       render(true);
     } catch (e) {
       msg.innerHTML = '<span class="err">' + esc(e.message || String(e)) + '</span>';
+      // Put the reason where the tap happened, not only inside the collapsed card.
+      if (chip) {
+        renderIbkrAge();
+        chip.className = 'ibkrchip mono bad';
+        chip.textContent = 'ibkr ✗ ' + (e.message || String(e)).slice(0, 28);
+        chip.title = 'IBKR sync failed: ' + (e.message || String(e)) + '\n\nTap to try again.';
+      }
     } finally {
       btn.disabled = false; btn.textContent = '↓ IBKR';
     }
@@ -1784,6 +1798,10 @@
   });
 
   $('ibkr').addEventListener('click', ibkrPull);
+  $('ibkrChip').addEventListener('click', ibkrPull);
+  $('ibkrChip').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ibkrPull(); }
+  });
   // Show when the cached figure was last pulled, in TWO places: beside the number inside
   // "Everything else", and as a chip at the top of the page. The card version alone was
   // not enough — it is collapsed by default, so the only honest signal about the number
