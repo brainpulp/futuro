@@ -724,6 +724,30 @@ scenario's saved `liquidBase` is only a fallback.
   show for it.
 - `QUERY_ID` defaults to `1510170` but is overridable by the `IBKR_QUERY_ID` secret — a
   wrong query id fails as an IBKR error code, which reads like a bad token.
+- ⚠ **The host is `ndcdyn…/AccountManagement/FlexWebService/`, not the legacy
+  `gdcdyn…/Universal/servlet/`.** In Sep 2026 the old host answered **error 1001** to most
+  requests while this one kept working. A 1001 with a valid token means the host, not the
+  credentials.
+- ⚠ **Rows dated today (New York) are dropped** (`dropTodayRows`). IBKR publishes a
+  preliminary intraday row that it revises at night; those were off by ~1% on crypto
+  valuation. Only final closes are used.
+- Three response shapes from one function:
+  - bare → `{liquid, live}` — unchanged behaviour plus the live value.
+  - `?p=<1..365>` → adds `history` (daily `{date, nav, idx}`) and `withdrawals`
+    (`{net, days}`). `idx` is a **time-weighted** index: daily return is
+    `(NAV_t − NAV_{t−1} − F_t) / NAV_{t−1}`, chained from 1, where `F` is external
+    deposits/withdrawals only. ⚠ Dividends, interest and fees are NOT external flows —
+    they are part of the return, and netting them out would understate it. Polls 10× for
+    a year of rows instead of 6× — IBKR takes longer to generate it.
+  - `?live=1` → only `{live}` from the `ibkr_live` table, no IBKR call at all. Cheap, for
+    polling. `null` once the row is older than `LIVE_MAX_AGE_MIN` (30), so a dead pusher
+    reads as absent rather than as a stale number.
+- **`ibkr-live-push`** takes the live NAV from the script running beside IB Gateway at
+  home: `POST {net_liq, currency}` with header `x-push-key` = secret `IBKR_PUSH_KEY`.
+  Inserts into `ibkr_live` and prunes rows older than 30 days on every push.
+  `verify_jwt: false`, same CORS-preflight reason as the others.
+- ⚠ Migrations are NOT versioned in this repo — the `ibkr_live` table lives only in the
+  `ibkr_live_table` migration inside the gastos project.
 - ⚠ **The cash figure carries its own age, always.** `_applyScenarios` writes the cached
   IBKR value into `S.liquidBase` on EVERY load with no age check, and a sync is only
   *attempted* when auto is on — so "no attempt" produces no error, no amber button, and a
