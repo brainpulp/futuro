@@ -3975,6 +3975,162 @@ function _mcParams() {
 // The withdrawal rate the plan draws at each age: that year's net burn over the cash it
 // opened with. Same quantity the withdrawal card reports, so the guardrail is measured on
 // the number the user can actually see.
+// ══════════════════════════════════════════════════════════════
+//  THIS MONTH  —  what the plan allows, and whether you are on it
+// ══════════════════════════════════════════════════════════════
+// The app was a snapshot you consulted now and then. This is the number that makes it
+// worth opening monthly: what the plan spends THIS month, split into the part you chose
+// and the part you owe, plus where your real balance sits against the plan's.
+//
+// ⚠ Built from the sim's own monthly record, NOT from a withdrawal rate. Two reasons:
+//   · `_planWR` has no entry for the START age at all — it begins at sa+1, because the
+//     first plan year is a partial loop with no preceding year to measure against. A
+//     "% of liquid ÷ 12" allowance is literally not computable for the current year.
+//   · Even where the rate exists, dividing an annual rate by 12 assumes spending is flat
+//     across the year. It is not: obra installments, trips and one-offs land in specific
+//     months, and a flat twelfth would under-report every month one of them falls in.
+// The monthly record already knows all of it, month by month. Use it.
+function monthPlan(opts) {
+  const d = runSim(undefined, undefined, opts);
+  const now = new Date();
+  const ym  = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const rows = d.monthly || [];
+  const i = rows.findIndex(m => m.year + '-' + String(m.mo).padStart(2, '0') === ym);
+  // Defensive only: the partial start-year loop always runs from the current month to
+  // December, so today is always in the series. The lookup is by calendar key and
+  // never by position, which is what this guard really protects.
+  if (i < 0) return null;
+  const rec = rows[i];
+
+  // What you CHOSE to spend: base living, trips (annual), and recurring items.
+  // Everything else in the month is contractual — obra installments, one-offs already
+  // committed, deal capital, and the property-tax bill.
+  let discretionary = rec.baseExp || 0;
+  const items = [];
+  for (const t of rec.txns || []) {
+    if (t.arr !== 'expenses' || !(t.amount < 0)) continue;
+    const amt = -t.amount;
+    const mine = t.type === 'annual' || (t.type === 'expense' && t.id !== 'proptax');
+    if (mine) discretionary += amt;
+    items.push({ name: t.name, amount: amt, mine });
+  }
+  // ⚠ Committed is the REMAINDER, never a second sum of its own parts. The two halves
+  // must add to totalExp exactly, or the card and the ledger start disagreeing — the
+  // failure MAP §1 exists to prevent.
+  const total = Math.round(rec.totalExp || 0);
+  discretionary = Math.min(Math.round(discretionary), total);
+  return {
+    ym, age: rec.age,
+    total, discretionary, committed: total - discretionary,
+    income: Math.round(rec.inc || 0),
+    items: items.sort((a, b) => b.amount - a.amount),
+    openLiq:  Math.round(i > 0 ? rows[i - 1].liq : (S.liquidBase || 0)),
+    planLiq:  Math.round(rec.liq),
+    monthsLeft: rows.length - i,
+  };
+}
+
+// Where your real balance sits against the plan's, for the month just described.
+// `actual` is the IBKR figure; the drift is what the card reports as ahead / behind.
+function monthStatus(plan, actual) {
+  if (!plan || !(actual > 0)) return null;
+  const drift = actual - plan.openLiq;
+  const band  = Math.max(plan.total, plan.openLiq * 0.01);   // a month's spend, or 1%
+  return {
+    drift,
+    level: drift >= band ? 'ahead' : drift <= -band ? 'behind' : 'on',
+    // Spread the gap over what is left of the plan, so "behind" becomes an amount per
+    // month rather than a mood. Never suggest adding to spending when ahead: a good
+    // month is not a budget increase, it is a buffer.
+    perMonth: drift < 0 && plan.monthsLeft > 0 ? Math.round(-drift / plan.monthsLeft) : 0,
+  };
+}
+
+// ── project headroom ────────────────────────────────────────────────────────
+// "How much more can I spend on Carhue/Arcos/the Delta without departing from the plan?"
+//
+// An active project is an installments expense with a `gastosCategory` — the ones whose
+// budget Gastos is tracking against, and the only ones where "how much is left" is a
+// measured number rather than a guess. `_effInstall` already re-bases the remaining
+// MONEY over the payments still scheduled, so raising `budget` by D raises future
+// outflow by exactly D, which is what makes this search mean anything.
+//
+// The answer is the largest D at which the deterministic line still never runs out of
+// cash. Three things about it must be said wherever it is shown, or it misleads:
+//
+//  1 ⚠ ONE POT, not one allowance per project. Every peso comes out of the same cash,
+//    so spending one project's headroom consumes every other project's. Each figure is
+//    computed as if that project were the only addition.
+//  2 ⚠ They differ only by TIMING. Money due in 2027 costs more forgone compounding
+//    than the same money due in 2031, which is why the nearer project has less room.
+//  3 ⚠ It is a BREAKING POINT, not a budget. At D the plan's cash reaches exactly zero
+//    at its worst month, and it says nothing about the markets — the Monte Carlo already
+//    fails a share of paths without a peso of this being spent.
+function projectHeadroom(opts) {
+  const minLiqOf = d => {
+    const rows = (d && d.monthly) || [];
+    let m = Infinity;
+    for (const r of rows) if (r.liq < m) m = r.liq;
+    return isFinite(m) ? m : 0;
+  };
+  // What one project actually still spends, over the whole horizon. The budget is only a
+  // cap; whether any of it is ever charged depends on where its payment slots fall.
+  const outflowOf = (d, id) => {
+    let sum = 0;
+    for (const r of (d && d.monthly) || [])
+      for (const t of r.txns || [])
+        if (t.arr === 'expenses' && t.id === id && t.amount < 0) sum -= t.amount;
+    return Math.round(sum);
+  };
+  const projects = (S.expenses || []).filter(e =>
+    e.type === 'installments' && e.gastosCategory && e.gastosCategory.trim()
+    && (e.budget || e.installTotal || 0) > 0);
+  const base  = runSim(undefined, undefined, opts);
+  const floor = minLiqOf(base);
+  const out = [];
+  for (const e of projects) {
+    const budget = e.budget || e.installTotal || 0;
+    const spent  = Math.round(_projActual(e.gastosCategory.trim().toLowerCase()) || 0);
+    const future = outflowOf(base, e.id);
+    const rec = {
+      id: e.id, name: e.name, category: e.gastosCategory.trim(),
+      budget: Math.round(budget), spent, remaining: Math.round(Math.max(budget - spent, 0)),
+      future, headroom: 0, floor: Math.round(floor), spends: future > 0,
+    };
+    // ⚠ A project whose payment slots have all elapsed spends NOTHING from here on, so
+    // raising its budget cannot move the plan and "how much more can I spend on it" has
+    // no answer in money — the honest answer is that the schedule, not the budget, is
+    // what is in the way. Reported as `spends: false`; without this the search found that
+    // no addition ever breaks the plan and printed the whole cash floor as headroom,
+    // which is the most generous possible lie.
+    if (floor > 0 && future > 0) {
+      // ⚠ Restore in a `finally`. A thrown sim would otherwise leave the owner's own
+      // budget raised by whatever the search last probed.
+      const b0 = e.budget, t0 = e.installTotal;
+      try {
+        const holds = d => {
+          e.budget = e.installTotal = budget + d;
+          return minLiqOf(runSim(undefined, undefined, opts)) >= 0;
+        };
+        // Bracket from the floor itself: raising the budget by D raises future outflow by
+        // exactly D (`_effInstall` spreads budget - spent over the slots still to come),
+        // and every month of the plan is at or above the floor, so D = floor must break
+        // it. Widen anyway rather than report the bracket as if it had been measured.
+        let lo = 0, hi = floor;
+        for (let i = 0; i < 8 && holds(hi); i++) { lo = hi; hi *= 2; }
+        for (let i = 0; i < 24 && hi - lo > 500; i++) {
+          const mid = (lo + hi) / 2;
+          if (holds(mid)) lo = mid; else hi = mid;
+        }
+        rec.headroom = Math.max(Math.round(lo), 0);
+      } finally { e.budget = b0; e.installTotal = t0; }
+    }
+    out.push(rec);
+  }
+  // Nearest first: the project about to spend is the one the question is really about.
+  return out.sort((a, b) => b.headroom - a.headroom);
+}
+
 function _planWR() {
   // ⚠ Explicitly flex:false. With the toggle on the scenario, a bare runSim() here would
   // inherit it and the guardrail would be measuring the plan against a plan that is

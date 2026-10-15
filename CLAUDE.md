@@ -121,6 +121,65 @@ p90}`) and the chart draws the worst tenth as a dashed `--bad` line.
   comments. One backtick in a comment ends the template early and the whole injected
   program fails to parse, which presents as the phone hanging on "Starting engine…".
 
+### mobile.html — this month's allowance (`#moCard`)
+"Este mes, si retirás menos de tanto, las cosas siguen de acuerdo al plan." The card sits
+directly under the verdict and answers exactly that, from `monthPlan()` in index.html —
+the simulation's own row for the current calendar month, never a twelfth of a year.
+- **It measures a CHOSEN plan, not the active scenario**, picked in `#planRef` and kept in
+  `localStorage.futuro_mobile_planref`, defaulting to "Base". ⚠ The active scenario is
+  often a what-if: measuring the allowance against one called "crisis 1" quietly turns a
+  stress test into a budget — $3,500/mo where the real plan says $7,000. The name is
+  always visible on the card for the same reason.
+- The split is **yours to choose** vs **already committed** (obra payments, scheduled
+  one-offs, property tax). ⚠ `committed` is the REMAINDER (`total − discretionary`), never
+  a second sum of its own parts, so the two can never fail to add up.
+- ⚠ **Only a DATED balance may be compared.** An undated figure is the scenario's own
+  saved `liquidBase`, so "level with the plan" would be the plan measured against itself.
+  Worse one level down: a sync WRITES `liquidBase`, so right after one the balance IS the
+  plan's opening cash. Equality to the cent is reported as "the figure the plan starts
+  from — nothing to be ahead or behind of yet", never as a verdict.
+- ⚠ **A surplus is a buffer, not a raise.** The allowance never moves when cash is ahead.
+- ⚠ **`fmt()` is wrong for a number you spend against.** It rounds to the nearest thousand,
+  so a $451/mo catch-up printed as "$0k/mo" — i.e. as free — and a $6,180 allowance as
+  "$6k", which is $180 of permission the plan never gave. `fmtS()` prints the exact value
+  under $10k. Use it for allowances, catch-ups, budgets and room; keep `fmt` for balances.
+- ⚠ `#moNote` reserves **4** lines (`calc(4 * 1.4em + 9px)`). It sits above every control,
+  so a branch that wrapped to a fifth line would shove the sliders mid-drag. `fit.js`
+  measures every branch against the reserved height; `mmonth.js` asserts the spend
+  slider's document position is identical across all of them.
+- `monthStatus(plan, actual)` is the drift: `ahead` / `on` / `behind` against a band of
+  `max(month's total, 1% of opening cash)`, plus the per-month cost of closing a shortfall
+  over the months the plan has left.
+
+### mobile.html — room left on the obras (`#obraCard`)
+"Cuánto más puedo gastar del presupuesto de cada proyecto sin apartarme del plan."
+`projectHeadroom()` (index.html) binary-searches each tracked project's `budget` for the
+largest addition at which the deterministic line still never runs out of cash.
+- An **active project** is an `installments` expense with a `gastosCategory` and a budget —
+  the only ones where "what is left" is a measured number rather than a guess.
+- ⚠ **ONE POT, not one allowance each.** Every peso comes out of the same cash, so spending
+  one project's room spends the others'. Each figure is computed as if that project were
+  the only addition; they differ only by TIMING (money due in 2027 costs more forgone
+  compounding than the same money in 2031). The card says so in its own hint.
+- ⚠ **It is a BREAKING POINT, not a budget**, and it ignores the markets entirely — the
+  Monte Carlo already fails a share of paths with none of it spent.
+- ⚠ **A project whose payment slots have all elapsed spends nothing** from here on, because
+  `_effInstall` spreads `budget − spent` over the slots STILL TO COME. No raise can reach
+  it, so the search concluded that nothing ever breaks the plan and printed the entire
+  cash floor as headroom — the most generous possible lie. Flagged `spends: false` and
+  shown as "schedule": move the dates forward before asking what it costs.
+- ⚠ **The search must restore `budget` AND `installTotal` in a `finally`.** A thrown sim
+  would otherwise leave the owner's own budget raised by whatever it last probed.
+- ⚠ **~25 simulations per project**, so it is lazy: the card is a `<details>` collapsed by
+  default, computed on `toggle` and cached against a signature of the inputs it depends
+  on. Whether the card EXISTS is decided without simulating anything — a tracked
+  installment plan is the whole requirement — or every render would cost 75 sims to
+  decide whether to show a collapsed summary.
+- Not on the desktop yet. `projectHeadroom()` is engine-side and shared, but
+  `renderProjectBudgets()` re-renders on every `go()`, so surfacing it there needs the
+  same lazy discipline.
+- Tests: `head.js` (engine, 17), `mobra.js` (phone, 17).
+
 ### Spending guardrails — adapting to the market
 `runSim(_, _, {flex:true})` cuts discretionary spending when the plan falls behind and
 restores it when it catches up. Off by default; the phone runs BOTH Monte Carlos and

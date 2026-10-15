@@ -40,6 +40,9 @@ downstream may re-derive a number an upstream layer already owns.
 | The projection itself | `runSim()` in index.html | mobile.html drives the same engine in a hidden iframe; it never re-implements it |
 | The withdrawal rate | `wrAgg(records)`, once | the card and every ledger row feed it their own months. Two derivations of one percentage is how a headline and a ledger come to disagree — `wr.js` asserts they match |
 | Whether spending adapts to the market | `S.flexOn`, overridable per run by `opts.flex` | the scenario holds the answer and the rule (`flexFloorPct`/`guardBand`/`guardStep`); an explicit `opts.flex` still wins, which is what keeps both readings computable side by side over one seed |
+| This month's allowance | `monthPlan(opts)`, from the simulation's own current-month row | the phone's month card prints it; nothing re-adds the parts. `committed` is the REMAINDER (`total - discretionary`), never a second sum of its own |
+| Whether you are ahead of the plan | a DATED balance reading vs `plan.openLiq` (`monthStatus`) | ⚠ an undated figure is the scenario's own `liquidBase`, so comparing it is the plan measured against itself. Equal to the cent is not "on track", it is nothing having happened yet |
+| Room left on a project | `projectHeadroom(opts)`, by binary search on that project's `budget` | ONE pot, not one each — every peso comes out of the same cash. The figures differ only by WHEN each project spends |
 | The expected market return | the scenario (`S.yieldRate`) | `market-outlook` **proposes** and records provenance in `S.yieldSource`; it never writes on its own. IBKR auto-applies because a balance is a fact — a forward return is an opinion |
 
 **The engine-only trap.** `mobile.html` loads `index.html?engineonly=1`, which skips
@@ -266,6 +269,25 @@ realized path whose own ups and downs already drag compounding below the arithme
 subtracting σ²/2 on top double-penalizes. The Monte Carlo suppresses drag entirely
 (`_mcActive`) because its spread already produces the median.
 
+**The month and the project budget are two scopes of one plan.** `monthPlan()` reads the
+simulation's own row for the current calendar month — not a twelfth of the year, not an
+average — so it already carries that month's inflation factor and whatever one-offs fall
+in it. `projectHeadroom()` works at the opposite end: it asks what the whole horizon can
+absorb, by raising one project's `budget` and re-running the plan until its cash first
+reaches zero.
+
+⚠ A budget raise only reaches the plan through `_effInstall`, which spreads
+`budget − spent` over the payment slots **still to come**. A project whose slots have all
+elapsed therefore spends nothing from here on, and no raise can change the plan — the
+honest answer is that the schedule is what is in the way, not the budget. Reported as
+`spends: false`; without it the search found that no addition ever breaks the plan and
+printed the entire cash floor as headroom.
+
+⚠ The headroom is **one pot**. Three projects each get a figure computed as if it were
+the only addition, so they cannot be added together or spent in parallel. They differ
+from one another only by timing: money due in 2027 costs more forgone compounding than
+the same money due in 2031, which is why the nearer project has less room.
+
 ---
 
 ## 6. Silent-failure register
@@ -281,6 +303,9 @@ Failures that look like correct output. Each one shipped.
 | An empty scenario list on the device | `beforeunload` savers running under `engineonly=1`, where `SCENARIOS` is `[]` |
 | Living costs missing whole categories | `xfer` means "paid by bank transfer", not "internal movement" |
 | A permission that looks revoked | `REVOKE … FROM anon` is a no-op while PUBLIC holds the grant, **and** Supabase grants EXECUTE to anon/authenticated directly. Name all three, then check `has_function_privilege` |
+| "Level with the plan", always | the plan measured against its own anchor. A sync writes `liquidBase`, so right after one the balance IS the plan's opening cash and the drift is exactly zero. Only a DATED reading may be compared, and equality to the cent is reported as "nothing to be ahead or behind of yet" |
+| Generous headroom on a finished project | its payment slots are all behind the sim's opening month, so no budget raise reaches the plan and the search concludes nothing ever breaks it |
+| "$0k/mo", "$0" and other free-looking figures | `fmt()` rounds to the nearest thousand. Right for a net worth, wrong for a number you are meant to spend against — a $451/mo catch-up read as costing nothing. `fmtS()` prints the exact value under $10k |
 | A UI edit that does nothing | editing the function that doesn't render (`_dealCapBlock` vs `_renderDealSubItem`), or a one-off dated before the sim's opening month |
 
 ---

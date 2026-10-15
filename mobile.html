@@ -103,6 +103,28 @@
   .ibkrchip.warn{color:var(--warn);opacity:1;font-weight:700}
   .ibkrchip.bad{color:var(--bad);opacity:1;font-weight:700}
   .wrhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .mobig{font-size:30px;font-weight:750;letter-spacing:-.02em;margin:6px 0 2px}
+  .mosplit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;
+    border-top:1px solid var(--line);padding-top:10px}
+  .mov{display:block;font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .mol{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--dim);margin-top:2px}
+  /* Three lines reserved: the status sentence changes with the drift and this card sits
+     above every control. Measured at 320px, the widest wording wraps to three. */
+  #moNote{min-height:calc(4 * 1.4em + 9px)}
+  .wrnote b{color:var(--ink);font-weight:700}
+  .wrnote b.w{color:var(--bad)}
+  .obra{padding:9px 0;border-top:1px solid var(--line)}
+  .obra:first-child{border-top:0}
+  .obrah{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .obran{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .obrav{font-weight:750;white-space:nowrap}
+  .obrav.w{color:var(--warn)}
+  .obrab{height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin:6px 0 4px}
+  .obrab>i{display:block;height:100%;background:var(--ink);opacity:.45}
+  .obrad{font-size:11px;color:var(--dim);line-height:1.4}
+  #planRef{font:inherit;font-size:11px;padding:2px 4px;border:1px solid var(--line);
+    border-radius:7px;background:var(--card);color:var(--dim);max-width:46vw}
   .wrwhen{font-size:10px;color:var(--dim);text-align:right}
   .wrgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}
   .wrv{font-size:22px;font-weight:750;letter-spacing:-.02em}
@@ -325,6 +347,27 @@
   </div>
 </div>
 
+<!-- THIS MONTH. The app used to be a snapshot you consulted now and then; this is the
+     line that makes it worth opening on a Tuesday. Directly under the verdict because it
+     is the actionable half: the verdict says whether the plan holds, this says what to do
+     about it today.
+     ⚠ Fixed structure — the same four rows in every state, so the card's height never
+     changes and nothing below it moves. -->
+<div class="card" id="moCard" hidden>
+  <div class="wrhead">
+    <span class="k">This month</span>
+    <span class="wrwhen"><select id="planRef" aria-label="Which plan to measure against"></select></span>
+  </div>
+  <div class="mobig mono" id="moTotal">—</div>
+  <div class="mosplit">
+    <div><span class="mov mono" id="moMine">—</span><span class="mol">yours to choose</span></div>
+    <div><span class="mov mono" id="moFixed">—</span><span class="mol">already committed</span></div>
+  </div>
+  <p class="wrnote" id="moNote"></p>
+  <p class="wrwhat" id="moWhat">Spend up to the first figure this month and the plan holds.
+    The second is obra payments, scheduled one-offs and property tax — owed whatever you do.</p>
+</div>
+
 <!-- Withdrawal rate. Its own card because the two figures answer different questions and
      putting them in the head grid would imply they belong with the verdict. -->
 <div class="card" id="wrCard">
@@ -454,6 +497,15 @@
   </div>
 </details>
 
+<details class="card" id="obraCard" hidden>
+  <summary><h2>Room left on the obras</h2><span class="cnt" id="obraSum"></span></summary>
+  <div class="body">
+    <div id="obras"></div>
+    <p class="hint" style="margin:8px 0 0"><b>One pot, not one each.</b> Every peso comes out of the same cash, so spending one project's room spends the others' too. Each figure assumes it is the only thing you add.</p>
+    <p class="hint" style="margin:6px 0 0">It is the point where the plan <b>breaks</b> — the extra spend at which the cash reaches zero at its worst month — not a budget, and it ignores the markets entirely. The verdict above already fails a share of them with none of this spent.</p>
+  </div>
+</details>
+
 <details class="card" id="incomeCard" hidden>
   <summary><h2>Income &amp; businesses</h2><span class="cnt" id="incSum"></span></summary>
   <div class="body">
@@ -538,6 +590,14 @@
     ? (Math.abs(v) / 1e6).toFixed(Math.abs(v) >= 1e7 ? 1 : 2) + 'M'
     : Math.round(Math.abs(v) / 1000) + 'k');
 
+  // ⚠ fmt() rounds to the nearest thousand, which is right for a net worth and wrong
+  // for a figure you are meant to spend AGAINST. A $455/mo catch-up printed as "$0k/mo",
+  // which reads as costing nothing; a $6,180 allowance printed as "$6k", which is $180
+  // of permission the plan never gave. Under $10k, say the number.
+  const fmtS = v => Math.abs(v) < 10000
+    ? (v < 0 ? '−' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US')
+    : fmt(v);
+
   // ── scenario transfer: gzip+base64url in the URL hash, so nothing touches a server ──
   const b64 = {
     enc: buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
@@ -576,6 +636,39 @@
     frame.addEventListener('load', poll);
     poll();
   });
+
+  // ── which scenario defines "on plan" ───────────────────────────────────────
+  // ⚠ NOT necessarily the active one. A scenario called "crisis 1" is a what-if, and
+  // measuring the monthly allowance against it would quietly turn a stress test into a
+  // budget — it reads $3,500/mo where the real plan says $7,000. The reference is picked
+  // explicitly, defaults to "Base" when it exists, and its name is always on the card.
+  // It is a VIEW preference: localStorage, never written into any scenario.
+  const PLANREF_KEY = 'futuro_mobile_planref';
+  function planRefName() {
+    let want = null;
+    try { want = localStorage.getItem(PLANREF_KEY); } catch (e) {}
+    const names = ((payload && payload.scenarios) || []).map(x => x.name);
+    if (want && names.includes(want)) return want;
+    if (names.includes('Base')) return 'Base';
+    return (saved && saved.name) || names[0] || null;
+  }
+  function planRefData() {
+    const want = planRefName();
+    const sc = ((payload && payload.scenarios) || []).find(x => x.name === want);
+    // No list at all (shared link, built-in sample) — measure against what is on screen.
+    return sc ? (sc.data || sc) : readControls();
+  }
+
+  // ⚠ Swaps S inside the frame and puts it back. The reference scenario is usually NOT
+  // the one being simulated, so this cannot reuse the main simulate() pass.
+  function monthPlanFor(scen) {
+    try {
+      return JSON.parse(win.eval('(() => { const _s = JSON.parse(JSON.stringify(S));'
+        + ' try { S = ' + JSON.stringify(scen) + '; ensureFields();'
+        + ' return JSON.stringify(monthPlan()); }'
+        + ' finally { S = _s; ensureFields(); } })()'));
+    } catch (e) { return null; }
+  }
 
   // Runs inside the engine frame's scope, where S / runSim / ensureFields live.
   function simulate(scenario, withMC, wantLedger) {
@@ -1560,6 +1653,8 @@
     showMark();   // a pinned point must follow the numbers when the plan changes
     renderWR(r);
     renderMC(r);
+    renderMonth();
+    renderObras();
     renderLedger();
   }
 
@@ -1624,6 +1719,157 @@
           + '. Typical cost: ' + cost + '.';
       }
     }
+  }
+
+  // ── this month ────────────────────────────────────────────────────────────
+  // The one number worth opening the app for: what the plan lets you spend between now
+  // and the end of the month, and whether your real balance is keeping up.
+  const MONTH_NAMES = ['January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+  function renderMonth() {
+    const card = $('moCard');
+    if (!card) return;
+    const plan = monthPlanFor(planRefData());
+    if (!plan) { card.hidden = true; return; }
+    card.hidden = false;
+
+    // The picker, rebuilt only when the scenario list changes — rewriting it on every
+    // render would drop the dropdown while it is open.
+    const sel = $('planRef');
+    const names = ((payload && payload.scenarios) || []).map(x => x.name).filter(Boolean);
+    const want = planRefName();
+    const sig = names.join('\u0000');
+    if (sel.dataset.sig !== sig) {
+      sel.dataset.sig = sig;
+      sel.innerHTML = (names.length ? names : [want || 'plan'])
+        .map(n => '<option>' + esc(n) + '</option>').join('');
+    }
+    if (want) sel.value = want;
+
+    $('moTotal').textContent = fmtS(plan.total);
+    $('moMine').textContent  = fmtS(plan.discretionary);
+    $('moFixed').textContent = fmtS(plan.committed);
+
+    // ⚠ The balance comes from the IBKR reading, NOT from the scenario's saved
+    // liquidBase: the whole point is to compare the plan against what is actually in the
+    // account. ibkrFresh() already resolves which source is authoritative and how old it
+    // is, so the status inherits that honesty for free.
+    const f = ibkrFresh();
+    // ⚠ Only a DATED reading may be compared. An undated figure is the scenario's own
+    // saved liquidBase, so "level with the plan" would be the plan measured against
+    // itself — a tautology printed as reassurance.
+    const dated = f.v > 0 && !!f.ts;
+    const st = dated ? JSON.parse(win.eval(
+      'JSON.stringify(monthStatus(' + JSON.stringify(plan) + ', ' + f.v + '))')) : null;
+    // ⚠ Same trap one level down: a sync writes liquidBase, so right after one the
+    // balance IS the plan's opening cash. Equal to the cent is not "on track", it is
+    // nothing having happened yet, and it must not be dressed up as a verdict.
+    const anchored = dated && Math.abs(f.v - plan.openLiq) < 1;
+
+    const month = MONTH_NAMES[(+plan.ym.split('-')[1]) - 1] || plan.ym;
+    let txt = month + ': spend up to <b>' + fmtS(plan.discretionary) + '</b> of your own money '
+            + 'and the plan holds.';
+    if (!st) {
+      txt += ' No dated IBKR balance, so there is nothing to check it against — tap the top line.';
+    } else if (anchored) {
+      txt += ' Cash is ' + fmt(f.v) + ' — the figure the plan starts from, so nothing to be '
+           + 'ahead or behind of yet.';
+    } else if (st.level === 'on') {
+      txt += ' Cash is ' + fmt(f.v) + ', level with the plan.';
+    } else if (st.level === 'ahead') {
+      // ⚠ Never turn a surplus into a raise. The plan's own spending is the allowance;
+      // being ahead is a buffer against the next bad year, which is what it is for.
+      txt += ' Cash is ' + fmt(f.v) + ', <b>' + fmt(st.drift) + ' ahead</b> of the plan — '
+           + 'buffer, not extra budget.';
+    } else {
+      txt += ' Cash is ' + fmt(f.v) + ', <b class="w">' + fmt(-st.drift) + ' behind</b> the plan. '
+           + 'Closing it over what is left costs ' + fmtS(st.perMonth) + '/mo.';
+    }
+    // The age of the balance qualifies every one of those readings, so it travels with
+    // them once it is old enough to move the projection.
+    if (f.level === 'bad') txt += ' That balance is ' + f.days + ' days old.';
+    $('moNote').innerHTML = txt;
+  }
+
+  // ── room left on the obras ────────────────────────────────────────────────
+  // "How much more can I spend on Carhue / Arcos / the Delta without departing from the
+  // plan?" The engine answers it (projectHeadroom), by binary search on each project's
+  // budget. Everything that must be said about the number lives in the card's own hints
+  // and in the engine comment; the only thing this layer owes is not to run it too often.
+  //
+  // ⚠ It costs ~25 full simulations PER PROJECT, so it is computed lazily: only while
+  // the card is open, and only when the inputs it depends on have actually changed. It
+  // sits below every control, so a slow pass here cannot shove a slider.
+  let obraSig = null;
+
+  function headroomFor(scen) {
+    try {
+      return JSON.parse(win.eval('(() => { const _s = JSON.parse(JSON.stringify(S));'
+        + ' try { S = ' + JSON.stringify(scen) + '; ensureFields();'
+        + ' return JSON.stringify(projectHeadroom()); }'
+        + ' finally { S = _s; ensureFields(); } })()'));
+    } catch (e) { return null; }
+  }
+
+  function renderObras(force) {
+    const card = $('obraCard');
+    if (!card) return;
+    const scen = planRefData();
+    if (!scen) { card.hidden = true; return; }
+    // ⚠ Whether the card EXISTS is decided here, without simulating anything — a
+    // Gastos-tracked installment plan is the whole requirement. Deciding it from the
+    // search's own result would mean running 75 simulations to find out whether to show
+    // a collapsed summary, on every render.
+    const tracked = (scen.expenses || []).filter(e =>
+      e.type === 'installments' && e.gastosCategory && (e.gastosCategory + '').trim()
+      && (e.budget || e.installTotal || 0) > 0);
+    card.hidden = tracked.length === 0;
+    if (card.hidden) return;
+    if (!$('obraSum').textContent) $('obraSum').textContent = tracked.length + ' tracked';
+
+    // The signature is what the answer depends on: the plan measured, and its cash.
+    const sig = planRefName() + '|' + JSON.stringify(tracked
+        .map(e => [e.id, e.budget || e.installTotal, e.installN, e.atAge, e.atMonth, e.enabled]))
+      + '|' + scen.liquidBase + '|' + scen.monthlyExpenses + '|' + scen.yieldRate + '|' + scen.endAge;
+    if (!card.open) { obraSig = null; return; }      // recompute on the next open
+    if (!force && obraSig === sig) return;
+    obraSig = sig;
+
+    const rows = headroomFor(scen);
+    if (!rows || !rows.length) { card.hidden = true; return; }
+    const live = rows.filter(r => r.spends);
+    // Short enough not to be cut off by the summary's own ellipsis at 320 px — the
+    // figure is the point, so it is the part that must survive.
+    $('obraSum').textContent = live.length
+      ? live.length + ' · +' + fmtS(Math.min.apply(null, live.map(r => r.headroom)))
+      : rows.length + ' tracked';
+
+    $('obras').innerHTML = rows.map(r => {
+      const pctDone = r.budget > 0 ? Math.min(100, Math.round(r.spent / r.budget * 100)) : 0;
+      let right, detail;
+      if (r.floor <= 0) {
+        // ⚠ The plan is already short. There is no room to hand out, and offering a
+        // figure anyway would be the worst moment to be encouraging.
+        right = '<span class="obrav w">no room</span>';
+        detail = 'The plan already runs ' + fmt(-r.floor) + ' short at its worst month, so '
+               + 'there is nothing spare to add here.';
+      } else if (!r.spends) {
+        // ⚠ Every payment slot is behind the sim’s opening month, so the engine charges
+        // nothing for it from here on and raising the budget cannot change the plan.
+        right = '<span class="obrav w">schedule</span>';
+        detail = 'All of its payments are dated before this month, so the plan spends nothing '
+               + 'more on it. Move the dates forward before asking what it costs.';
+      } else {
+        right = '<span class="obrav">+' + fmtS(r.headroom) + '</span>';
+        detail = fmtS(r.spent) + ' spent of ' + fmtS(r.budget) + ' · ' + fmtS(r.remaining)
+               + ' still scheduled. Another ' + fmtS(r.headroom) + ' on top is where the cash '
+               + 'reaches zero.';
+      }
+      return '<div class="obra"><div class="obrah"><span class="obran">' + esc(r.name) + '</span>'
+        + right + '</div>'
+        + '<div class="obrab"><i style="width:' + pctDone + '%"></i></div>'
+        + '<div class="obrad">' + detail + '</div></div>';
+    }).join('');
   }
 
   // ── withdrawal rate ───────────────────────────────────────────────────────
@@ -1896,6 +2142,18 @@
   })();
 
   $('ibkr').addEventListener('click', ibkrPull);
+  // A view preference, like the chart zoom: never written into a scenario, so changing
+  // what you measure against can never mark the plan dirty.
+  // Opening the card is what pays for the search; closing it drops the cache so the next
+  // open is fresh.
+  $('obraCard').addEventListener('toggle', () => renderObras());
+
+  $('planRef').addEventListener('change', () => {
+    try { localStorage.setItem(PLANREF_KEY, $('planRef').value); } catch (e) {}
+    renderMonth();
+    renderObras();
+  });
+
   $('ibkrChip').addEventListener('click', ibkrPull);
   $('ibkrChip').addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ibkrPull(); }
