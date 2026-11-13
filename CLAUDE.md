@@ -392,6 +392,44 @@ standalone (no browser chrome) because of `apple-mobile-web-app-capable`.
 - No service worker: with no network the app will not start. Add a network-first one if
   offline launch is ever wanted (network-first, so a stale cache can't pin old code).
 
+## tools/ — the monthly inspection
+`tools/inspect.js` is the self-check the owner asked for twice. It runs the REAL engine
+against the REAL scenario and reports only what changed or needs a decision. A scheduled
+task fires it monthly and pushes the result to his phone.
+
+- `tools/harness.js` loads index.html in jsdom. ⚠ The canvas stub must be installed in
+  `beforeParse` — `_initVigBitmaps` builds emoji bitmaps in an IIFE at parse time, so a
+  stub applied after `new JSDOM` arrives too late and the script dies on `.font`.
+- `node tools/inspect.js entrada.json [--json]`. The input carries the scenario, the
+  Gastos aggregates and the IBKR live row; the script invents nothing.
+- Checks, in order: **inputs first** (is the cash dated? are the statements complete?),
+  then living costs vs plan, unfiled spend, obras, plan health, data defects.
+- Three severities: `atencion` (needs a decision) · `nota` (worth knowing) · `ok`.
+  The verdict is the count of `atencion`, and **"nothing requires your attention" is a
+  valid month** — the whole point is to worry only when it is genuine.
+- ⚠ Defects are grouped BY DEFECT, not by property. Fifteen lines saying the same thing
+  about fifteen assets do not get read, and what is not read warns of nothing.
+
+### The three rules this file exists to enforce
+Each one is the fix for a real wrong answer given to the owner:
+1. ⚠ **A Gastos total is a FLOW.** Never a cost basis, a valuation or a price. Taking the
+   `carhué operacion` tag ($104,448) as Carhué's purchase price was wrong by $196,000,
+   and nothing in the app could contradict it because **there is no field for what a
+   property cost**. Where the number is absent the answer is "no consta", never a figure
+   that looks close.
+2. ⚠ **Check freshness before concluding anything.** A balance with no `liquidAsOf` and a
+   month of statements cut short both produce confident, wrong readings.
+3. ⚠ **Never classify a transaction from its text.** Standing instruction from the owner.
+
+### Known open defects it reports today
+- Seven deals carry `sellingCosts: 0`, which masks the 8% global: ~$220k of commission
+  never charged, $773k of overstated final net worth. The `_migSellCosts` migration only
+  strips the zero from ids starting `deal_prop_`, and his are `deal_carhue`, `deal_arcos`…
+- No deal has an acquisition cost field at all (`acquiredFor` / `acquiredOn`).
+- `_ibkrFresh()` (desktop) prefers localStorage unconditionally while `ibkrFresh()`
+  (phone) takes the newer of cache and scenario. Two apps, two answers — MAP §1 violation.
+  The desktop therefore dates the balance with its own cache's clock.
+
 ## Pre-commit UI review (ALWAYS before committing any UI change)
 Before declaring a UI change done, scan for obvious gaps:
 1. **Branch parity** — if one conditional branch (e.g. `type=oneoff`) gets fields A+B, check every other branch has what it needs.
